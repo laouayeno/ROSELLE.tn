@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>ROSELLE — Prêt-à-porter féminin</title>
+
+<!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-check-compat.min.js"></script>
+
+<style>
+  /* ===== Jetons de design (couleurs / typo) ===== */
+  :root {
+    --ivoire: #F7E8DC;
+    --ivoire-clair: #FCF6F0;
+    --rose: #C98B7A;
+    --rose-clair: #E4C3B6;
+    --rose-fonce: #8C5E4E;
+    --dore: #B8935A;
+    --texte: #2E2620;
+    --texte-doux: #6B5A50;
+    --blanc: #FFFFFF;
+    --erreur: #A94438;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ivoire-clair);
+    color: var(--texte);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .titre-serif {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    margin: 0;
+    color: var(--texte);
+  }
+
+  a { color: inherit; text-decoration: none; }
+  button { font-family: 'Inter', sans-serif; cursor: pointer; }
+
+  /* ===== En-tête ===== */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--ivoire-clair);
+    border-bottom: 1px solid var(--rose-clair);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header .logo-zone { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  header .logo-zone img { height: 44px; width: 44px; object-fit: contain; border-radius: 50%; }
+  header .nom-marque { font-family: 'Playfair Display', serif; font-size: 1.3rem; letter-spacing: 0.5px; }
+
+  nav.desktop-nav { display: none; gap: 28px; }
+  nav.desktop-nav a { font-size: 0.95rem; color: var(--texte-doux); }
+  nav.desktop-nav a:hover, nav.desktop-nav a.actif { color: var(--rose-fonce); }
+
+  .icones-header { display: flex; align-items: center; gap: 16px; }
+  .bouton-panier { position: relative; background: none; border: none; padding: 6px; }
+  .bouton-panier svg { width: 24px; height: 24px; stroke: var(--texte); }
+  .compteur-panier {
+    position: absolute; top: -2px; right: -4px;
+    background: var(--rose-fonce); color: var(--blanc);
+    font-size: 0.65rem; width: 17px; height: 17px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bouton-menu-mobile { background: none; border: none; display: block; }
+  .bouton-menu-mobile svg { width: 24px; height: 24px; stroke: var(--texte); }
+
+  .menu-mobile {
+    display: none; flex-direction: column;
+    background: var(--ivoire-clair); border-bottom: 1px solid var(--rose-clair);
+    padding: 10px 20px 18px;
+  }
+  .menu-mobile.ouvert { display: flex; }
+  .menu-mobile a { padding: 10px 0; font-size: 1rem; border-bottom: 1px solid rgba(184,147,90,0.15); }
+
+  @media (min-width: 860px) {
+    nav.desktop-nav { display: flex; }
+    .bouton-menu-mobile { display: none; }
+  }
+
+  /* ===== Structure générale ===== */
+  main { max-width: 1120px; margin: 0 auto; padding: 0 20px 80px; min-height: 60vh; }
+  .section-etroite { max-width: 640px; margin: 0 auto; }
+
+  /* ===== Accueil ===== */
+  .hero {
+    text-align: center;
+    padding: 60px 20px 50px;
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+  }
+  .hero img.logo-hero { width: 120px; height: 120px; object-fit: contain; border-radius: 50%; }
+  .hero h1 { font-size: 2.1rem; max-width: 480px; }
+  .hero p.accroche { color: var(--texte-doux); font-size: 1rem; max-width: 420px; }
+  .separateur-dore {
+    width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
+    position: relative;
+  }
+  .separateur-dore::after {
+    content: '✦'; color: var(--dore); font-size: 0.7rem;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: var(--ivoire-clair); padding: 0 8px;
+  }
+  .bouton-principal {
+    display: inline-block; padding: 14px 34px;
+    background: var(--rose-fonce); color: var(--blanc);
+    border: none; border-radius: 2px; font-size: 0.95rem; letter-spacing: 0.3px;
+    transition: background 0.2s ease;
+  }
+  .bouton-principal:hover { background: var(--texte); }
+
+  .tuiles-categories {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    margin-top: 40px;
+  }
+  @media (min-width: 640px) { .tuiles-categories { grid-template-columns: repeat(4, 1fr); } }
+  .tuile-categorie {
+    position: relative; aspect-ratio: 3/4; border-radius: 4px; overflow: hidden;
+    background: var(--rose-clair); display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 16px;
+  }
+  .tuile-categorie img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .tuile-categorie::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(46,38,32,0) 40%, rgba(46,38,32,0.55) 100%);
+  }
+  .tuile-categorie span {
+    position: relative; color: var(--blanc); font-family: 'Playfair Display', serif;
+    font-size: 1.05rem; text-transform: capitalize;
+  }
+
+  .bloc-section { margin-top: 64px; }
+  .entete-section {
+    display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;
+  }
+  .entete-section h2 { font-size: 1.5rem; }
+  .entete-section a { font-size: 0.85rem; color: var(--rose-fonce); border-bottom: 1px solid var(--rose-fonce); }
+
+  /* ===== Grille produits ===== */
+  .grille-produits {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 14px;
+  }
+  @media (min-width: 640px) { .grille-produits { grid-template-columns: repeat(3, 1fr); gap: 26px 20px; } }
+  @media (min-width: 960px) { .grille-produits { grid-template-columns: repeat(4, 1fr); } }
+
+  .carte-produit { cursor: pointer; }
+  .carte-produit .photo-wrap {
+    position: relative; aspect-ratio: 3/4; overflow: hidden; background: var(--rose-clair); border-radius: 3px;
+  }
+  .carte-produit .photo-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+  .carte-produit:hover .photo-wrap img { transform: scale(1.04); }
+  .badge-epuise {
+    position: absolute; top: 10px; left: 10px;
+    background: var(--texte); color: var(--blanc); font-size: 0.65rem;
+    padding: 4px 9px; letter-spacing: 0.5px;
+  }
+  .carte-produit .infos { padding-top: 10px; }
+  .carte-produit .nom { font-size: 0.92rem; color: var(--texte); }
+  .carte-produit .prix { font-size: 0.88rem; color: var(--rose-fonce); margin-top: 2px; }
+  .prix-barre { color: var(--texte-doux); text-decoration: line-through; font-size: 0.85em; margin-right: 6px; }
+  .badge-solde {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--rose-fonce); color: var(--blanc); font-size: 0.65rem;
+    padding: 4px 9px; letter-spacing: 0.5px;
+  }
+
+  .message-vide { text-align: center; color: var(--texte-doux); padding: 60px 20px; }
+
+  /* ===== Fil d'ariane / retour ===== */
+  .lien-retour {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--texte-doux);
+    font-size: 0.85rem; margin: 24px 0 10px;
+  }
+  .lien-retour svg { width: 15px; height: 15px; stroke: currentColor; }
+
+  /* ===== Fiche produit ===== */
+  .fiche-produit { display: flex; flex-direction: column; gap: 28px; margin-top: 10px; }
+  @media (min-width: 780px) { .fiche-produit { flex-direction: row; gap: 48px; } }
+  .visuel-produit { flex: 1 1 50%; }
+  .visuel-produit .photo-principale {
+    width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 3px; background: var(--rose-clair);
+  }
+  .galerie-miniatures {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .miniature-photo {
+    width: 62px; height: 78px; border-radius: 3px; overflow: hidden; cursor: pointer;
+    border: 2px solid transparent; padding: 0; background: none; flex-shrink: 0;
+  }
+  .miniature-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .miniature-photo.selectionnee { border-color: var(--rose-fonce); }
+  .details-produit { flex: 1 1 50%; padding-top: 4px; }
+  .details-produit .categorie { font-size: 0.78rem; color: var(--dore); text-transform: capitalize; letter-spacing: 0.4px; }
+  .details-produit h1 { font-size: 1.7rem; margin-top: 6px; }
+  .details-produit .prix { font-size: 1.15rem; color: var(--rose-fonce); margin-top: 10px; }
+  .details-produit .ref { color: var(--texte-doux); font-size: 0.78rem; margin-top: 4px; }
+
+  .bloc-choix { margin-top: 26px; }
+  .bloc-choix label { display: block; font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 8px; }
+
+  .tuiles-formule { display: flex; flex-direction: column; gap: 10px; }
+  .tuile-formule {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--rose-clair); border-radius: 4px; padding: 12px 16px;
+    background: var(--blanc); cursor: pointer; text-align: left;
+  }
+  .tuile-formule.selectionnee { border-color: var(--rose-fonce); background: var(--ivoire); }
+  .tuile-formule .gauche-formule { display: flex; flex-direction: column; gap: 2px; }
+  .tuile-formule .label-formule { font-size: 0.9rem; }
+  .tuile-formule .badge-meilleure { font-size: 0.65rem; color: var(--dore); letter-spacing: 0.4px; text-transform: uppercase; }
+  .tuile-formule .prix-formule { font-size: 0.95rem; font-weight: 600; color: var(--rose-fonce); white-space: nowrap; }
+  .tuile-formule .economie-formule { display: block; font-weight: 500; font-size: 0.75rem; text-align: right; color: var(--dore); }
+
+  .unites-pack { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .unite-pack { border: 1px solid var(--rose-clair); border-radius: 4px; padding: 14px; }
+  .unite-pack .titre-unite { font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 10px; }
+  .unite-pack .lignes-select { display: flex; gap: 10px; }
+  .unite-pack select {
+    flex: 1; padding: 10px; border: 1px solid var(--rose-clair); border-radius: 2px;
+    font-family: 'Inter', sans-serif; font-size: 0.85rem; background: var(--blanc); color: var(--texte);
+  }
+  .options-couleur { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatch-couleur {
+    width: 46px; height: 46px; border-radius: 50%; overflow: hidden; cursor: pointer;
+    border: 2px solid transparent; padding: 0; background: none;
+  }
+  .swatch-couleur img { width: 100%; height: 100%; object-fit: cover; }
+  .swatch-couleur.selectionne { border-color: var(--rose-fonce); }
+
+  .options-taille { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bouton-taille {
+    min-width: 46px; height: 40px; padding: 0 12px;
+    border: 1px solid var(--rose-clair); background: var(--blanc); color: var(--texte);
+    border-radius: 2px; font-size: 0.85rem;
+  }
+  .bouton-taille.selectionne { border-color: var(--rose-fonce); background: var(--rose-fonce); color: var(--blanc); }
+  .bouton-taille:disabled { opacity: 0.35; text-decoration: line-through; cursor: not-allowed; }
+
+  .stock-info { font-size: 0.8rem; color: var(--texte-doux); margin-top: 12px; }
+  .stock-info.faible { color: var(--erreur); }
+
+  .selecteur-qte { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+  .selecteur-qte button {
+    width: 34px; height: 34px; border: 1px solid var(--rose-clair); background: var(--blanc);
+    font-size: 1rem; border-radius: 50%;
+  }
+  .selecteur-qte span { min-width: 20px; text-align: center; }
+
+  .bouton-ajouter {
+    width: 100%; margin-top: 24px; padding: 15px;
+    background: var(--rose-fonce); color: var(--blanc); border: none; border-radius: 2px; font-size: 0.95rem;
+  }
+  .bouton-ajouter:disabled { background: var(--rose-clair); color: var(--texte-doux); cursor: not-allowed; }
+
+  .bouton-achat-direct {
+    width: 100%; margin-top: 10px; padding: 15px;
+    background: none; color: var(--rose-fonce); border: 1px solid var(--rose-fonce); border-radius: 2px; font-size: 0.95rem;
+  }
+  .bouton-achat-direct:disabled { border-color: var(--rose-clair); color: var(--texte-doux); cursor: not-allowed; }
+
+  .description-produit { margin-top: 28px; color: var(--texte-doux); font-size: 0.9rem; }
+
+  /* ===== Panier ===== */
+  .ligne-panier {
+    display: flex; gap: 16px; padding: 18px 0; border-bottom: 1px solid rgba(184,147,90,0.18);
+  }
+  .ligne-panier img { width: 78px; height: 100px; object-fit: cover; border-radius: 3px; background: var(--rose-clair); }
+  .ligne-panier .infos-ligne { flex: 1; }
+  .ligne-panier .nom { font-size: 0.95rem; }
+  .ligne-panier .variante { font-size: 0.8rem; color: var(--texte-doux); margin-top: 3px; }
+  .ligne-panier .bas-ligne { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .qte-panier { display: flex; align-items: center; gap: 10px; }
+  .qte-panier button {
+    width: 26px; height: 26px; border: 1px solid var(--rose-clair); background: var(--blanc); border-radius: 50%;
+  }
+  .bouton-supprimer { background: none; border: none; color: var(--texte-doux); font-size: 0.78rem; text-decoration: underline; }
+  .prix-ligne { font-size: 0.9rem; color: var(--rose-fonce); }
+
+  .recap-total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 20px 0; margin-top: 8px; border-top: 1px solid var(--dore);
+  }
+  .recap-total .label { font-size: 0.95rem; }
+  .recap-total .montant { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: var(--rose-fonce); }
+
+  .panier-vide { text-align: center; padding: 70px 20px; color: var(--texte-doux); }
+
+  /* ===== Formulaire commande ===== */
+  .champ { margin-bottom: 18px; }
+  .champ label { display: block; font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 7px; }
+  .champ input, .champ textarea {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--rose-clair); border-radius: 2px;
+    font-family: 'Inter', sans-serif; font-size: 0.92rem; background: var(--blanc); color: var(--texte);
+  }
+  .champ input:focus, .champ textarea:focus { outline: none; border-color: var(--rose-fonce); }
+  .champ textarea { resize: vertical; min-height: 70px; }
+  .erreur-champ { color: var(--erreur); font-size: 0.78rem; margin-top: 5px; display: none; }
+
+  .rappel-paiement {
+    background: var(--rose-clair); border-radius: 3px; padding: 14px 16px;
+    font-size: 0.85rem; color: var(--rose-fonce); margin-bottom: 26px;
+  }
+
+  .recap-commande { background: var(--ivoire); border-radius: 3px; padding: 18px; margin-bottom: 26px; }
+  .recap-commande .ligne-recap { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 5px 0; }
+
+  /* ===== Confirmation ===== */
+  .bloc-confirmation { text-align: center; padding: 70px 20px; }
+  .bloc-confirmation .icone-check {
+    width: 64px; height: 64px; border-radius: 50%; background: var(--rose-fonce);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 22px;
+  }
+  .bloc-confirmation .icone-check svg { width: 30px; height: 30px; stroke: var(--blanc); }
+  .bloc-confirmation h1 { font-size: 1.6rem; }
+  .bloc-confirmation .num-commande { color: var(--rose-fonce); font-size: 0.95rem; margin-top: 10px; }
+  .bloc-confirmation p.detail { color: var(--texte-doux); margin-top: 18px; max-width: 420px; margin-left: auto; margin-right: auto; }
+
+  /* ===== À propos ===== */
+  .page-apropos { padding-top: 20px; }
+  .page-apropos h1 { font-size: 1.8rem; margin-bottom: 22px; }
+  .page-apropos p { color: var(--texte-doux); margin-bottom: 16px; }
+  .liste-contact { margin-top: 34px; display: flex; flex-direction: column; gap: 14px; }
+  .item-contact { display: flex; align-items: center; gap: 12px; font-size: 0.92rem; }
+  .item-contact svg { width: 19px; height: 19px; stroke: var(--rose-fonce); flex-shrink: 0; }
+
+  /* ===== Pied de page ===== */
+  footer {
+    border-top: 1px solid var(--rose-clair); margin-top: 40px; padding: 40px 20px 30px;
+    text-align: center; color: var(--texte-doux); font-size: 0.82rem;
+  }
+  footer .liens-sociaux { display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; }
+  footer .liens-sociaux a { color: var(--rose-fonce); font-size: 0.85rem; }
+  footer .signature { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--texte); margin-bottom: 10px; }
+
+  /* ===== Chargement / erreurs globales ===== */
+  .chargement-page { text-align: center; padding: 100px 20px; color: var(--texte-doux); }
+  .bandeau-erreur {
+    background: #F4DEDA; color: var(--erreur); padding: 12px 16px; border-radius: 3px;
+    font-size: 0.85rem; margin-bottom: 20px;
+  }
+  .toast-panier {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--texte); color: var(--blanc); padding: 12px 22px; border-radius: 3px;
+    font-size: 0.85rem; opacity: 0; transition: all 0.3s ease; z-index: 100; pointer-events: none;
+  }
+  .toast-panier.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-zone" onclick="naviguerVers('accueil')">
+    <img src="logo.jpg" alt="ROSELLE">
+    <span class="nom-marque">ROSELLE</span>
+  </div>
+  <nav class="desktop-nav" id="nav-desktop"></nav>
+  <div class="icones-header">
+    <button class="bouton-panier" onclick="naviguerVers('panier')" aria-label="Panier">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L4 3H2"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+      <span class="compteur-panier" id="compteur-panier" style="display:none;">0</span>
+    </button>
+    <button class="bouton-menu-mobile" onclick="basculerMenuMobile()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+<div class="menu-mobile" id="menu-mobile"></div>
+
+<main id="contenu-principal">
+  <div class="chargement-page">Chargement de la boutique…</div>
+</main>
+
+<footer>
+  <div class="signature">ROSELLE</div>
+  <div class="liens-sociaux">
+    <a href="https://instagram.com/roselle" target="_blank" rel="noopener">Instagram</a>
+    <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
+  </div>
+  <div>&copy; <span id="annee-courante"></span> ROSELLE — Féminité, Élégance, Confiance</div>
+</footer>
+
+<div class="toast-panier" id="toast-panier"></div>
+
+<script>
+/* ============================================================
+   CONFIGURATION FIREBASE — projet réel roselle-stock
+   Ces clés sont publiques par nature (config web Firebase) :
+   la sécurité est assurée par les règles Firestore, pas ici.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDjBus6zFIupNlR4Ugysc5wzyyXkgddu6Q",
+  authDomain: "roselle-stock.firebaseapp.com",
+  databaseURL: "https://roselle-stock-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "roselle-stock",
+  storageBucket: "roselle-stock.firebasestorage.app",
+  messagingSenderId: "792032275520",
+  appId: "1:792032275520:web:60d33d51f10afe876b83a5"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+/* ============================================================
+   APP CHECK — protection anti-robot (reCAPTCHA Enterprise)
+   Doit être activé avant tout appel à Firestore. Fonctionne
+   pour l'instant en mode "surveillance" côté Firebase (pas
+   encore d'exécution stricte tant que les deux sites n'envoient
+   pas leurs jetons) — voir Firebase Console → App Check.
+   ============================================================ */
+const appCheck = firebase.appCheck();
+appCheck.activate(
+  new firebase.appCheck.ReCaptchaEnterpriseProvider('6LdkY8QtAAAAAJeA4rEReOk2V4owY1yUrqa-W6XE'),
+  true // rafraîchissement automatique du jeton
+);
+
+const db = firebase.firestore();
+
+/* ============================================================
+   ÉTAT GLOBAL DE L'APPLICATION
+   ============================================================ */
+const etat = {
+  produits: [],           // liste des produits chargés depuis publicCatalog
+  chargementTermine: false,
+  vueActuelle: 'accueil',  // accueil | catalogue | produit | panier | commande | confirmation | apropos
+  parametresVue: {},       // ex: { categorie: 'robes' } ou { produitId: '...' }
+  panier: chargerPanierDepuisMemoire(), // [{ productId, variantId, name, cat, price, size, color, photo, qty, stockDispo }]
+  produitCourant: { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] }
+};
+
+// Liste des catégories mises en avant, dans l'ordre voulu.
+// La comparaison ignore la casse/les accents pour être robuste aux données réelles.
+const CATEGORIES_PRINCIPALES = ['robes', 'pulls', 'pantalons', 'accessoires'];
+
+function normaliser(texte) {
+  return (texte || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/s$/, ''); // retire un éventuel "s" final pour ignorer singulier/pluriel
+}
+
+/* ============================================================
+   PANIER — persistance via localStorage, pour que le panier
+   survive à un rechargement de page (propre à ce navigateur/appareil)
+   ============================================================ */
+const CLE_PANIER = 'roselle_panier';
+
+function chargerPanierDepuisMemoire() {
+  try {
+    const brut = localStorage.getItem(CLE_PANIER);
+    return brut ? JSON.parse(brut) : [];
+  } catch (erreur) {
+    console.error('Impossible de lire le panier sauvegardé :', erreur);
+    return [];
+  }
+}
+
+function sauvegarderPanier() {
+  try {
+    localStorage.setItem(CLE_PANIER, JSON.stringify(etat.panier));
+  } catch (erreur) {
+    console.error('Impossible de sauvegarder le panier :', erreur);
+  }
+}
+
+/* ============================================================
+   CHARGEMENT TEMPS RÉEL DU CATALOGUE PUBLIC
+   ============================================================ */
+db.collection('publicCatalog').onSnapshot(
+  (snapshot) => {
+    etat.produits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    etat.chargementTermine = true;
+    rendre();
+  },
+  (erreur) => {
+    console.error('Erreur de chargement du catalogue :', erreur);
+    etat.chargementTermine = true;
+    etat.erreurChargement = true;
+    rendre();
+  }
+);
+
+/* ============================================================
+   NAVIGATION — basée sur l'URL (#...), pour que la page actuelle
+   survive à un rechargement ou à un retour plus tard sur le site
+   ============================================================ */
+
+// Construit le hash d'URL correspondant à une vue donnée
+function construireHash(vue, parametres) {
+  if (vue === 'catalogue' && parametres.categorie) return '#catalogue/' + encodeURIComponent(parametres.categorie);
+  if (vue === 'produit' && parametres.produitId) return '#produit/' + encodeURIComponent(parametres.produitId);
+  return '#' + vue;
+}
+
+// Relit l'URL actuelle et en déduit la vue + les paramètres à afficher
+function analyserHash() {
+  const brut = window.location.hash.replace(/^#/, '');
+  if (!brut) return { vue: 'accueil', parametres: {} };
+  const [vue, param] = brut.split('/');
+  if (vue === 'catalogue' && param) return { vue: 'catalogue', parametres: { categorie: decodeURIComponent(param) } };
+  if (vue === 'produit' && param) return { vue: 'produit', parametres: { produitId: decodeURIComponent(param) } };
+  if (['accueil', 'panier', 'commande', 'confirmation', 'apropos'].includes(vue)) return { vue, parametres: {} };
+  return { vue: 'accueil', parametres: {} };
+}
+
+// Change de page : met à jour l'URL, ce qui déclenche l'affichage
+// (voir écouteur "hashchange" plus bas) et permet au navigateur de
+// mémoriser la page en cours (rechargement, bouton précédent, partage de lien).
+function naviguerVers(vue, parametres = {}) {
+  const nouveauHash = construireHash(vue, parametres);
+  if (window.location.hash === nouveauHash) {
+    appliquerNavigation(vue, parametres); // déjà sur cette page : on force quand même le rendu
+  } else {
+    window.location.hash = nouveauHash;
+  }
+}
+
+// Applique réellement le changement de vue (appelé après un changement d'URL)
+function appliquerNavigation(vue, parametres) {
+  etat.vueActuelle = vue;
+  etat.parametresVue = parametres;
+  if (vue === 'produit') {
+    etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
+  }
+  document.getElementById('menu-mobile').classList.remove('ouvert');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  rendre();
+}
+
+// Réagit aux changements d'URL : rechargement de page, bouton précédent/suivant,
+// ou ouverture directe d'un lien vers une catégorie/un produit précis.
+window.addEventListener('hashchange', () => {
+  const { vue, parametres } = analyserHash();
+  appliquerNavigation(vue, parametres);
+});
+
+function basculerMenuMobile() {
+  document.getElementById('menu-mobile').classList.toggle('ouvert');
+}
+
+/* ============================================================
+   UTILITAIRES PRODUITS
+   ============================================================ */
+function produitsParCategorie(cat) {
+  return etat.produits.filter(p => normaliser(p.cat) === normaliser(cat));
+}
+
+function trouverProduit(id) {
+  return etat.produits.find(p => p.id === id);
+}
+
+function photoParDefaut(produit) {
+  const v = (produit.variants || []).find(v => (v.photos && v.photos.length) || v.photo);
+  return v ? photosVariante(v)[0] : '';
+}
+
+// Retourne la liste des photos d'une variante : utilise le nouveau champ
+// "photos" (tableau) s'il existe, sinon replie sur l'ancien champ "photo" (unique)
+// pour rester compatible avec les produits déjà existants.
+function photosVariante(variant) {
+  if (!variant) return [];
+  if (variant.photos && variant.photos.length) return variant.photos;
+  if (variant.photo) return [variant.photo];
+  return [];
+}
+
+function prixFormat(prix) {
+  return (Number(prix) || 0).toFixed(3) + ' DT';
+}
+
+// Retourne le prix unitaire à afficher/utiliser pour un produit, en tenant
+// compte d'une éventuelle promotion simple (promoPrix < price).
+function prixUnitaireEffectif(produit) {
+  const prixNormal = Number(produit.price) || 0;
+  const enPromo = produit.promoPrix !== undefined && produit.promoPrix !== null && Number(produit.promoPrix) < prixNormal;
+  return {
+    actuel: enPromo ? Number(produit.promoPrix) : prixNormal,
+    ancien: enPromo ? prixNormal : null
+  };
+}
+
+function stockTotalDisponible(produit) {
+  return (produit.variants || []).reduce((total, v) => total + (Number(v.qty) || 0), 0);
+}
+
+/* ============================================================
+   RENDU — HEADER / MENU / TOAST
+   ============================================================ */
+function mettreAJourNavigation() {
+  const liensNav = CATEGORIES_PRINCIPALES.map(cat =>
+    `<a href="#" class="${etat.vueActuelle === 'catalogue' && etat.parametresVue.categorie === cat ? 'actif' : ''}"
+        onclick="naviguerVers('catalogue', {categorie: '${cat}'}); return false;">${capitaliser(cat)}</a>`
+  ).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
+
+  document.getElementById('nav-desktop').innerHTML = liensNav;
+  document.getElementById('menu-mobile').innerHTML = liensNav;
+}
+
+function capitaliser(texte) {
+  return texte.charAt(0).toUpperCase() + texte.slice(1);
+}
+
+function mettreAJourCompteurPanier() {
+  const total = etat.panier.reduce((s, l) => s + l.qty, 0);
+  const badge = document.getElementById('compteur-panier');
+  if (total > 0) { badge.style.display = 'flex'; badge.textContent = total; }
+  else { badge.style.display = 'none'; }
+}
+
+function afficherToast(message) {
+  const toast = document.getElementById('toast-panier');
+  toast.textContent = message;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 2200);
+}
+
+/* ============================================================
+   RENDU PRINCIPAL — bascule selon la vue active
+   ============================================================ */
+function rendre() {
+  document.getElementById('annee-courante').textContent = new Date().getFullYear();
+  mettreAJourNavigation();
+  mettreAJourCompteurPanier();
+
+  const conteneur = document.getElementById('contenu-principal');
+
+  if (!etat.chargementTermine) {
+    conteneur.innerHTML = `<div class="chargement-page">Chargement de la boutique…</div>`;
+    return;
+  }
+  if (etat.erreurChargement) {
+    conteneur.innerHTML = `<div class="chargement-page">La boutique n'a pas pu se charger pour le moment. Merci de réessayer dans un instant.</div>`;
+    return;
+  }
+
+  switch (etat.vueActuelle) {
+    case 'accueil': conteneur.innerHTML = vueAccueil(); break;
+    case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
+    case 'produit': conteneur.innerHTML = vueProduit(etat.parametresVue.produitId); break;
+    case 'panier': conteneur.innerHTML = vuePanier(); break;
+    case 'commande': conteneur.innerHTML = vueCommande(); break;
+    case 'confirmation': conteneur.innerHTML = vueConfirmation(); break;
+    case 'apropos': conteneur.innerHTML = vueAPropos(); break;
+    default: conteneur.innerHTML = vueAccueil();
+  }
+
+  // Ré-attache les écouteurs spécifiques à la vue produit / formulaire après insertion du HTML
+  if (etat.vueActuelle === 'produit') initialiserFicheProduit(etat.parametresVue.produitId);
+  if (etat.vueActuelle === 'commande') initialiserFormulaireCommande();
+}
+
+/* ============================================================
+   VUE — ACCUEIL
+   ============================================================ */
+function vueAccueil() {
+  const nouveautes = etat.produits.slice(0, 8);
+
+  return `
+    <section class="hero">
+      <img src="logo.jpg" class="logo-hero" alt="ROSELLE">
+      <h1>Féminité, élégance, confiance</h1>
+      <p class="accroche">Découvrez la nouvelle collection ROSELLE — des pièces pensées pour la femme d'aujourd'hui.</p>
+      <div class="separateur-dore"></div>
+      <button class="bouton-principal" onclick="naviguerVers('catalogue', {categorie: '${CATEGORIES_PRINCIPALES[0]}'})">Découvrir la collection</button>
+    </section>
+
+    <div class="tuiles-categories">
+      ${CATEGORIES_PRINCIPALES.map(cat => {
+        const produitsCat = produitsParCategorie(cat);
+        const photo = produitsCat.length ? photoParDefaut(produitsCat[0]) : '';
+        return `
+          <a class="tuile-categorie" href="#" onclick="naviguerVers('catalogue', {categorie: '${cat}'}); return false;">
+            ${photo ? `<img src="${photo}" alt="${cat}">` : ''}
+            <span>${capitaliser(cat)}</span>
+          </a>`;
+      }).join('')}
+    </div>
+
+    ${nouveautes.length ? `
+    <div class="bloc-section">
+      <div class="entete-section">
+        <h2>Nouveautés</h2>
+      </div>
+      <div class="grille-produits">
+        ${nouveautes.map(carteProduitHTML).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+/* ============================================================
+   VUE — CATALOGUE
+   ============================================================ */
+function vueCatalogue(categorie) {
+  const produits = categorie ? produitsParCategorie(categorie) : etat.produits;
+  return `
+    <div class="bloc-section" style="margin-top:30px;">
+      <div class="entete-section">
+        <h2>${categorie ? capitaliser(categorie) : 'Toute la collection'}</h2>
+      </div>
+      ${produits.length
+        ? `<div class="grille-produits">${produits.map(carteProduitHTML).join('')}</div>`
+        : `<div class="message-vide">
+             Aucun article disponible dans cette catégorie pour le moment.
+             ${etat.produits.length ? `<div style="margin-top:14px; font-size:0.75rem; opacity:0.6;">
+               (Catégories trouvées dans le catalogue : ${[...new Set(etat.produits.map(p => p.cat))].join(', ')})
+             </div>` : ''}
+           </div>`}
+    </div>
+  `;
+}
+
+function carteProduitHTML(produit) {
+  const photo = photoParDefaut(produit);
+  const disponible = stockTotalDisponible(produit) > 0;
+  const { actuel, ancien } = prixUnitaireEffectif(produit);
+  return `
+    <div class="carte-produit" onclick="naviguerVers('produit', {produitId: '${produit.id}'})">
+      <div class="photo-wrap">
+        ${photo ? `<img src="${photo}" alt="${produit.name}">` : ''}
+        ${!disponible ? `<span class="badge-epuise">Épuisé</span>` : (ancien ? `<span class="badge-solde">Soldes</span>` : '')}
+      </div>
+      <div class="infos">
+        <div class="nom">${produit.name}</div>
+        <div class="prix">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================
+   VUE — FICHE PRODUIT
+   ============================================================ */
+function vueProduit(produitId) {
+  const produit = trouverProduit(produitId);
+  if (!produit) {
+    return `<div class="message-vide">Cet article n'est plus disponible.</div>`;
+  }
+  const variants = produit.variants || [];
+  const couleurs = [...new Set(variants.map(v => v.color))];
+  const { actuel, ancien } = prixUnitaireEffectif(produit);
+  const aDesPaliers = Array.isArray(produit.promoPaliers) && produit.promoPaliers.length > 0;
+
+  return `
+    <a class="lien-retour" href="#" onclick="history.back(); return false;">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M15 18l-6-6 6-6"/></svg> Retour
+    </a>
+    <div class="fiche-produit">
+      <div class="visuel-produit">
+        <img class="photo-principale" id="photo-produit-principale" src="${photoParDefaut(produit)}" alt="${produit.name}">
+        <div class="galerie-miniatures" id="galerie-miniatures"></div>
+      </div>
+      <div class="details-produit">
+        <div class="categorie">${produit.cat || ''}</div>
+        <h1>${produit.name}</h1>
+        <div class="prix">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
+        ${produit.ref ? `<div class="ref">Réf. ${produit.ref}</div>` : ''}
+
+        ${aDesPaliers ? `
+        <div class="bloc-choix">
+          <label>Choisissez votre formule</label>
+          <div class="tuiles-formule" id="tuiles-formule">
+            ${tuileFormuleHTML('unitaire', 1, actuel, null, false)}
+            ${produit.promoPaliers.map((palier, i) =>
+              tuileFormuleHTML(i, palier.qte, palier.prixTotal, (Number(produit.price) * palier.qte) - palier.prixTotal, !!palier.meilleureOffre)
+            ).join('')}
+          </div>
+        </div>
+        <div class="unites-pack" id="unites-pack"></div>
+        ` : ''}
+
+        <div id="zone-selection-simple" style="${aDesPaliers ? 'display:none;' : ''}">
+          <div class="bloc-choix">
+            <label>Couleur</label>
+            <div class="options-couleur" id="options-couleur">
+              ${couleurs.map(couleur => {
+                const v = variants.find(v => v.color === couleur);
+                const photoSwatch = photosVariante(v)[0];
+                return `
+                  <button type="button" class="swatch-couleur" data-couleur="${couleur}" title="${couleur}" onclick="choisirCouleur('${produitId}', '${couleur}')">
+                    ${photoSwatch ? `<img src="${photoSwatch}" alt="${couleur}">` : ''}
+                  </button>`;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="bloc-choix">
+            <label>Taille</label>
+            <div class="options-taille" id="options-taille">
+              <span style="color:var(--texte-doux); font-size:0.85rem;">Choisissez d'abord une couleur</span>
+            </div>
+          </div>
+
+          <div class="stock-info" id="stock-info"></div>
+
+          <div class="selecteur-qte">
+            <button type="button" onclick="changerQuantite(-1)">−</button>
+            <span id="quantite-choisie">1</span>
+            <button type="button" onclick="changerQuantite(1)">+</button>
+          </div>
+        </div>
+
+        <button class="bouton-ajouter" id="bouton-ajouter" disabled onclick="gererClicAjouter('${produitId}')">
+          ${aDesPaliers ? 'Choisissez une formule' : 'Choisir une taille'}
+        </button>
+        <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant('${produitId}')">
+          Acheter maintenant
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Génère une tuile de formule (achat à l'unité ou palier de quantité)
+function tuileFormuleHTML(cle, qte, prixTotal, economie, meilleureOffre) {
+  return `
+    <button type="button" class="tuile-formule" id="formule-${cle}" onclick="choisirFormule('${cle}', ${qte})">
+      <span class="gauche-formule">
+        <span class="label-formule">${qte} article${qte > 1 ? 's' : ''}</span>
+        ${meilleureOffre ? `<span class="badge-meilleure">★ Meilleure offre</span>` : ''}
+      </span>
+      <span class="prix-formule">
+        ${prixFormat(prixTotal)}
+        ${economie && economie > 0 ? `<span class="economie-formule">− ${prixFormat(economie)}</span>` : ''}
+      </span>
+    </button>
+  `;
+}
+
+function initialiserFicheProduit(produitId) {
+  // Rien à faire ici pour l'instant : les interactions passent par les
+  // fonctions choisirCouleur / choisirTaille / changerQuantite ci-dessous.
+}
+
+function choisirCouleur(produitId, couleur) {
+  const produit = trouverProduit(produitId);
+  etat.produitCourant.couleurChoisie = couleur;
+  etat.produitCourant.tailleChoisie = null;
+  etat.produitCourant.quantiteChoisie = 1;
+
+  // Met à jour visuellement le swatch sélectionné
+  document.querySelectorAll('.swatch-couleur').forEach(el => {
+    el.classList.toggle('selectionne', el.dataset.couleur === couleur);
+  });
+
+  // Met à jour la photo principale + la galerie de miniatures pour cette couleur
+  const varianteCouleur = (produit.variants || []).find(v => v.color === couleur && ((v.photos && v.photos.length) || v.photo));
+  const photos = photosVariante(varianteCouleur);
+  if (photos.length) {
+    document.getElementById('photo-produit-principale').src = photos[0];
+  }
+  const conteneurGalerie = document.getElementById('galerie-miniatures');
+  if (photos.length > 1) {
+    conteneurGalerie.innerHTML = photos.map((url, i) => `
+      <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto('${url}', this)">
+        <img src="${url}" alt="${produit.name}">
+      </button>
+    `).join('');
+  } else {
+    conteneurGalerie.innerHTML = '';
+  }
+
+  // Construit les tailles disponibles pour cette couleur
+  const taillesPourCouleur = (produit.variants || []).filter(v => v.color === couleur);
+  const conteneurTailles = document.getElementById('options-taille');
+  conteneurTailles.innerHTML = taillesPourCouleur.map(v => `
+    <button type="button" class="bouton-taille" data-taille="${v.size}"
+      ${Number(v.qty) <= 0 ? 'disabled' : ''}
+      onclick="choisirTaille('${produitId}', '${v.color}', '${v.size}')">
+      ${v.size}
+    </button>
+  `).join('');
+
+  document.getElementById('stock-info').textContent = '';
+  actualiserBoutonAjouter(produitId);
+}
+
+function selectionnerPhoto(url, boutonClique) {
+  document.getElementById('photo-produit-principale').src = url;
+  document.querySelectorAll('.miniature-photo').forEach(el => el.classList.remove('selectionnee'));
+  boutonClique.classList.add('selectionnee');
+}
+
+function choisirTaille(produitId, couleur, taille) {
+  etat.produitCourant.tailleChoisie = taille;
+  etat.produitCourant.quantiteChoisie = 1;
+  document.getElementById('quantite-choisie').textContent = '1';
+
+  document.querySelectorAll('.bouton-taille').forEach(el => {
+    el.classList.toggle('selectionne', el.dataset.taille === taille);
+  });
+
+  const produit = trouverProduit(produitId);
+  const variante = (produit.variants || []).find(v => v.color === couleur && v.size === taille);
+  const infoStock = document.getElementById('stock-info');
+  if (variante) {
+    if (variante.qty <= 3) {
+      infoStock.textContent = `Plus que ${variante.qty} en stock`;
+      infoStock.classList.add('faible');
+    } else {
+      infoStock.textContent = `En stock`;
+      infoStock.classList.remove('faible');
+    }
+  }
+  actualiserBoutonAjouter(produitId);
+}
+
+function changerQuantite(delta) {
+  const produit = trouverProduit(etat.parametresVue.produitId);
+  const variante = varianteChoisie(produit);
+  const max = variante ? Number(variante.qty) : 1;
+  let nouvelle = etat.produitCourant.quantiteChoisie + delta;
+  nouvelle = Math.max(1, Math.min(nouvelle, max || 1));
+  etat.produitCourant.quantiteChoisie = nouvelle;
+  document.getElementById('quantite-choisie').textContent = nouvelle;
+}
+
+function varianteChoisie(produit) {
+  if (!produit || !etat.produitCourant.couleurChoisie || !etat.produitCourant.tailleChoisie) return null;
+  return (produit.variants || []).find(v =>
+    v.color === etat.produitCourant.couleurChoisie && v.size === etat.produitCourant.tailleChoisie
+  );
+}
+
+function actualiserBoutonAjouter(produitId) {
+  const produit = trouverProduit(produitId);
+  const variante = varianteChoisie(produit);
+  const bouton = document.getElementById('bouton-ajouter');
+  const boutonAchat = document.getElementById('bouton-acheter-maintenant');
+  if (!etat.produitCourant.couleurChoisie) {
+    bouton.disabled = true; bouton.textContent = 'Choisir une couleur';
+    if (boutonAchat) boutonAchat.disabled = true;
+    return;
+  }
+  if (!variante) {
+    bouton.disabled = true; bouton.textContent = 'Choisir une taille';
+    if (boutonAchat) boutonAchat.disabled = true;
+    return;
+  }
+  if (Number(variante.qty) <= 0) {
+    bouton.disabled = true; bouton.textContent = 'Épuisé dans cette taille';
+    if (boutonAchat) boutonAchat.disabled = true;
+    return;
+  }
+  bouton.disabled = false; bouton.textContent = 'Ajouter au panier';
+  if (boutonAchat) boutonAchat.disabled = false;
+}
+
+function ajouterAuPanier(produitId) {
+  const produit = trouverProduit(produitId);
+  const variante = varianteChoisie(produit);
+  if (!produit || !variante) return;
+
+  const { actuel } = prixUnitaireEffectif(produit);
+  const ligneExistante = etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
+  const quantiteDemandee = etat.produitCourant.quantiteChoisie;
+
+  if (ligneExistante) {
+    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, Number(variante.qty));
+  } else {
+    etat.panier.push({
+      productId: produitId,
+      variantId: variante.id,
+      name: produit.name,
+      cat: produit.cat,
+      price: actuel,
+      size: variante.size,
+      color: variante.color,
+      photo: photosVariante(variante)[0] || photoParDefaut(produit),
+      qty: quantiteDemandee,
+      stockDispo: Number(variante.qty)
+    });
+  }
+
+  mettreAJourCompteurPanier();
+  sauvegarderPanier();
+  afficherToast('Article ajouté au panier');
+}
+
+/* ============================================================
+   FORMULES / PALIERS DE QUANTITÉ (ex : 1 / 2 / 3 articles)
+   ============================================================ */
+
+// Aiguille le clic du bouton "Ajouter" selon qu'une formule à paliers
+// est active ou non (achat simple à l'unité).
+function gererClicAjouter(produitId) {
+  if (etat.produitCourant.formuleChoisie && etat.produitCourant.formuleChoisie !== 'unitaire') {
+    ajouterPackAuPanier(produitId);
+  } else {
+    ajouterAuPanier(produitId);
+  }
+}
+
+// Ajoute l'article (ou le pack) au panier puis va directement à la
+// page de commande, sans repasser par la page panier.
+function acheterMaintenant(produitId) {
+  if (etat.produitCourant.formuleChoisie && etat.produitCourant.formuleChoisie !== 'unitaire') {
+    ajouterPackAuPanier(produitId);
+  } else {
+    ajouterAuPanier(produitId);
+  }
+  naviguerVers('commande');
+}
+
+function choisirFormule(cle, qte) {
+  etat.produitCourant.formuleChoisie = cle;
+  etat.produitCourant.couleurChoisie = null;
+  etat.produitCourant.tailleChoisie = null;
+
+  document.querySelectorAll('.tuile-formule').forEach(el => el.classList.remove('selectionnee'));
+  document.getElementById('formule-' + cle).classList.add('selectionnee');
+
+  const zoneSimple = document.getElementById('zone-selection-simple');
+  const zonePack = document.getElementById('unites-pack');
+  const bouton = document.getElementById('bouton-ajouter');
+  const boutonAchat = document.getElementById('bouton-acheter-maintenant');
+
+  if (cle === 'unitaire') {
+    zoneSimple.style.display = '';
+    zonePack.innerHTML = '';
+    bouton.disabled = true;
+    bouton.textContent = 'Choisir une couleur';
+    if (boutonAchat) boutonAchat.disabled = true;
+    return;
+  }
+
+  // Formule à plusieurs articles : masque le sélecteur simple, affiche
+  // un mini sélecteur couleur/taille par article du pack.
+  zoneSimple.style.display = 'none';
+  const produit = trouverProduit(etat.parametresVue.produitId);
+  const couleurs = [...new Set((produit.variants || []).map(v => v.color))];
+
+  etat.produitCourant.selectionsPack = new Array(qte).fill(null);
+
+  zonePack.innerHTML = Array.from({ length: qte }).map((_, i) => `
+    <div class="unite-pack">
+      <div class="titre-unite">Article ${i + 1}</div>
+      <div class="lignes-select">
+        <select onchange="choisirCouleurPack(${i}, this.value)">
+          <option value="">Couleur…</option>
+          ${couleurs.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <select id="select-taille-pack-${i}" onchange="choisirTaillePack(${i}, this.value)" disabled>
+          <option value="">Taille…</option>
+        </select>
+      </div>
+    </div>
+  `).join('');
+
+  bouton.disabled = true;
+  if (boutonAchat) boutonAchat.disabled = true;
+  bouton.textContent = 'Choisir chaque article du pack';
+}
+
+function choisirCouleurPack(index, couleur) {
+  const produit = trouverProduit(etat.parametresVue.produitId);
+  etat.produitCourant.selectionsPack[index] = { color: couleur, size: null };
+
+  const selectTaille = document.getElementById('select-taille-pack-' + index);
+  const taillesDispo = (produit.variants || []).filter(v => v.color === couleur && Number(v.qty) > 0);
+  selectTaille.innerHTML = `<option value="">Taille…</option>` +
+    taillesDispo.map(v => `<option value="${v.size}">${v.size}</option>`).join('');
+  selectTaille.disabled = !couleur;
+  actualiserBoutonPack();
+}
+
+function choisirTaillePack(index, taille) {
+  etat.produitCourant.selectionsPack[index].size = taille;
+  actualiserBoutonPack();
+}
+
+function actualiserBoutonPack() {
+  const bouton = document.getElementById('bouton-ajouter');
+  const boutonAchat = document.getElementById('bouton-acheter-maintenant');
+  const selections = etat.produitCourant.selectionsPack || [];
+  const complet = selections.length > 0 && selections.every(s => s && s.color && s.size);
+  bouton.disabled = !complet;
+  bouton.textContent = complet ? 'Ajouter le pack au panier' : 'Choisir chaque article du pack';
+  if (boutonAchat) boutonAchat.disabled = !complet;
+}
+
+function ajouterPackAuPanier(produitId) {
+  const produit = trouverProduit(produitId);
+  const palier = produit.promoPaliers[etat.produitCourant.formuleChoisie];
+  const selections = etat.produitCourant.selectionsPack || [];
+  if (!palier || selections.some(s => !s || !s.color || !s.size)) return;
+
+  const prixUnitairePack = Number(palier.prixTotal) / palier.qte;
+  const idPack = 'pack-' + Date.now();
+
+  for (const selection of selections) {
+    const variante = (produit.variants || []).find(v => v.color === selection.color && v.size === selection.size);
+    if (!variante || Number(variante.qty) <= 0) continue;
+
+    const ligneExistante = etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
+    if (ligneExistante) {
+      ligneExistante.qty = Math.min(ligneExistante.qty + 1, Number(variante.qty));
+    } else {
+      etat.panier.push({
+        productId: produitId,
+        variantId: variante.id,
+        name: produit.name,
+        cat: produit.cat,
+        price: prixUnitairePack,
+        size: variante.size,
+        color: variante.color,
+        photo: photosVariante(variante)[0] || photoParDefaut(produit),
+        qty: 1,
+        stockDispo: Number(variante.qty),
+        packId: idPack,
+        packLabel: `Pack ${palier.qte} articles`
+      });
+    }
+  }
+
+  mettreAJourCompteurPanier();
+  sauvegarderPanier();
+  afficherToast('Pack ajouté au panier');
+}
+
+/* ============================================================
+   VUE — PANIER
+   ============================================================ */
+function vuePanier() {
+  if (etat.panier.length === 0) {
+    return `
+      <div class="panier-vide">
+        <h2 class="titre-serif" style="font-size:1.4rem; margin-bottom:14px;">Votre panier est vide</h2>
+        <button class="bouton-principal" onclick="naviguerVers('catalogue', {categorie: '${CATEGORIES_PRINCIPALES[0]}'})">Voir la collection</button>
+      </div>
+    `;
+  }
+
+  const total = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+
+  return `
+    <div class="section-etroite" style="margin-top:30px;">
+      <h1 style="font-size:1.6rem; margin-bottom:6px;">Votre panier</h1>
+      <div>
+        ${etat.panier.map((ligne, index) => `
+          <div class="ligne-panier">
+            ${ligne.photo ? `<img src="${ligne.photo}" alt="${ligne.name}">` : ''}
+            <div class="infos-ligne">
+              <div class="nom">${ligne.name}</div>
+              <div class="variante">${ligne.color} · ${ligne.size}${ligne.packLabel ? ` · <span style="color:var(--dore);">${ligne.packLabel}</span>` : ''}</div>
+              <div class="bas-ligne">
+                <div class="qte-panier">
+                  <button type="button" onclick="modifierQteLignePanier(${index}, -1)">−</button>
+                  <span>${ligne.qty}</span>
+                  <button type="button" onclick="modifierQteLignePanier(${index}, 1)">+</button>
+                </div>
+                <div class="prix-ligne">${prixFormat(ligne.qty * ligne.price)}</div>
+              </div>
+              <button type="button" class="bouton-supprimer" onclick="retirerDuPanier(${index})">Retirer</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="recap-total">
+        <span class="label">Total</span>
+        <span class="montant">${prixFormat(total)}</span>
+      </div>
+      <div class="rappel-paiement">Paiement à la livraison — réglez en espèces à réception de votre colis.</div>
+      <button class="bouton-principal" style="width:100%;" onclick="naviguerVers('commande')">Passer la commande</button>
+    </div>
+  `;
+}
+
+function modifierQteLignePanier(index, delta) {
+  const ligne = etat.panier[index];
+  const nouvelle = ligne.qty + delta;
+  if (nouvelle < 1) return;
+  if (nouvelle > ligne.stockDispo) { afficherToast('Stock maximum atteint pour cet article'); return; }
+  ligne.qty = nouvelle;
+  sauvegarderPanier();
+  rendre();
+}
+
+function retirerDuPanier(index) {
+  etat.panier.splice(index, 1);
+  sauvegarderPanier();
+  rendre();
+}
+
+/* ============================================================
+   VUE — FORMULAIRE DE COMMANDE
+   ============================================================ */
+function vueCommande() {
+  const total = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  return `
+    <div class="section-etroite" style="margin-top:30px;">
+      <h1 style="font-size:1.6rem; margin-bottom:24px;">Vos coordonnées de livraison</h1>
+
+      <div class="rappel-paiement">Paiement à la livraison — réglez en espèces à la remise de votre colis.</div>
+
+      <div id="bandeau-erreur-commande"></div>
+
+      <form id="formulaire-commande">
+        <div class="champ">
+          <label for="champ-nom">Nom complet</label>
+          <input type="text" id="champ-nom" name="clientName" required>
+        </div>
+        <div class="champ">
+          <label for="champ-telephone">Téléphone</label>
+          <input type="tel" id="champ-telephone" name="phone" required placeholder="Ex : 20 123 456">
+        </div>
+        <div class="champ">
+          <label for="champ-adresse">Adresse de livraison</label>
+          <textarea id="champ-adresse" name="address" required></textarea>
+        </div>
+        <div class="champ">
+          <label for="champ-remarque">Remarque (optionnel)</label>
+          <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère, horaires préférés…"></textarea>
+        </div>
+
+        <div class="recap-commande">
+          ${etat.panier.map(l => `
+            <div class="ligne-recap"><span>${l.name} (${l.color}, ${l.size}) ×${l.qty}</span><span>${prixFormat(l.qty * l.price)}</span></div>
+          `).join('')}
+          <div class="ligne-recap" style="font-weight:600; margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
+            <span>Total</span><span>${prixFormat(total)}</span>
+          </div>
+        </div>
+
+        <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
+      </form>
+    </div>
+  `;
+}
+
+function initialiserFormulaireCommande() {
+  const formulaire = document.getElementById('formulaire-commande');
+  if (!formulaire) return;
+  formulaire.addEventListener('submit', (evenement) => {
+    evenement.preventDefault();
+    envoyerCommande();
+  });
+}
+
+function envoyerCommande() {
+  const boutonValider = document.getElementById('bouton-valider-commande');
+  const bandeauErreur = document.getElementById('bandeau-erreur-commande');
+  bandeauErreur.innerHTML = '';
+
+  const clientName = document.getElementById('champ-nom').value.trim();
+  const phone = document.getElementById('champ-telephone').value.trim();
+  const address = document.getElementById('champ-adresse').value.trim();
+  const remark = document.getElementById('champ-remarque').value.trim();
+
+  if (!clientName || !phone || !address) {
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de remplir tous les champs obligatoires.</div>`;
+    return;
+  }
+  if (etat.panier.length === 0) {
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Votre panier est vide.</div>`;
+    return;
+  }
+
+  boutonValider.disabled = true;
+  boutonValider.textContent = 'Envoi en cours…';
+
+  // Construit le document au format exact attendu par les règles Firestore
+  const numeroCommande = 'WEB-' + Date.now();
+  const nouveauColis = {
+    ref: numeroCommande,
+    courier: '',
+    clientName: clientName,
+    phone: phone,
+    address: address,
+    remark: remark,
+    status: 'transit',
+    confirmed: false,
+    items: etat.panier.map(l => ({
+      productId: l.productId,
+      variantId: l.variantId,
+      qty: l.qty
+    })),
+    date: new Date().toISOString()
+  };
+
+  db.collection('shipments').add(nouveauColis)
+    .then(() => {
+      etat.dernierNumeroCommande = numeroCommande;
+      etat.panier = [];
+      sauvegarderPanier();
+      naviguerVers('confirmation');
+    })
+    .catch((erreur) => {
+      console.error('Erreur lors de la création de la commande :', erreur);
+      bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.</div>`;
+      boutonValider.disabled = false;
+      boutonValider.textContent = 'Confirmer la commande';
+    });
+}
+
+/* ============================================================
+   VUE — CONFIRMATION
+   ============================================================ */
+function vueConfirmation() {
+  return `
+    <div class="bloc-confirmation">
+      <div class="icone-check">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <h1>Commande reçue</h1>
+      ${etat.dernierNumeroCommande ? `<div class="num-commande">Référence : ${etat.dernierNumeroCommande}</div>` : ''}
+      <p class="detail">Merci pour votre commande. Nous vous contacterons prochainement pour confirmer la livraison. Le règlement se fait en espèces à la réception du colis.</p>
+      <button class="bouton-principal" style="margin-top:28px;" onclick="naviguerVers('accueil')">Retour à la boutique</button>
+    </div>
+  `;
+}
+
+/* ============================================================
+   VUE — À PROPOS / CONTACT
+   ============================================================ */
+function vueAPropos() {
+  return `
+    <div class="page-apropos section-etroite" style="margin-top:30px;">
+      <h1>À propos de ROSELLE</h1>
+      <p>ROSELLE est une marque de prêt-à-porter féminin pensée pour la femme d'aujourd'hui : féminité, élégance et confiance, dans chaque pièce de la collection.</p>
+      <p>Nos commandes sont préparées avec soin et livrées partout où vous êtes, avec paiement en espèces à la réception de votre colis.</p>
+
+      <div class="liste-contact">
+        <div class="item-contact">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 6 10-6"/></svg>
+          <span>contact@roselle.tn</span>
+        </div>
+        <div class="item-contact">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .7 2.9a2 2 0 0 1-.4 2.1L8 10a16 16 0 0 0 6 6l1.3-1.4a2 2 0 0 1 2.1-.4c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2.1z"/></svg>
+          <span>+216 20 123 456</span>
+        </div>
+        <div class="item-contact">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+          <a href="https://instagram.com/roselle" target="_blank" rel="noopener">@roselle</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================
+   DÉMARRAGE — restaure la page depuis l'URL si elle en contient une
+   (rechargement, retour plus tard, lien partagé), sinon accueil
+   ============================================================ */
+{
+  const { vue, parametres } = analyserHash();
+  appliquerNavigation(vue, parametres);
+}
+</script>
+
+</body>
+</html>
