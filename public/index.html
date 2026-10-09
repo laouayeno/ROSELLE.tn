@@ -10,7 +10,7 @@
 
 <!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
 
 <!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
@@ -20,14 +20,17 @@
 <style>
   /* ===== Jetons de design (couleurs / typo) ===== */
   :root {
-    --ivoire: #F7E8DC;
-    --ivoire-clair: #FCF6F0;
-    --rose: #C98B7A;
-    --rose-clair: #E4C3B6;
-    --rose-fonce: #8C5E4E;
-    --dore: #B8935A;
-    --texte: #2E2620;
-    --texte-doux: #6B5A50;
+    /* Palette neutre éditoriale (noir/blanc/crème) — les noms de variables
+       sont conservés (--rose, --dore, etc.) pour ne pas casser tout le CSS
+       qui les utilise déjà, mais leurs valeurs sont désormais neutres. */
+    --ivoire: #F5F3EF;
+    --ivoire-clair: #FFFFFF;
+    --rose: #A39A8B;
+    --rose-clair: #E4E1DA;
+    --rose-fonce: #111111;
+    --dore: #8A8A8A;
+    --texte: #111111;
+    --texte-doux: #6B6B6B;
     --blanc: #FFFFFF;
     --erreur: #A94438;
   }
@@ -107,6 +110,36 @@
   .hero img.logo-hero { width: 120px; height: 120px; object-fit: contain; border-radius: 50%; }
   .hero h1 { font-size: 2.1rem; max-width: 480px; }
   .hero p.accroche { color: var(--texte-doux); font-size: 1rem; max-width: 420px; }
+
+  /* ===== Héros vidéo plein écran (accueil) ===== */
+  .hero-video-section {
+    position: relative; height: 78vh; max-height: 720px;
+    overflow: hidden; background: var(--texte);
+    /* Casse la largeur limitée du conteneur "main" (max-width + padding)
+       pour que la vidéo touche vraiment les deux bords de l'écran. */
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+  .hero-video-section video,
+  .hero-video-section img.media-hero {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  }
+  .hero-video-logo {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+    border: 2px solid var(--blanc); box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 2;
+  }
+  .hero-video-logo img { width: 100%; height: 100%; object-fit: cover; }
+  .hero-video-texte {
+    position: absolute; left: 20px; right: 20px; bottom: 28px; z-index: 2;
+    color: var(--blanc);
+  }
+  .hero-video-texte p {
+    font-size: 1.05rem; line-height: 1.4; max-width: 300px;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.45); margin-bottom: 16px;
+  }
+  .hero-video-texte .bouton-principal { background: var(--blanc); color: var(--texte); }
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
     position: relative;
@@ -124,24 +157,29 @@
   }
   .bouton-principal:hover { background: var(--texte); }
 
+  /* Carrousel de catégories : une grande photo à la fois, défilement tactile
+     horizontal avec un arrêt net ("snap") sur chaque catégorie. */
   .tuiles-categories {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
-    margin-top: 40px;
+    display: flex; gap: 14px; margin-top: 40px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    padding: 0 20px 6px; margin-left: -20px; margin-right: -20px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
-  @media (min-width: 640px) { .tuiles-categories { grid-template-columns: repeat(4, 1fr); } }
+  .tuiles-categories::-webkit-scrollbar { display: none; }
   .tuile-categorie {
-    position: relative; aspect-ratio: 3/4; border-radius: 4px; overflow: hidden;
-    background: var(--rose-clair); display: flex; align-items: flex-end; justify-content: center;
-    padding-bottom: 16px;
+    display: block; flex: 0 0 82%; scroll-snap-align: center;
   }
-  .tuile-categorie img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .tuile-categorie::before {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(46,38,32,0) 40%, rgba(46,38,32,0.55) 100%);
+  @media (min-width: 640px) { .tuile-categorie { flex-basis: 38%; } }
+  .tuile-categorie .photo-wrap {
+    /* Grande photo plein format, sans arche ici. */
+    position: relative; aspect-ratio: 3/4; overflow: hidden; background: var(--rose-clair);
+    border-radius: 6px;
   }
+  .tuile-categorie img { width: 100%; height: 100%; object-fit: cover; }
   .tuile-categorie span {
-    position: relative; color: var(--blanc); font-family: 'Playfair Display', serif;
-    font-size: 1.05rem; text-transform: capitalize;
+    display: block; text-align: center; padding-top: 14px;
+    color: var(--texte); font-family: 'Playfair Display', serif;
+    font-size: 0.98rem; /* libellé affiché tel que saisi dans le dashboard */
   }
 
   .bloc-section { margin-top: 64px; }
@@ -149,7 +187,62 @@
     display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;
   }
   .entete-section h2 { font-size: 1.5rem; }
+
+  /* ===== Blocs de la page d'accueil gérés depuis le dashboard ===== */
+  /* Grande bannière : photo carrée sur mobile, large sur ordinateur, texte en bas */
+  .bloc-banniere {
+    position: relative; display: block; margin-top: 48px; border-radius: 6px;
+    overflow: hidden; background: var(--rose-clair); cursor: pointer;
+  }
+  .bloc-banniere img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+  @media (min-width: 780px) { .bloc-banniere img { aspect-ratio: 16/7; } }
+  .bloc-banniere .texte-banniere {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 20px;
+    color: var(--blanc);
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+  }
+  .bloc-banniere .texte-banniere h2 { color: var(--blanc); font-size: 1.5rem; }
+  .bloc-banniere .texte-banniere p { margin: 6px 0 14px; font-size: 0.95rem; }
+  .bloc-banniere .texte-banniere .bouton-principal { background: var(--blanc); color: var(--texte); }
+
+  /* Bloc texte libre */
+  .bloc-texte { margin: 48px auto 0; max-width: 640px; text-align: center; }
+  .bloc-texte h2 { font-size: 1.5rem; margin-bottom: 12px; }
+  .bloc-texte p { color: var(--texte-doux); margin: 0 0 12px; }
+
+  /* Bloc image seule */
+  .bloc-image { display: block; margin-top: 48px; }
+  .bloc-image img { width: 100%; border-radius: 6px; display: block; }
   .entete-section a { font-size: 0.85rem; color: var(--rose-fonce); border-bottom: 1px solid var(--rose-fonce); }
+
+  /* ===== Pétales flottants décoratifs (touche florale en arrière-plan) ===== */
+  .petales-decor {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+  }
+  .petale {
+    position: absolute; width: 36px; height: 36px; opacity: 0.6;
+    animation-name: petale-flotte; animation-iteration-count: infinite; animation-timing-function: ease-in-out;
+  }
+  .petale svg { width: 100%; height: 100%; }
+  @keyframes petale-flotte {
+    0%   { transform: translateY(0) rotate(0deg); }
+    50%  { transform: translateY(18px) rotate(18deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  /* ===== Barre de filtre/tri du catalogue ===== */
+  .barre-filtre {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    margin: 18px 0 22px; padding-bottom: 14px; border-bottom: 1px solid var(--rose-clair);
+    font-size: 0.82rem; color: var(--texte-doux);
+  }
+  .controles-filtre { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .case-disponible { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .case-disponible input { accent-color: var(--rose-fonce); }
+  .select-tri {
+    padding: 8px 10px; border: 1px solid var(--rose-clair); border-radius: 2px;
+    font-family: 'Inter', sans-serif; font-size: 0.8rem; background: var(--blanc); color: var(--texte);
+  }
 
   /* ===== Grille produits ===== */
   .grille-produits {
@@ -158,9 +251,12 @@
   @media (min-width: 640px) { .grille-produits { grid-template-columns: repeat(3, 1fr); gap: 26px 20px; } }
   @media (min-width: 960px) { .grille-produits { grid-template-columns: repeat(4, 1fr); } }
 
-  .carte-produit { cursor: pointer; }
+  .carte-produit { cursor: pointer; box-shadow: 0 8px 20px rgba(17,17,17,0.1); border-radius: 50% 50% 6px 6px / 14% 14% 6px 6px; }
   .carte-produit .photo-wrap {
-    position: relative; aspect-ratio: 3/4; overflow: hidden; background: var(--rose-clair); border-radius: 3px;
+    position: relative; aspect-ratio: 1/2.8; overflow: hidden; background: var(--rose-clair);
+    /* Arche fine proportionnelle à la largeur de la carte (pas un cercle qui mange toute la photo) :
+       50% en horizontal = un arc qui suit exactement la largeur ; 14% en vertical = l'arc d'origine. */
+    border-radius: 50% 50% 0 0 / 14% 14% 0 0;
   }
   .carte-produit .photo-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
   .carte-produit:hover .photo-wrap img { transform: scale(1.04); }
@@ -169,9 +265,15 @@
     background: var(--texte); color: var(--blanc); font-size: 0.65rem;
     padding: 4px 9px; letter-spacing: 0.5px;
   }
-  .carte-produit .infos { padding-top: 10px; }
-  .carte-produit .nom { font-size: 0.92rem; color: var(--texte); }
-  .carte-produit .prix { font-size: 0.88rem; color: var(--rose-fonce); margin-top: 2px; }
+  .carte-produit .infos {
+    background: var(--blanc); padding: 40px 12px 48px; min-height: 150px; text-align: center;
+    border-radius: 0 0 6px 6px;
+  }
+  .carte-produit .nom {
+    font-family: 'Inter', sans-serif; font-style: normal; font-weight: 800;
+    font-size: 1.02rem; color: var(--texte); line-height: 1.45;
+  }
+  .carte-produit .prix { font-size: 0.96rem; color: var(--rose-fonce); margin-top: 6px; }
   .prix-barre { color: var(--texte-doux); text-decoration: line-through; font-size: 0.85em; margin-right: 6px; }
   .badge-solde {
     position: absolute; top: 10px; right: 10px;
@@ -229,7 +331,7 @@
   .unites-pack { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
   .unite-pack { border: 1px solid var(--rose-clair); border-radius: 4px; padding: 14px; }
   .unite-pack .titre-unite { font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 10px; }
-  .unite-pack .lignes-select { display: flex; gap: 10px; }
+  .unite-pack .options-couleur { margin-bottom: 10px; }
   .unite-pack select {
     flex: 1; padding: 10px; border: 1px solid var(--rose-clair); border-radius: 2px;
     font-family: 'Inter', sans-serif; font-size: 0.85rem; background: var(--blanc); color: var(--texte);
@@ -365,8 +467,8 @@
 
 <header>
   <div class="logo-zone" onclick="naviguerVers('accueil')">
-    <img src="logo.jpg" alt="ROSELLE">
-    <span class="nom-marque">ROSELLE</span>
+    <img src="logo.jpg" alt="ROSELLE" id="logo-entete">
+    <span class="nom-marque" id="nom-marque-entete">ROSELLE</span>
   </div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
   <div class="icones-header">
@@ -386,12 +488,13 @@
 </main>
 
 <footer>
-  <div class="signature">ROSELLE</div>
-  <div class="liens-sociaux">
-    <a href="https://instagram.com/roselle" target="_blank" rel="noopener">Instagram</a>
+  <div class="signature" id="signature-pied">ROSELLE</div>
+  <!-- Rempli par mettreAJourEnteteEtPied() : réseaux sociaux saisis dans le dashboard + lien Contact -->
+  <div class="liens-sociaux" id="liens-sociaux-pied">
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
-  <div>&copy; <span id="annee-courante"></span> ROSELLE — Féminité, Élégance, Confiance</div>
+  <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -420,6 +523,15 @@ firebase.initializeApp(firebaseConfig);
    pour l'instant en mode "surveillance" côté Firebase (pas
    encore d'exécution stricte tant que les deux sites n'envoient
    pas leurs jetons) — voir Firebase Console → App Check.
+
+   Clé reCAPTCHA : on utilise ici l'ANCIENNE clé (déjà en
+   "Protection active" en production), et non la clé créée
+   spécialement pour Cloudflare — celle-ci provoquait une erreur
+   persistante "appCheck/recaptcha-error" malgré une config
+   correcte. L'ancienne clé a été étendue côté Google Cloud pour
+   couvrir aussi les domaines Cloudflare (rosellestock.roselle-tn.workers.dev
+   et rosellestore.roselle-tn.workers.dev), en plus des anciens
+   domaines Netlify — rien à changer côté Google Cloud pour ce site.
    ============================================================ */
 const appCheck = firebase.appCheck();
 appCheck.activate(
@@ -432,18 +544,143 @@ const db = firebase.firestore();
 /* ============================================================
    ÉTAT GLOBAL DE L'APPLICATION
    ============================================================ */
+// Clé du panier dans le stockage du navigateur. Elle DOIT être déclarée avant
+// "etat", qui relit le panier dès sa création : déclarée après, la lecture
+// échouait en silence et le panier repartait vide à chaque rechargement.
+const CLE_PANIER = 'roselle_panier';
+
 const etat = {
   produits: [],           // liste des produits chargés depuis publicCatalog
   chargementTermine: false,
   vueActuelle: 'accueil',  // accueil | catalogue | produit | panier | commande | confirmation | apropos
   parametresVue: {},       // ex: { categorie: 'robes' } ou { produitId: '...' }
   panier: chargerPanierDepuisMemoire(), // [{ productId, variantId, name, cat, price, size, color, photo, qty, stockDispo }]
-  produitCourant: { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] }
+  produitCourant: { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] },
+  filtresCatalogue: { tri: 'defaut', disponibleSeulement: false }, // barre de tri/filtre du catalogue
+  reglages: {},            // contenu brut du document siteSettings/main (vide = valeurs par défaut)
+  reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
 
 // Liste des catégories mises en avant, dans l'ordre voulu.
 // La comparaison ignore la casse/les accents pour être robuste aux données réelles.
 const CATEGORIES_PRINCIPALES = ['robes', 'pulls', 'pantalons', 'accessoires'];
+
+/* ============================================================
+   RÉGLAGES DU SITE — document Firestore siteSettings/main
+   ------------------------------------------------------------
+   Ces réglages sont saisis depuis la page « Apparence » de
+   ROSELLE Stock. Tous les champs sont optionnels : un champ
+   absent, vide ou invalide garde la valeur par défaut ci-dessous.
+   Le site fonctionne donc normalement même si le document
+   n'existe pas encore.
+   ============================================================ */
+const REGLAGES_PAR_DEFAUT = {
+  brand: { name: 'ROSELLE', logoUrl: 'logo.jpg' },
+  hero: {
+    type: 'video',
+    mediaUrl: 'hero.mp4',
+    posterUrl: 'logo.jpg',
+    text: 'Une collection pensée avec féminité, élégance et confiance.',
+    buttonLabel: 'Découvrir la collection',
+    buttonLink: { type: 'catalog' }
+  },
+  about: {
+    title: 'À propos de ROSELLE',
+    body: "ROSELLE est une marque de prêt-à-porter féminin pensée pour la femme d'aujourd'hui : féminité, élégance et confiance, dans chaque pièce de la collection.\n\nNos commandes sont préparées avec soin et livrées partout où vous êtes, avec paiement en espèces à la réception de votre colis."
+  },
+  shipping: { fee: 8 } // frais de livraison fixes en DT
+};
+
+// Échappe un texte avant de l'insérer dans le HTML (évite qu'un caractère
+// comme < ou " saisi dans le dashboard casse la page).
+function echapper(texte) {
+  return (texte === undefined || texte === null ? '' : String(texte))
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// N'accepte que les adresses https:// ; sinon renvoie la valeur de secours.
+function urlSure(url, secours) {
+  const u = (url === undefined || url === null ? '' : String(url)).trim();
+  return /^https:\/\//i.test(u) ? u : (secours || '');
+}
+
+// Lit un champ texte d'une section des réglages, avec repli sur la valeur par défaut.
+function reglageTexte(section, champ) {
+  const brut = etat.reglages && etat.reglages[section] ? etat.reglages[section][champ] : undefined;
+  if (typeof brut === 'string' && brut.trim() !== '') return brut.trim();
+  const defaut = REGLAGES_PAR_DEFAUT[section];
+  return defaut && defaut[champ] !== undefined ? defaut[champ] : '';
+}
+
+// Lit un champ URL d'une section des réglages, avec repli sur la valeur par défaut.
+function reglageUrl(section, champ) {
+  const brut = etat.reglages && etat.reglages[section] ? etat.reglages[section][champ] : undefined;
+  const defaut = REGLAGES_PAR_DEFAUT[section] ? REGLAGES_PAR_DEFAUT[section][champ] : '';
+  return urlSure(brut, defaut || '');
+}
+
+// Frais de livraison : nombre positif ou nul saisi dans le dashboard, sinon 8 DT.
+function fraisLivraison() {
+  const brut = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping.fee : undefined;
+  const n = Number(brut);
+  if (brut !== undefined && brut !== null && brut !== '' && Number.isFinite(n) && n >= 0) return n;
+  return REGLAGES_PAR_DEFAUT.shipping.fee;
+}
+
+// Catégories à afficher (tuiles + menu) : celles du dashboard, dans leur ordre,
+// sinon les 4 catégories par défaut.
+function categoriesAffichees() {
+  const liste = etat.reglages && Array.isArray(etat.reglages.categories) ? etat.reglages.categories : [];
+  const valides = liste
+    .filter(c => c && c.id && c.visible !== false)
+    .map(c => ({
+      id: String(c.id),
+      label: c.label ? String(c.label) : capitaliser(String(c.id)),
+      imageUrl: urlSure(c.imageUrl, '')
+    }));
+  if (valides.length) return valides;
+  return CATEGORIES_PRINCIPALES.map(id => ({ id, label: capitaliser(id), imageUrl: '' }));
+}
+
+// Libellé d'une catégorie (celui du dashboard s'il existe), à partir de son identifiant.
+// Le résultat doit toujours être échappé avant affichage : il peut venir de l'adresse de la page.
+function libelleCategorie(id) {
+  const trouvee = categoriesAffichees().find(c => normaliser(c.id) === normaliser(id));
+  return trouvee ? trouvee.label : capitaliser(String(id || ''));
+}
+
+// Attributs HTML d'un lien configurable (catalogue, catégorie, produit, à propos).
+// Les valeurs passent par des attributs data-* échappés, jamais dans du code JS.
+function lienAttributs(lien) {
+  const l = lien && typeof lien === 'object' ? lien : { type: 'catalog' };
+  return `data-lien-type="${echapper(l.type || 'catalog')}" data-lien-valeur="${echapper(l.value || '')}" onclick="suivreLien(this); return false;"`;
+}
+
+function suivreLien(element) {
+  const type = element.dataset.lienType;
+  const valeur = element.dataset.lienValeur;
+  if (type === 'category' && valeur) naviguerVers('catalogue', { categorie: valeur });
+  else if (type === 'product' && valeur) naviguerVers('produit', { produitId: valeur });
+  else if (type === 'about') naviguerVers('apropos');
+  else naviguerVers('catalogue', {});
+}
+
+// Ouvre une catégorie à partir d'un élément portant data-cat (évite d'insérer
+// le nom de la catégorie directement dans du code JavaScript).
+function ouvrirCategorie(element) {
+  naviguerVers('catalogue', { categorie: element.dataset.cat });
+}
+
+// Transforme un texte multi-paragraphes (séparés par une ligne vide) en <p> échappés.
+function paragraphesHTML(texte) {
+  return String(texte || '')
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => `<p>${echapper(p).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
 
 function normaliser(texte) {
   return (texte || '').toString().trim().toLowerCase()
@@ -455,8 +692,6 @@ function normaliser(texte) {
    PANIER — persistance via localStorage, pour que le panier
    survive à un rechargement de page (propre à ce navigateur/appareil)
    ============================================================ */
-const CLE_PANIER = 'roselle_panier';
-
 function chargerPanierDepuisMemoire() {
   try {
     const brut = localStorage.getItem(CLE_PANIER);
@@ -482,7 +717,7 @@ db.collection('publicCatalog').onSnapshot(
   (snapshot) => {
     etat.produits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     etat.chargementTermine = true;
-    rendre();
+    rafraichirApresDonnees();
   },
   (erreur) => {
     console.error('Erreur de chargement du catalogue :', erreur);
@@ -491,6 +726,62 @@ db.collection('publicCatalog').onSnapshot(
     rendre();
   }
 );
+
+/* ============================================================
+   CHARGEMENT TEMPS RÉEL DES RÉGLAGES DU SITE (siteSettings/main)
+   ------------------------------------------------------------
+   Si le document n'existe pas, ou si la lecture est refusée
+   (règles pas encore publiées), le site garde ses valeurs
+   par défaut. Un délai de secours évite de bloquer l'affichage
+   si la réponse tarde.
+   ============================================================ */
+db.collection('siteSettings').doc('main').onSnapshot(
+  (doc) => {
+    etat.reglages = doc.exists ? (doc.data() || {}) : {};
+    etat.reglagesCharges = true;
+    rafraichirApresDonnees();
+  },
+  (erreur) => {
+    console.warn('Réglages du site indisponibles, valeurs par défaut utilisées :', erreur);
+    etat.reglages = {};
+    etat.reglagesCharges = true;
+    rafraichirApresDonnees();
+  }
+);
+
+setTimeout(() => {
+  if (!etat.reglagesCharges) {
+    etat.reglagesCharges = true;
+    rafraichirApresDonnees();
+  }
+}, 2000);
+
+/* ============================================================
+   RAFRAÎCHISSEMENT APRÈS MISE À JOUR DES DONNÉES
+   ------------------------------------------------------------
+   Le catalogue change à chaque commande (stock en temps réel).
+   Pendant un pic de trafic, ça peut arriver toutes les quelques
+   secondes. On ne doit donc PAS reconstruire :
+   - le formulaire de commande (la cliente perdrait sa saisie),
+   - la fiche produit si la cliente a déjà choisi une couleur
+     ou une formule (sa sélection serait remise à zéro).
+   Dans ces deux cas, seuls l'en-tête et le compteur du panier
+   sont mis à jour.
+   ============================================================ */
+function rafraichirApresDonnees() {
+  const saisieEnCours =
+    etat.vueActuelle === 'commande' ||
+    (etat.vueActuelle === 'produit' &&
+      (etat.produitCourant.couleurChoisie || etat.produitCourant.formuleChoisie));
+
+  if (saisieEnCours && document.getElementById('contenu-principal').dataset.vueRendue === etat.vueActuelle) {
+    mettreAJourEnteteEtPied();
+    mettreAJourNavigation();
+    mettreAJourCompteurPanier();
+    return;
+  }
+  rendre();
+}
 
 /* ============================================================
    NAVIGATION — basée sur l'URL (#...), pour que la page actuelle
@@ -599,13 +890,43 @@ function stockTotalDisponible(produit) {
    RENDU — HEADER / MENU / TOAST
    ============================================================ */
 function mettreAJourNavigation() {
-  const liensNav = CATEGORIES_PRINCIPALES.map(cat =>
-    `<a href="#" class="${etat.vueActuelle === 'catalogue' && etat.parametresVue.categorie === cat ? 'actif' : ''}"
-        onclick="naviguerVers('catalogue', {categorie: '${cat}'}); return false;">${capitaliser(cat)}</a>`
-  ).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
+  const liensNav = categoriesAffichees().map(cat => {
+    const actif = etat.vueActuelle === 'catalogue' && normaliser(etat.parametresVue.categorie) === normaliser(cat.id);
+    return `<a href="#" class="${actif ? 'actif' : ''}" data-cat="${echapper(cat.id)}"
+        onclick="ouvrirCategorie(this); return false;">${echapper(cat.label)}</a>`;
+  }).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
 
   document.getElementById('nav-desktop').innerHTML = liensNav;
   document.getElementById('menu-mobile').innerHTML = liensNav;
+}
+
+// Applique le logo, le nom de marque et les réseaux sociaux du dashboard
+// à l'en-tête, au pied de page et au titre de l'onglet.
+function mettreAJourEnteteEtPied() {
+  const nom = reglageTexte('brand', 'name');
+  const logo = reglageUrl('brand', 'logoUrl');
+
+  const imgLogo = document.getElementById('logo-entete');
+  if (imgLogo.getAttribute('src') !== logo) imgLogo.setAttribute('src', logo);
+  imgLogo.setAttribute('alt', nom);
+  document.getElementById('nom-marque-entete').textContent = nom;
+  document.getElementById('signature-pied').textContent = nom;
+  document.getElementById('marque-copyright').textContent = nom;
+  document.title = nom + ' — Prêt-à-porter féminin';
+
+  // Réseaux sociaux : uniquement ceux réellement renseignés (plus de faux liens)
+  const contact = etat.reglages.contact || {};
+  const reseaux = [
+    ['Instagram', contact.instagramUrl],
+    ['Facebook', contact.facebookUrl],
+    ['TikTok', contact.tiktokUrl]
+  ].filter(([, url]) => urlSure(url, ''));
+
+  document.getElementById('liens-sociaux-pied').innerHTML =
+    reseaux.map(([libelle, url]) =>
+      `<a href="${echapper(urlSure(url, ''))}" target="_blank" rel="noopener">${libelle}</a>`
+    ).join('') +
+    `<a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>`;
 }
 
 function capitaliser(texte) {
@@ -631,30 +952,35 @@ function afficherToast(message) {
    ============================================================ */
 function rendre() {
   document.getElementById('annee-courante').textContent = new Date().getFullYear();
+  mettreAJourEnteteEtPied();
   mettreAJourNavigation();
   mettreAJourCompteurPanier();
 
   const conteneur = document.getElementById('contenu-principal');
 
-  if (!etat.chargementTermine) {
+  // On attend le catalogue ET les réglages (ou le délai de secours) avant le
+  // premier affichage, pour ne pas montrer la vidéo par défaut puis la remplacer.
+  if (!etat.chargementTermine || !etat.reglagesCharges) {
     conteneur.innerHTML = `<div class="chargement-page">Chargement de la boutique…</div>`;
+    conteneur.dataset.vueRendue = '';
     return;
   }
   if (etat.erreurChargement) {
     conteneur.innerHTML = `<div class="chargement-page">La boutique n'a pas pu se charger pour le moment. Merci de réessayer dans un instant.</div>`;
+    conteneur.dataset.vueRendue = '';
     return;
   }
 
   switch (etat.vueActuelle) {
-    case 'accueil': conteneur.innerHTML = vueAccueil(); break;
     case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
     case 'produit': conteneur.innerHTML = vueProduit(etat.parametresVue.produitId); break;
     case 'panier': conteneur.innerHTML = vuePanier(); break;
     case 'commande': conteneur.innerHTML = vueCommande(); break;
     case 'confirmation': conteneur.innerHTML = vueConfirmation(); break;
     case 'apropos': conteneur.innerHTML = vueAPropos(); break;
-    default: conteneur.innerHTML = vueAccueil();
+    default: rendreAccueil(conteneur); // 'accueil' et toute vue inconnue
   }
+  conteneur.dataset.vueRendue = etat.vueActuelle;
 
   // Ré-attache les écouteurs spécifiques à la vue produit / formulaire après insertion du HTML
   if (etat.vueActuelle === 'produit') initialiserFicheProduit(etat.parametresVue.produitId);
@@ -664,60 +990,261 @@ function rendre() {
 /* ============================================================
    VUE — ACCUEIL
    ============================================================ */
-function vueAccueil() {
-  const nouveautes = etat.produits.slice(0, 8);
+// Affiche la page d'accueil en deux zones :
+// - le héros (vidéo/image du haut),
+// - les blocs en dessous.
+// Si le héros n'a pas changé, on ne remplace que les blocs : la vidéo
+// continue de tourner au lieu de redémarrer à chaque mise à jour du stock.
+function rendreAccueil(conteneur) {
+  const hero = heroAccueil();
+  const zoneHero = document.getElementById('zone-hero');
+  const zoneBlocs = document.getElementById('zone-accueil-blocs');
 
-  return `
-    <section class="hero">
-      <img src="logo.jpg" class="logo-hero" alt="ROSELLE">
-      <h1>Féminité, élégance, confiance</h1>
-      <p class="accroche">Découvrez la nouvelle collection ROSELLE — des pièces pensées pour la femme d'aujourd'hui.</p>
-      <div class="separateur-dore"></div>
-      <button class="bouton-principal" onclick="naviguerVers('catalogue', {categorie: '${CATEGORIES_PRINCIPALES[0]}'})">Découvrir la collection</button>
-    </section>
-
-    <div class="tuiles-categories">
-      ${CATEGORIES_PRINCIPALES.map(cat => {
-        const produitsCat = produitsParCategorie(cat);
-        const photo = produitsCat.length ? photoParDefaut(produitsCat[0]) : '';
-        return `
-          <a class="tuile-categorie" href="#" onclick="naviguerVers('catalogue', {categorie: '${cat}'}); return false;">
-            ${photo ? `<img src="${photo}" alt="${cat}">` : ''}
-            <span>${capitaliser(cat)}</span>
-          </a>`;
-      }).join('')}
-    </div>
-
-    ${nouveautes.length ? `
-    <div class="bloc-section">
-      <div class="entete-section">
-        <h2>Nouveautés</h2>
-      </div>
-      <div class="grille-produits">
-        ${nouveautes.map(carteProduitHTML).join('')}
-      </div>
-    </div>` : ''}
+  if (zoneHero && zoneBlocs && conteneur.contains(zoneHero) && zoneHero.dataset.signature === hero.signature) {
+    zoneBlocs.innerHTML = blocsAccueilHTML();
+    return;
+  }
+  conteneur.innerHTML = `
+    <div id="zone-hero" data-signature="${echapper(hero.signature)}">${hero.html}</div>
+    <div id="zone-accueil-blocs">${blocsAccueilHTML()}</div>
   `;
+}
+
+// Construit le héros à partir des réglages (type vidéo ou image).
+// Sans média valide dans le dashboard, on garde la vidéo par défaut.
+function heroAccueil() {
+  const brut = etat.reglages.hero || {};
+  const mediaPerso = urlSure(brut.mediaUrl, '');
+  const type = mediaPerso ? (brut.type === 'image' ? 'image' : 'video') : 'video';
+  const media = mediaPerso || REGLAGES_PAR_DEFAUT.hero.mediaUrl;
+  const affiche = urlSure(brut.posterUrl, '') || reglageUrl('brand', 'logoUrl');
+  const logo = reglageUrl('brand', 'logoUrl');
+  const nom = reglageTexte('brand', 'name');
+  const texte = reglageTexte('hero', 'text');
+  const libelleBouton = reglageTexte('hero', 'buttonLabel');
+  const lienBouton = brut.buttonLink || REGLAGES_PAR_DEFAUT.hero.buttonLink;
+
+  const mediaHTML = type === 'image'
+    ? `<img class="media-hero" src="${echapper(media)}" alt="${echapper(nom)}">`
+    : `<video autoplay muted loop playsinline poster="${echapper(affiche)}">
+         <source src="${echapper(media)}" type="video/mp4">
+       </video>`;
+
+  const html = `
+    <section class="hero-video-section">
+      ${mediaHTML}
+      <div class="hero-video-logo"><img src="${echapper(logo)}" alt="${echapper(nom)}"></div>
+      <div class="hero-video-texte">
+        <p>${echapper(texte)}</p>
+        <button class="bouton-principal" ${lienAttributs(lienBouton)}>${echapper(libelleBouton)}</button>
+      </div>
+    </section>
+  `;
+  // La signature résume ce qui, s'il change, impose de reconstruire le héros
+  const signature = JSON.stringify([type, media, affiche, logo, nom, texte, libelleBouton, lienBouton]);
+  return { html, signature };
+}
+
+// Liste des blocs à afficher sous le héros. Sans blocs dans le dashboard,
+// on garde la disposition d'origine : catégories puis nouveautés.
+function blocsAccueil() {
+  const blocs = etat.reglages && Array.isArray(etat.reglages.blocks) ? etat.reglages.blocks : [];
+  const visibles = blocs.filter(b => b && b.type && b.visible !== false);
+  if (visibles.length) return visibles;
+  return [{ type: 'categories' }, { type: 'nouveautes' }];
+}
+
+function blocsAccueilHTML() {
+  return blocsAccueil().map(bloc => {
+    switch (bloc.type) {
+      case 'banner': return blocBanniereHTML(bloc);
+      case 'products': return blocProduitsHTML(bloc.title, (Array.isArray(bloc.productIds) ? bloc.productIds : []).slice(0, 12).map(trouverProduit).filter(Boolean));
+      case 'categories': return blocCategoriesHTML(bloc.title);
+      case 'text': return blocTexteHTML(bloc);
+      case 'image': return blocImageHTML(bloc);
+      case 'nouveautes': return blocProduitsHTML('Nouveautés', etat.produits.slice(0, 8)); // bloc interne par défaut
+      default: return ''; // type inconnu : ignoré, sans casser la page
+    }
+  }).join('');
+}
+
+// Grande bannière : photo + titre + sous-titre + bouton
+function blocBanniereHTML(bloc) {
+  const image = urlSure(bloc.imageUrl, '');
+  const titre = bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : '';
+  const sousTitre = bloc.subtitle ? `<p>${echapper(bloc.subtitle)}</p>` : '';
+  const bouton = bloc.buttonLabel ? `<span class="bouton-principal">${echapper(bloc.buttonLabel)}</span>` : '';
+  if (!image) {
+    // Sans photo, la bannière devient un bloc texte avec bouton
+    return `
+      <div class="bloc-texte">
+        ${titre}${sousTitre}
+        ${bloc.buttonLabel ? `<button class="bouton-principal" ${lienAttributs(bloc.link)}>${echapper(bloc.buttonLabel)}</button>` : ''}
+      </div>`;
+  }
+  return `
+    <a href="#" class="bloc-banniere" ${lienAttributs(bloc.link)}>
+      <img src="${echapper(image)}" alt="${echapper(bloc.title || '')}" loading="lazy">
+      ${(titre || sousTitre || bouton) ? `<div class="texte-banniere">${titre}${sousTitre}${bouton}</div>` : ''}
+    </a>`;
+}
+
+// Sélection de produits (ex. « Les plus vendus ») ou nouveautés
+function blocProduitsHTML(titre, produits) {
+  if (!produits.length) return '';
+  return `
+    <div class="bloc-section" style="position:relative;">
+      ${petalesDecorHTML()}
+      ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
+      <div class="grille-produits" style="position:relative; z-index:1;">
+        ${produits.map(carteProduitHTML).join('')}
+      </div>
+    </div>`;
+}
+
+// Carrousel des catégories (photo du dashboard, sinon photo du premier produit)
+function blocCategoriesHTML(titre) {
+  return `
+    <div class="bloc-section" style="position:relative; margin-top:40px;">
+      ${petalesDecorHTML()}
+      ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
+      <div class="tuiles-categories" style="position:relative; z-index:1; margin-top:0;">
+        ${categoriesAffichees().map(cat => {
+          const produitsCat = produitsParCategorie(cat.id);
+          const photo = cat.imageUrl || (produitsCat.length ? photoParDefaut(produitsCat[0]) : '');
+          return `
+            <a class="tuile-categorie" href="#" data-cat="${echapper(cat.id)}" onclick="ouvrirCategorie(this); return false;">
+              <div class="photo-wrap">
+                ${photo ? `<img src="${echapper(photo)}" alt="${echapper(cat.label)}" loading="lazy">` : ''}
+              </div>
+              <span>${echapper(cat.label)}</span>
+            </a>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+// Texte libre : titre + paragraphes
+function blocTexteHTML(bloc) {
+  if (!bloc.title && !bloc.body) return '';
+  return `
+    <div class="bloc-texte">
+      ${bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : ''}
+      ${paragraphesHTML(bloc.body)}
+    </div>`;
+}
+
+// Image seule, avec lien optionnel
+function blocImageHTML(bloc) {
+  const image = urlSure(bloc.imageUrl, '');
+  if (!image) return '';
+  const img = `<img src="${echapper(image)}" alt="" loading="lazy">`;
+  return bloc.link
+    ? `<a href="#" class="bloc-image" ${lienAttributs(bloc.link)}>${img}</a>`
+    : `<div class="bloc-image">${img}</div>`;
 }
 
 /* ============================================================
    VUE — CATALOGUE
    ============================================================ */
 function vueCatalogue(categorie) {
-  const produits = categorie ? produitsParCategorie(categorie) : etat.produits;
+  let produits = categorie ? produitsParCategorie(categorie) : etat.produits;
+
+  // Filtre "disponible seulement"
+  if (etat.filtresCatalogue.disponibleSeulement) {
+    produits = produits.filter(p => stockTotalDisponible(p) > 0);
+  }
+
+  // Tri
+  produits = [...produits];
+  if (etat.filtresCatalogue.tri === 'prix-asc') {
+    produits.sort((a, b) => prixUnitaireEffectif(a).actuel - prixUnitaireEffectif(b).actuel);
+  } else if (etat.filtresCatalogue.tri === 'prix-desc') {
+    produits.sort((a, b) => prixUnitaireEffectif(b).actuel - prixUnitaireEffectif(a).actuel);
+  }
+  // 'defaut' : ordre tel que reçu de publicCatalog (le plus proche d'un ordre "nouveautés")
+
   return `
-    <div class="bloc-section" style="margin-top:30px;">
-      <div class="entete-section">
-        <h2>${categorie ? capitaliser(categorie) : 'Toute la collection'}</h2>
+    <div class="bloc-section" style="margin-top:30px; position:relative;">
+      ${petalesDecorHTML()}
+      <div class="entete-section" style="position:relative; z-index:1;">
+        <h2>${categorie ? echapper(libelleCategorie(categorie)) : 'Toute la collection'}</h2>
       </div>
+
+      <div class="barre-filtre" style="position:relative; z-index:1;">
+        <span class="compte-produits">${produits.length} produit${produits.length > 1 ? 's' : ''}</span>
+        <div class="controles-filtre">
+          <label class="case-disponible">
+            <input type="checkbox" ${etat.filtresCatalogue.disponibleSeulement ? 'checked' : ''} onchange="changerDisponibiliteCatalogue(this.checked)">
+            En stock seulement
+          </label>
+          <select class="select-tri" onchange="changerTriCatalogue(this.value)">
+            <option value="defaut" ${etat.filtresCatalogue.tri === 'defaut' ? 'selected' : ''}>Trier : nouveautés</option>
+            <option value="prix-asc" ${etat.filtresCatalogue.tri === 'prix-asc' ? 'selected' : ''}>Prix croissant</option>
+            <option value="prix-desc" ${etat.filtresCatalogue.tri === 'prix-desc' ? 'selected' : ''}>Prix décroissant</option>
+          </select>
+        </div>
+      </div>
+
       ${produits.length
-        ? `<div class="grille-produits">${produits.map(carteProduitHTML).join('')}</div>`
-        : `<div class="message-vide">
-             Aucun article disponible dans cette catégorie pour le moment.
+        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(carteProduitHTML).join('')}</div>`
+        : `<div class="message-vide" style="position:relative; z-index:1;">
+             Aucun article disponible pour le moment avec ces filtres.
              ${etat.produits.length ? `<div style="margin-top:14px; font-size:0.75rem; opacity:0.6;">
                (Catégories trouvées dans le catalogue : ${[...new Set(etat.produits.map(p => p.cat))].join(', ')})
              </div>` : ''}
            </div>`}
+    </div>
+  `;
+}
+
+// Change le tri du catalogue et réaffiche
+function changerTriCatalogue(valeur) {
+  etat.filtresCatalogue.tri = valeur;
+  rendre();
+}
+
+// Active/désactive le filtre "disponible seulement" et réaffiche
+function changerDisponibiliteCatalogue(coche) {
+  etat.filtresCatalogue.disponibleSeulement = coche;
+  rendre();
+}
+
+// Génère quelques pétales décoratifs flottants (purement visuel, aucune
+// interaction), dispersés à des positions/délais variés pour un effet naturel.
+function petalesDecorHTML() {
+  const positions = [
+    { top: '2%',  left: '6%',  delay: '0s',   duree: '8s'  },
+    { top: '10%', left: '45%', delay: '0.6s', duree: '8.8s' },
+    { top: '16%', left: '88%', delay: '1.2s', duree: '9.5s' },
+    { top: '34%', left: '22%', delay: '2s',   duree: '8.2s' },
+    { top: '46%', left: '4%',  delay: '2.4s', duree: '7.5s' },
+    { top: '42%', left: '70%', delay: '1.6s', duree: '9s'  },
+    { top: '58%', left: '38%', delay: '0.3s', duree: '10.5s' },
+    { top: '62%', left: '92%', delay: '0.8s', duree: '10s' },
+    { top: '74%', left: '55%', delay: '2.2s', duree: '8.6s' },
+    { top: '80%', left: '15%', delay: '1.8s', duree: '8.5s' },
+    { top: '88%', left: '80%', delay: '1s',   duree: '9.2s' },
+    { top: '30%', left: '50%', delay: '0.4s', duree: '9s'  }
+  ];
+  const svgPetale = `
+    <svg viewBox="0 0 24 24" fill="none">
+      <g fill="#E0218A">
+        <ellipse cx="12" cy="7" rx="3.1" ry="5.2"/>
+        <ellipse cx="12" cy="7" rx="3.1" ry="5.2" transform="rotate(72 12 12)"/>
+        <ellipse cx="12" cy="7" rx="3.1" ry="5.2" transform="rotate(144 12 12)"/>
+        <ellipse cx="12" cy="7" rx="3.1" ry="5.2" transform="rotate(216 12 12)"/>
+        <ellipse cx="12" cy="7" rx="3.1" ry="5.2" transform="rotate(288 12 12)"/>
+      </g>
+      <circle cx="12" cy="12" r="2.1" fill="#8A0F56"/>
+    </svg>`;
+  return `
+    <div class="petales-decor">
+      ${positions.map(p => `
+        <span class="petale" style="top:${p.top}; left:${p.left}; animation-delay:${p.delay}; animation-duration:${p.duree};">
+          ${svgPetale}
+        </span>
+      `).join('')}
     </div>
   `;
 }
@@ -1047,15 +1574,19 @@ function choisirFormule(cle, qte) {
   zonePack.innerHTML = Array.from({ length: qte }).map((_, i) => `
     <div class="unite-pack">
       <div class="titre-unite">Article ${i + 1}</div>
-      <div class="lignes-select">
-        <select onchange="choisirCouleurPack(${i}, this.value)">
-          <option value="">Couleur…</option>
-          ${couleurs.map(c => `<option value="${c}">${c}</option>`).join('')}
-        </select>
-        <select id="select-taille-pack-${i}" onchange="choisirTaillePack(${i}, this.value)" disabled>
-          <option value="">Taille…</option>
-        </select>
+      <div class="options-couleur" id="options-couleur-pack-${i}">
+        ${couleurs.map(c => {
+          const v = (produit.variants || []).find(v => v.color === c);
+          const photoSwatch = photosVariante(v)[0];
+          return `
+            <button type="button" class="swatch-couleur" data-couleur="${c}" title="${c}" onclick="choisirCouleurPack(${i}, '${c}')">
+              ${photoSwatch ? `<img src="${photoSwatch}" alt="${c}">` : ''}
+            </button>`;
+        }).join('')}
       </div>
+      <select id="select-taille-pack-${i}" class="select-taille-pack" onchange="choisirTaillePack(${i}, this.value)" disabled>
+        <option value="">Taille…</option>
+      </select>
     </div>
   `).join('');
 
@@ -1067,6 +1598,29 @@ function choisirFormule(cle, qte) {
 function choisirCouleurPack(index, couleur) {
   const produit = trouverProduit(etat.parametresVue.produitId);
   etat.produitCourant.selectionsPack[index] = { color: couleur, size: null };
+
+  // Met en évidence la pastille choisie pour cet article du pack
+  const conteneur = document.getElementById('options-couleur-pack-' + index);
+  conteneur.querySelectorAll('.swatch-couleur').forEach(el => {
+    el.classList.toggle('selectionne', el.dataset.couleur === couleur);
+  });
+
+  // Met aussi à jour la grande photo + la galerie, pour montrer la couleur choisie
+  const varianteCouleur = (produit.variants || []).find(v => v.color === couleur && ((v.photos && v.photos.length) || v.photo));
+  const photos = photosVariante(varianteCouleur);
+  if (photos.length) {
+    document.getElementById('photo-produit-principale').src = photos[0];
+  }
+  const conteneurGalerie = document.getElementById('galerie-miniatures');
+  if (conteneurGalerie) {
+    conteneurGalerie.innerHTML = photos.length > 1
+      ? photos.map((url, i) => `
+          <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto('${url}', this)">
+            <img src="${url}" alt="${couleur}">
+          </button>
+        `).join('')
+      : '';
+  }
 
   const selectTaille = document.getElementById('select-taille-pack-' + index);
   const taillesDispo = (produit.variants || []).filter(v => v.color === couleur && Number(v.qty) > 0);
@@ -1143,7 +1697,9 @@ function vuePanier() {
     `;
   }
 
-  const total = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  const sousTotal = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  const frais = fraisLivraison();
+  const total = sousTotal + frais;
 
   return `
     <div class="section-etroite" style="margin-top:30px;">
@@ -1167,6 +1723,10 @@ function vuePanier() {
             </div>
           </div>
         `).join('')}
+      </div>
+      <div class="recap-commande" style="margin-top:10px;">
+        <div class="ligne-recap"><span>Sous-total</span><span>${prixFormat(sousTotal)}</span></div>
+        <div class="ligne-recap"><span>Livraison</span><span>${prixFormat(frais)}</span></div>
       </div>
       <div class="recap-total">
         <span class="label">Total</span>
@@ -1198,7 +1758,11 @@ function retirerDuPanier(index) {
    VUE — FORMULAIRE DE COMMANDE
    ============================================================ */
 function vueCommande() {
-  const total = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  const sousTotal = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  // On fige les frais affichés : la commande enverra exactement ce montant,
+  // même si le dashboard change les frais pendant que la cliente remplit le formulaire.
+  etat.fraisAffiches = fraisLivraison();
+  const total = sousTotal + etat.fraisAffiches;
   return `
     <div class="section-etroite" style="margin-top:30px;">
       <h1 style="font-size:1.6rem; margin-bottom:24px;">Vos coordonnées de livraison</h1>
@@ -1229,7 +1793,13 @@ function vueCommande() {
           ${etat.panier.map(l => `
             <div class="ligne-recap"><span>${l.name} (${l.color}, ${l.size}) ×${l.qty}</span><span>${prixFormat(l.qty * l.price)}</span></div>
           `).join('')}
-          <div class="ligne-recap" style="font-weight:600; margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
+          <div class="ligne-recap" style="margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
+            <span>Sous-total</span><span>${prixFormat(sousTotal)}</span>
+          </div>
+          <div class="ligne-recap">
+            <span>Livraison</span><span>${prixFormat(etat.fraisAffiches)}</span>
+          </div>
+          <div class="ligne-recap" style="font-weight:600;">
             <span>Total</span><span>${prixFormat(total)}</span>
           </div>
         </div>
@@ -1287,6 +1857,7 @@ function envoyerCommande() {
       variantId: l.variantId,
       qty: l.qty
     })),
+    deliveryFee: (typeof etat.fraisAffiches === 'number') ? etat.fraisAffiches : fraisLivraison(), // frais affichés à la cliente sur la page de commande (nombre)
     date: new Date().toISOString()
   };
 
@@ -1326,26 +1897,39 @@ function vueConfirmation() {
    VUE — À PROPOS / CONTACT
    ============================================================ */
 function vueAPropos() {
+  const titre = reglageTexte('about', 'title');
+  const texte = reglageTexte('about', 'body');
+  const c = etat.reglages.contact || {};
+
+  // Icônes (traits fins, couleur reprise du thème)
+  const icones = {
+    email: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 6 10-6"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .7 2.9a2 2 0 0 1-.4 2.1L8 10a16 16 0 0 0 6 6l1.3-1.4a2 2 0 0 1 2.1-.4c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2.1z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21 12a9 9 0 0 1-13.4 7.8L3 21l1.3-4.4A9 9 0 1 1 21 12z"/></svg>',
+    address: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    lien: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>'
+  };
+
+  // Uniquement les coordonnées réellement saisies dans le dashboard
+  const lignes = [];
+  const email = String(c.email || '').trim();
+  if (email) lignes.push(`<div class="item-contact">${icones.email}<a href="mailto:${echapper(email)}">${echapper(email)}</a></div>`);
+  const tel = String(c.phone || '').trim();
+  if (tel) lignes.push(`<div class="item-contact">${icones.phone}<a href="tel:${echapper(tel.replace(/[^+0-9]/g, ''))}">${echapper(tel)}</a></div>`);
+  const whatsapp = String(c.whatsapp || '').replace(/[^0-9]/g, '');
+  if (whatsapp) lignes.push(`<div class="item-contact">${icones.whatsapp}<a href="https://wa.me/${whatsapp}" target="_blank" rel="noopener">WhatsApp</a></div>`);
+  const adresse = String(c.address || '').trim();
+  if (adresse) lignes.push(`<div class="item-contact">${icones.address}<span>${echapper(adresse)}</span></div>`);
+  [['Instagram', c.instagramUrl], ['Facebook', c.facebookUrl], ['TikTok', c.tiktokUrl]].forEach(([libelle, url]) => {
+    const u = urlSure(url, '');
+    if (u) lignes.push(`<div class="item-contact">${icones.lien}<a href="${echapper(u)}" target="_blank" rel="noopener">${libelle}</a></div>`);
+  });
+
   return `
     <div class="page-apropos section-etroite" style="margin-top:30px;">
-      <h1>À propos de ROSELLE</h1>
-      <p>ROSELLE est une marque de prêt-à-porter féminin pensée pour la femme d'aujourd'hui : féminité, élégance et confiance, dans chaque pièce de la collection.</p>
-      <p>Nos commandes sont préparées avec soin et livrées partout où vous êtes, avec paiement en espèces à la réception de votre colis.</p>
-
-      <div class="liste-contact">
-        <div class="item-contact">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 6 10-6"/></svg>
-          <span>contact@roselle.tn</span>
-        </div>
-        <div class="item-contact">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .7 2.9a2 2 0 0 1-.4 2.1L8 10a16 16 0 0 0 6 6l1.3-1.4a2 2 0 0 1 2.1-.4c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2.1z"/></svg>
-          <span>+216 20 123 456</span>
-        </div>
-        <div class="item-contact">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
-          <a href="https://instagram.com/roselle" target="_blank" rel="noopener">@roselle</a>
-        </div>
-      </div>
+      <h1>${echapper(titre)}</h1>
+      ${paragraphesHTML(texte)}
+      ${lignes.length ? `<div class="liste-contact">${lignes.join('')}</div>` : ''}
     </div>
   `;
 }

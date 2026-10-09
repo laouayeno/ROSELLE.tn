@@ -1,0 +1,12 @@
+// Configuration Cloudflare du site de vente ROSELLE.
+// Cloudflare relit ce fichier à chaque modification du dépôt GitHub et
+// redéploie automatiquement le Worker "rosellestore".
+// Le nom DOIT rester "rosellestore" : c'est celui du Worker dans le tableau de bord Cloudflare.
+{
+  "name": "rosellestore",
+  "compatibility_date": "2026-10-09",
+  // Site statique : tous les fichiers du dossier public/ sont servis tels quels
+  "assets": {
+    "directory": "./public"
+  }
+}
