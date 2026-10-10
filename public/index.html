@@ -252,6 +252,18 @@
     .bloc-texte p { font-size: 1.12rem; }
   }
 
+  /* Bloc texte avec photo / GIF / vidéo :
+     iPhone = média au-dessus du texte ; PC = côte à côte, côté au choix */
+  .bloc-texte.avec-media { max-width: 1120px; display: grid; gap: 24px; }
+  .media-bloc img, .media-bloc video {
+    width: 100%; display: block; border-radius: 6px; background: var(--rose-clair);
+  }
+  @media (min-width: 780px) {
+    .bloc-texte.avec-media { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+    .bloc-texte.avec-media.media-droite .media-bloc { order: 2; }
+    .bloc-texte.avec-media.media-gauche .media-bloc { order: 0; }
+  }
+
   /* Bloc image seule */
   .bloc-image { display: block; margin-top: 48px; }
   .bloc-image img { width: 100%; border-radius: 6px; display: block; }
@@ -536,7 +548,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1269,12 +1281,31 @@ document.addEventListener('dragstart', (e) => {
 });
 
 // Texte libre : titre + paragraphes
+// Bloc texte, avec en option une photo, un GIF ou une courte vidéo à côté :
+// - PC : texte d'un côté, média de l'autre (mediaSide : 'right' par défaut, ou 'left')
+// - iPhone : média au-dessus du texte
 function blocTexteHTML(bloc) {
-  if (!bloc.title && !bloc.body) return '';
+  const media = urlSure(bloc.mediaUrl, '');
+  if (!bloc.title && !bloc.body && !media) return '';
+
+  const texte = `
+      <div class="texte-bloc">
+        ${bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : ''}
+        ${paragraphesHTML(bloc.body)}
+      </div>`;
+  if (!media) return `<div class="bloc-texte">${texte}</div>`;
+
+  // Vidéo si le type le dit, ou si l'adresse finit par .mp4 / .webm ; sinon image (GIF compris)
+  const estVideo = bloc.mediaType === 'video' || /\.(mp4|webm)(\?|#|$)/i.test(media);
+  const mediaHTML = estVideo
+    ? `<video src="${echapper(media)}" autoplay muted loop playsinline preload="metadata"></video>`
+    : `<img src="${echapper(media)}" alt="${echapper(bloc.title || '')}" loading="lazy">`;
+  const cote = bloc.mediaSide === 'left' ? 'media-gauche' : 'media-droite';
+
   return `
-    <div class="bloc-texte">
-      ${bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : ''}
-      ${paragraphesHTML(bloc.body)}
+    <div class="bloc-texte avec-media ${cote}">
+      <div class="media-bloc">${mediaHTML}</div>
+      ${texte}
     </div>`;
 }
 
