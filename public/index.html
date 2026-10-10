@@ -44,6 +44,9 @@
     font-family: 'Inter', sans-serif;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    /* Empêche la page de déborder sur le côté (barre de défilement horizontale
+       sur PC) à cause des sections pleine largeur. "clip" ne gêne pas l'en-tête collant. */
+    overflow-x: clip;
   }
 
   h1, h2, h3, .titre-serif {
@@ -157,19 +160,49 @@
   }
   .bouton-principal:hover { background: var(--texte); }
 
-  /* Carrousel de catégories : une grande photo à la fois, défilement tactile
-     horizontal avec un arrêt net ("snap") sur chaque catégorie. */
+  /* Carrousel de catégories, sur toute la largeur de l'écran.
+     - iPhone : une grande photo à la fois, on glisse au doigt.
+     - PC : environ 3 photos visibles, flèches ‹ › et glisser à la souris. */
+  .carrousel-categories {
+    position: relative;
+    width: 100vw; margin-left: calc(50% - 50vw); /* sort de la largeur limitée de la page */
+  }
   .tuiles-categories {
-    display: flex; gap: 14px; margin-top: 40px;
+    display: flex; gap: 14px; margin: 0;
     overflow-x: auto; scroll-snap-type: x mandatory;
-    padding: 0 20px 6px; margin-left: -20px; margin-right: -20px;
+    padding: 0 20px 6px; scroll-padding-inline: 20px;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
   .tuiles-categories::-webkit-scrollbar { display: none; }
   .tuile-categorie {
     display: block; flex: 0 0 82%; scroll-snap-align: center;
+    -webkit-user-drag: none;
   }
-  @media (min-width: 640px) { .tuile-categorie { flex-basis: 38%; } }
+  .tuile-categorie img { -webkit-user-drag: none; user-select: none; }
+  @media (min-width: 640px) { .tuile-categorie { flex-basis: 45%; } }
+  @media (min-width: 780px) {
+    .tuiles-categories { padding: 0 40px 6px; scroll-padding-inline: 40px; }
+    .tuile-categorie { flex-basis: calc((100% - 28px) / 3.25); scroll-snap-align: start; }
+  }
+
+  /* Flèches : seulement sur les appareils avec souris (PC) */
+  .fleche-carrousel { display: none; }
+  @media (hover: hover) and (pointer: fine) and (min-width: 780px) {
+    .tuiles-categories { cursor: grab; }
+    .tuiles-categories.en-glissement { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+    .fleche-carrousel {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 42%; transform: translateY(-50%); z-index: 2;
+      width: 46px; height: 46px; border-radius: 50%;
+      background: var(--blanc); color: var(--texte); border: none;
+      box-shadow: 0 2px 10px rgba(17,17,17,0.18); cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .fleche-carrousel svg { width: 20px; height: 20px; }
+    .fleche-carrousel.gauche { left: 18px; }
+    .fleche-carrousel.droite { right: 18px; }
+    .fleche-carrousel.inactive { opacity: 0; pointer-events: none; }
+  }
   .tuile-categorie .photo-wrap {
     /* Grande photo plein format, sans arche ici. */
     position: relative; aspect-ratio: 3/4; overflow: hidden; background: var(--rose-clair);
@@ -205,10 +238,19 @@
   .bloc-banniere .texte-banniere p { margin: 6px 0 14px; font-size: 0.95rem; }
   .bloc-banniere .texte-banniere .bouton-principal { background: var(--blanc); color: var(--texte); }
 
-  /* Bloc texte libre */
-  .bloc-texte { margin: 48px auto 0; max-width: 640px; text-align: center; }
-  .bloc-texte h2 { font-size: 1.5rem; margin-bottom: 12px; }
-  .bloc-texte p { color: var(--texte-doux); margin: 0 0 12px; }
+  /* Bloc texte libre — style éditorial aligné à gauche :
+     grand titre, petit trait, texte foncé et lisible */
+  .bloc-texte { margin: 56px auto 0; max-width: 720px; text-align: left; }
+  .bloc-texte h2 { font-size: 1.9rem; line-height: 1.2; margin-bottom: 14px; }
+  .bloc-texte h2::after {
+    content: ''; display: block; width: 44px; height: 2px;
+    background: var(--texte); margin-top: 14px;
+  }
+  .bloc-texte p { color: var(--texte); font-size: 1.06rem; line-height: 1.75; margin: 0 0 16px; }
+  @media (min-width: 780px) {
+    .bloc-texte h2 { font-size: 2.2rem; }
+    .bloc-texte p { font-size: 1.12rem; }
+  }
 
   /* Bloc image seule */
   .bloc-image { display: block; margin-top: 48px; }
@@ -494,7 +536,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.5.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1001,13 +1043,17 @@ function rendreAccueil(conteneur) {
   const zoneBlocs = document.getElementById('zone-accueil-blocs');
 
   if (zoneHero && zoneBlocs && conteneur.contains(zoneHero) && zoneHero.dataset.signature === hero.signature) {
+    // On garde la position des carrousels : une mise à jour du stock ne doit pas les ramener au début
+    const positions = [...zoneBlocs.querySelectorAll('.tuiles-categories')].map(p => p.scrollLeft);
     zoneBlocs.innerHTML = blocsAccueilHTML();
-    return;
+    zoneBlocs.querySelectorAll('.tuiles-categories').forEach((p, i) => { if (positions[i]) p.scrollLeft = positions[i]; });
+  } else {
+    conteneur.innerHTML = `
+      <div id="zone-hero" data-signature="${echapper(hero.signature)}">${hero.html}</div>
+      <div id="zone-accueil-blocs">${blocsAccueilHTML()}</div>
+    `;
   }
-  conteneur.innerHTML = `
-    <div id="zone-hero" data-signature="${echapper(hero.signature)}">${hero.html}</div>
-    <div id="zone-accueil-blocs">${blocsAccueilHTML()}</div>
-  `;
+  majTousLesCarrousels();
 }
 
 // Construit le héros à partir des réglages (type vidéo ou image).
@@ -1108,7 +1154,11 @@ function blocCategoriesHTML(titre) {
     <div class="bloc-section" style="position:relative; margin-top:40px;">
       ${petalesDecorHTML()}
       ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
-      <div class="tuiles-categories" style="position:relative; z-index:1; margin-top:0;">
+      <div class="carrousel-categories" style="z-index:1;">
+      <button type="button" class="fleche-carrousel gauche inactive" aria-label="Catégories précédentes" onclick="defilerCategories(this, -1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="tuiles-categories">
         ${categoriesAffichees().map(cat => {
           const produitsCat = produitsParCategorie(cat.id);
           const photo = cat.imageUrl || (produitsCat.length ? photoParDefaut(produitsCat[0]) : '');
@@ -1121,8 +1171,102 @@ function blocCategoriesHTML(titre) {
             </a>`;
         }).join('')}
       </div>
+      <button type="button" class="fleche-carrousel droite" aria-label="Catégories suivantes" onclick="defilerCategories(this, 1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      </div>
     </div>`;
 }
+
+/* ============================================================
+   CARROUSEL DES CATÉGORIES SUR PC : flèches + glisser à la souris
+   ------------------------------------------------------------
+   Sur iPhone, le glissement au doigt est natif. Sur PC, la souris
+   ne sait pas faire défiler une zone horizontale : on ajoute
+   des flèches et le « cliquer-glisser ». Les écouteurs sont posés
+   une seule fois sur le document, car le carrousel est recréé à
+   chaque mise à jour du catalogue.
+   ============================================================ */
+
+// Fait défiler d'une photo vers la gauche (-1) ou la droite (1)
+function defilerCategories(bouton, sens) {
+  const piste = bouton.parentElement.querySelector('.tuiles-categories');
+  const tuile = piste.querySelector('.tuile-categorie');
+  const pas = tuile ? tuile.getBoundingClientRect().width + 14 : piste.clientWidth * 0.8;
+  piste.scrollBy({ left: sens * pas, behavior: 'smooth' });
+}
+
+// Masque la flèche gauche au début et la flèche droite à la fin
+function majFlechesCarrousel(piste) {
+  const conteneur = piste.parentElement;
+  const gauche = conteneur.querySelector('.fleche-carrousel.gauche');
+  const droite = conteneur.querySelector('.fleche-carrousel.droite');
+  if (!gauche || !droite) return;
+  const max = piste.scrollWidth - piste.clientWidth;
+  gauche.classList.toggle('inactive', piste.scrollLeft <= 4);
+  droite.classList.toggle('inactive', piste.scrollLeft >= max - 4);
+}
+
+function majTousLesCarrousels() {
+  document.querySelectorAll('.tuiles-categories').forEach(majFlechesCarrousel);
+}
+
+// Défilement (molette, flèches, glisser) : mise à jour des flèches
+document.addEventListener('scroll', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('tuiles-categories')) {
+    majFlechesCarrousel(e.target);
+  }
+}, true);
+window.addEventListener('resize', majTousLesCarrousels);
+
+// Glisser à la souris
+const glissement = { piste: null, departX: 0, departScroll: 0, aBouge: false };
+let annulerProchainClic = false;
+
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  const piste = e.target.closest && e.target.closest('.tuiles-categories');
+  if (!piste) return;
+  glissement.piste = piste;
+  glissement.departX = e.clientX;
+  glissement.departScroll = piste.scrollLeft;
+  glissement.aBouge = false;
+});
+
+document.addEventListener('pointermove', (e) => {
+  const piste = glissement.piste;
+  if (!piste) return;
+  const ecart = e.clientX - glissement.departX;
+  if (!glissement.aBouge && Math.abs(ecart) > 6) {
+    glissement.aBouge = true;
+    piste.classList.add('en-glissement'); // coupe l'aimantation pendant le glisser
+  }
+  if (glissement.aBouge) piste.scrollLeft = glissement.departScroll - ecart;
+});
+
+document.addEventListener('pointerup', () => {
+  const piste = glissement.piste;
+  if (!piste) return;
+  if (glissement.aBouge) {
+    annulerProchainClic = true; // un glisser ne doit pas ouvrir la catégorie
+    piste.classList.remove('en-glissement'); // l'aimantation recale sur la photo la plus proche
+  }
+  glissement.piste = null;
+});
+
+// Bloque le clic qui suit un glisser (phase de capture : avant le onclick de la tuile)
+document.addEventListener('click', (e) => {
+  if (annulerProchainClic) {
+    annulerProchainClic = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+// Empêche le navigateur de « déplacer » l'image au lieu de faire défiler
+document.addEventListener('dragstart', (e) => {
+  if (e.target.closest && e.target.closest('.tuiles-categories')) e.preventDefault();
+});
 
 // Texte libre : titre + paragraphes
 function blocTexteHTML(bloc) {
