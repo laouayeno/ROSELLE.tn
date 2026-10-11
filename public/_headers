@@ -1,0 +1,19 @@
+# Règles de cache lues automatiquement par Cloudflare (site de vente ROSELLE).
+# Les données (stock, prix, commandes) viennent de Firestore en temps réel :
+# ce fichier ne les concerne pas.
+
+# Page du site : le téléphone vérifie à CHAQUE visite s'il y a une nouvelle
+# version (réponse très légère si rien n'a changé). Les mises à jour
+# apparaissent donc tout de suite.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+
+# Logo et vidéo d'accueil par défaut : gardés 7 jours dans le téléphone
+# (604 800 secondes). Si on remplace ces fichiers en gardant le même nom,
+# une cliente déjà venue peut voir l'ancien pendant 7 jours au maximum.
+/logo.jpg
+  Cache-Control: public, max-age=604800
+/hero.mp4
+  Cache-Control: public, max-age=604800
