@@ -481,7 +481,10 @@
   .qte-panier button {
     width: 26px; height: 26px; border: 1px solid var(--rose-clair); background: var(--blanc); border-radius: 50%;
   }
-  .bouton-supprimer { background: none; border: none; color: var(--texte-doux); font-size: 0.78rem; text-decoration: underline; }
+  /* « Retirer » (panier) écrit en rouge pour bien le repérer */
+  .bouton-supprimer { background: none; border: none; color: var(--erreur); font-size: 0.78rem; text-decoration: underline;
+    margin-top: 12px; /* un peu d'espace sous les boutons + et − */
+  }
   .prix-ligne { font-size: 0.9rem; color: var(--rose-fonce); }
 
   .recap-total {
@@ -585,7 +588,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.13</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.14</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1977,10 +1980,28 @@ function continuerMesAchats() {
   naviguerVers('accueil');
 }
 
-// Lignes à commander sur la page de commande : l'achat direct s'il y en a
-// un en cours, sinon le contenu du panier.
+// Lignes à commander sur la page de commande.
+// - Sans achat direct : le contenu du panier.
+// - Avec « Acheter maintenant » : l'article choisi PLUS tout le panier
+//   (choix d'Oussama, V2.14 : sinon la cliente croit que son panier est
+//   compris et ne reçoit qu'un article). Le panier lui-même n'est pas
+//   modifié tant que la commande n'est pas envoyée.
 function lignesACommander() {
-  return etat.achatDirect || etat.panier;
+  if (!etat.achatDirect) return etat.panier;
+  const lignes = etat.panier.map(l => ({ ...l })); // copie : le panier reste intact
+  for (const ligne of etat.achatDirect) {
+    // Même article simple (même couleur et taille) déjà dans le panier :
+    // une seule ligne, quantités additionnées (sans dépasser le stock).
+    const ligneExistante = !ligne.packId
+      ? lignes.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
+      : null;
+    if (ligneExistante) {
+      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
+    } else {
+      lignes.push({ ...ligne });
+    }
+  }
+  return lignes;
 }
 
 function choisirFormule(cle, qte) {
@@ -2328,13 +2349,11 @@ function envoyerCommande() {
     .then(() => {
       etat.dernierNumeroCommande = numeroCommande;
       etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '' };
-      if (etat.achatDirect) {
-        // Achat direct : seul l'article acheté disparaît, le panier reste tel quel
-        etat.achatDirect = null;
-      } else {
-        etat.panier = [];
-        sauvegarderPanier();
-      }
+      // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
+      etat.achatDirect = null;
+      etat.panier = [];
+      sauvegarderPanier();
+      mettreAJourCompteurPanier();
       naviguerVers('confirmation');
     })
     .catch((erreur) => {
