@@ -390,6 +390,10 @@
 
   .bloc-choix { margin-top: 26px; }
   .bloc-choix label { display: block; font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 8px; }
+  /* Nom de la couleur choisie, affiché à côté du mot « Couleur » */
+  .nom-couleur-choisie { color: var(--texte); font-weight: 500; }
+  /* Le compteur de quantité est déjà espacé par son bloc « Quantité » */
+  .bloc-choix .selecteur-qte { margin-top: 0; }
 
   .tuiles-formule { display: flex; flex-direction: column; gap: 10px; }
   .tuile-formule {
@@ -570,7 +574,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.11</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.12</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1673,7 +1677,7 @@ function vueProduit(produitId) {
 
         <div id="zone-selection-simple" style="${aDesPaliers ? 'display:none;' : ''}">
           <div class="bloc-choix">
-            <label>Couleur</label>
+            <label>Couleur<span class="nom-couleur-choisie" id="nom-couleur-choisie"></span></label>
             <div class="options-couleur" id="options-couleur">
               ${couleurs.map(couleur => {
                 const v = variants.find(v => v.color === couleur);
@@ -1695,10 +1699,13 @@ function vueProduit(produitId) {
 
           <div class="stock-info" id="stock-info"></div>
 
-          <div class="selecteur-qte">
-            <button type="button" onclick="changerQuantite(-1)">−</button>
-            <span id="quantite-choisie">1</span>
-            <button type="button" onclick="changerQuantite(1)">+</button>
+          <div class="bloc-choix">
+            <label>Quantité</label>
+            <div class="selecteur-qte">
+              <button type="button" onclick="changerQuantite(-1)">−</button>
+              <span id="quantite-choisie">1</span>
+              <button type="button" onclick="changerQuantite(1)">+</button>
+            </div>
           </div>
         </div>
 
@@ -1744,6 +1751,13 @@ function choisirCouleur(produitId, couleur) {
   document.querySelectorAll('.swatch-couleur').forEach(el => {
     el.classList.toggle('selectionne', el.dataset.couleur === couleur);
   });
+
+  // Affiche le nom de la couleur choisie à côté du mot « Couleur »
+  // (ex. « Couleur : Jaune »). Le nom est échappé avant d'être inséré.
+  const nomCouleur = document.getElementById('nom-couleur-choisie');
+  if (nomCouleur) {
+    nomCouleur.innerHTML = couleur ? ' : ' + echapper(couleur) : '';
+  }
 
   // Met à jour la photo principale + la galerie de miniatures pour cette couleur
   const varianteCouleur = (produit.variants || []).find(v => v.color === couleur && ((v.photos && v.photos.length) || v.photo));
