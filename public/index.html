@@ -288,6 +288,27 @@
     100% { transform: translate(0, 0) rotate(0deg); }
   }
 
+  /* Pétales seuls qui tombent doucement en tournant (comme au printemps) */
+  .petale-chute {
+    position: absolute; top: 0; width: 16px; height: 100%;
+    animation: petale-chute linear infinite;
+  }
+  .petale-chute span {
+    display: block; width: 16px; height: 16px; opacity: 0.6;
+    animation: petale-tourne ease-in-out infinite alternate;
+  }
+  .petale-chute svg { width: 100%; height: 100%; display: block; }
+  @keyframes petale-chute {
+    0%   { transform: translateY(-5%); opacity: 0; }
+    8%   { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(95%); opacity: 0; }
+  }
+  @keyframes petale-tourne {
+    0%   { transform: translateX(-14px) rotate(-30deg); }
+    100% { transform: translateX(14px) rotate(160deg); }
+  }
+
   /* ===== Barre de filtre/tri du catalogue ===== */
   .barre-filtre {
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
@@ -1533,11 +1554,38 @@ function petalesDecorHTML() {
           <circle cx="12" cy="9.1" r="0.45" fill="#F6C1DC"/>
         </g>`).join('')}
     </svg>`;
+  // Pétales seuls qui tombent (position, départ décalé, durée de chute, balancement)
+  const chutes = [
+    { left: '12%', delay: '-2s',  duree: '16s', balance: '3s'   },
+    { left: '30%', delay: '-9s',  duree: '19s', balance: '3.6s' },
+    { left: '52%', delay: '-5s',  duree: '17s', balance: '2.8s' },
+    { left: '68%', delay: '-13s', duree: '21s', balance: '3.3s' },
+    { left: '84%', delay: '-7s',  duree: '18s', balance: '3.9s' },
+    { left: '94%', delay: '-15s', duree: '20s', balance: '3.1s' },
+    { left: '4%',  delay: '-11s', duree: '22s', balance: '3.5s' }
+  ];
+  const svgPetaleSeul = `
+    <svg viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="degrade-petale-seul" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0"   stop-color="#B8156F"/>
+          <stop offset="0.5" stop-color="#E0218A"/>
+          <stop offset="1"   stop-color="#F27DBB"/>
+        </linearGradient>
+      </defs>
+      <path d="M12 22 C5 18 4 8 8.4 3 Q10.5 2 12 4.5 Q13.5 2 15.6 3 C20 8 19 18 12 22Z" fill="url(#degrade-petale-seul)"/>
+      <path d="M12 20 L12 6" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="0.4"/>
+    </svg>`;
   return `
     <div class="petales-decor">
       ${positions.map(p => `
         <span class="petale" style="top:${p.top}; left:${p.left}; animation-delay:${p.delay}; animation-duration:${p.duree};">
           ${svgPetale}
+        </span>
+      `).join('')}
+      ${chutes.map(c => `
+        <span class="petale-chute" style="left:${c.left}; animation-delay:${c.delay}; animation-duration:${c.duree};">
+          <span style="animation-delay:${c.delay}; animation-duration:${c.balance};">${svgPetaleSeul}</span>
         </span>
       `).join('')}
     </div>
