@@ -570,7 +570,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.10</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.11</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -752,6 +752,7 @@ const etat = {
   produitCourant: { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] },
   filtresCatalogue: { tri: 'defaut', disponibleSeulement: false }, // barre de tri/filtre du catalogue
   reglages: {},            // contenu brut du document siteSettings/main (vide = valeurs par défaut)
+  achatDirect: null,       // lignes du bouton "Acheter maintenant" (séparées du panier), sinon null
   reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
 
@@ -1016,6 +1017,10 @@ function naviguerVers(vue, parametres = {}) {
 function appliquerNavigation(vue, parametres) {
   etat.vueActuelle = vue;
   etat.parametresVue = parametres;
+  // Un achat direct ("Acheter maintenant") ne vaut que pour la page de
+  // commande qui suit : si la cliente la quitte (retour, panier, accueil…),
+  // il est oublié, et un nouveau choix repart de zéro.
+  if (vue !== 'commande') etat.achatDirect = null;
   if (vue === 'produit') {
     etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
   }
@@ -1843,19 +1848,22 @@ function actualiserBoutonAjouter(produitId) {
   if (boutonAchat) boutonAchat.disabled = false;
 }
 
-function ajouterAuPanier(produitId) {
+// Place l'article choisi (couleur + taille + quantité) dans la liste "lignes".
+// "lignes" est soit le panier, soit la liste d'un achat direct (bouton
+// "Acheter maintenant"). Renvoie true si l'article a bien été placé.
+function placerArticleDans(lignes, produitId) {
   const produit = trouverProduit(produitId);
   const variante = varianteChoisie(produit);
-  if (!produit || !variante) return;
+  if (!produit || !variante) return false;
 
   const { actuel } = prixUnitaireEffectif(produit);
-  const ligneExistante = etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
+  const ligneExistante = lignes.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
   const quantiteDemandee = etat.produitCourant.quantiteChoisie;
 
   if (ligneExistante) {
     ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, Number(variante.qty));
   } else {
-    etat.panier.push({
+    lignes.push({
       productId: produitId,
       variantId: variante.id,
       name: produit.name,
@@ -1868,6 +1876,11 @@ function ajouterAuPanier(produitId) {
       stockDispo: Number(variante.qty)
     });
   }
+  return true;
+}
+
+function ajouterAuPanier(produitId) {
+  if (!placerArticleDans(etat.panier, produitId)) return;
 
   mettreAJourCompteurPanier();
   sauvegarderPanier();
@@ -1889,15 +1902,28 @@ function gererClicAjouter(produitId) {
   }
 }
 
-// Ajoute l'article (ou le pack) au panier puis va directement à la
-// page de commande, sans repasser par la page panier.
+// "Acheter maintenant" : commande UNIQUEMENT l'article (ou le pack) affiché
+// à l'écran, avec la couleur et la taille choisies à cet instant.
+// Il n'est PAS mis dans le panier : avant, il y était ajouté, donc si la
+// cliente revenait en arrière et changeait de couleur, l'ancienne couleur
+// restait dans le panier et se retrouvait aussi dans la commande.
+// Le panier (bouton "Ajouter au panier") reste intact et séparé.
 function acheterMaintenant(produitId) {
-  if (etat.produitCourant.formuleChoisie && etat.produitCourant.formuleChoisie !== 'unitaire') {
-    ajouterPackAuPanier(produitId);
-  } else {
-    ajouterAuPanier(produitId);
-  }
+  const lignes = [];
+  const place = (etat.produitCourant.formuleChoisie && etat.produitCourant.formuleChoisie !== 'unitaire')
+    ? placerPackDans(lignes, produitId)
+    : placerArticleDans(lignes, produitId);
+  if (!place || lignes.length === 0) return;
+
+  suivi.ajoutPanier(produitId);
+  etat.achatDirect = lignes; // lu par la page de commande à la place du panier
   naviguerVers('commande');
+}
+
+// Lignes à commander sur la page de commande : l'achat direct s'il y en a
+// un en cours, sinon le contenu du panier.
+function lignesACommander() {
+  return etat.achatDirect || etat.panier;
 }
 
 function choisirFormule(cle, qte) {
@@ -2004,11 +2030,13 @@ function actualiserBoutonPack() {
   if (boutonAchat) boutonAchat.disabled = !complet;
 }
 
-function ajouterPackAuPanier(produitId) {
+// Place les articles du pack choisi dans la liste "lignes" (panier ou
+// achat direct). Renvoie true si le pack a bien été placé.
+function placerPackDans(lignes, produitId) {
   const produit = trouverProduit(produitId);
   const palier = produit.promoPaliers[etat.produitCourant.formuleChoisie];
   const selections = etat.produitCourant.selectionsPack || [];
-  if (!palier || selections.some(s => !s || !s.color || !s.size)) return;
+  if (!palier || selections.some(s => !s || !s.color || !s.size)) return false;
 
   const prixUnitairePack = Number(palier.prixTotal) / palier.qte;
   const idPack = 'pack-' + Date.now();
@@ -2017,11 +2045,11 @@ function ajouterPackAuPanier(produitId) {
     const variante = (produit.variants || []).find(v => v.color === selection.color && v.size === selection.size);
     if (!variante || Number(variante.qty) <= 0) continue;
 
-    const ligneExistante = etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
+    const ligneExistante = lignes.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
     if (ligneExistante) {
       ligneExistante.qty = Math.min(ligneExistante.qty + 1, Number(variante.qty));
     } else {
-      etat.panier.push({
+      lignes.push({
         productId: produitId,
         variantId: variante.id,
         name: produit.name,
@@ -2037,6 +2065,11 @@ function ajouterPackAuPanier(produitId) {
       });
     }
   }
+  return true;
+}
+
+function ajouterPackAuPanier(produitId) {
+  if (!placerPackDans(etat.panier, produitId)) return;
 
   mettreAJourCompteurPanier();
   sauvegarderPanier();
@@ -2118,7 +2151,8 @@ function retirerDuPanier(index) {
    VUE — FORMULAIRE DE COMMANDE
    ============================================================ */
 function vueCommande() {
-  const sousTotal = etat.panier.reduce((s, l) => s + l.qty * Number(l.price), 0);
+  const lignes = lignesACommander();
+  const sousTotal = lignes.reduce((s, l) => s + l.qty * Number(l.price), 0);
   // On fige les frais affichés : la commande enverra exactement ce montant,
   // même si le dashboard change les frais pendant que la cliente remplit le formulaire.
   etat.fraisAffiches = fraisLivraison();
@@ -2150,7 +2184,7 @@ function vueCommande() {
         </div>
 
         <div class="recap-commande">
-          ${etat.panier.map(l => `
+          ${lignes.map(l => `
             <div class="ligne-recap"><span>${l.name} (${l.color}, ${l.size}) ×${l.qty}</span><span>${prixFormat(l.qty * l.price)}</span></div>
           `).join('')}
           <div class="ligne-recap" style="margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
@@ -2193,7 +2227,8 @@ function envoyerCommande() {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de remplir tous les champs obligatoires.</div>`;
     return;
   }
-  if (etat.panier.length === 0) {
+  const lignes = lignesACommander();
+  if (lignes.length === 0) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Votre panier est vide.</div>`;
     return;
   }
@@ -2212,7 +2247,7 @@ function envoyerCommande() {
     remark: remark,
     status: 'transit',
     confirmed: false,
-    items: etat.panier.map(l => ({
+    items: lignes.map(l => ({
       productId: l.productId,
       variantId: l.variantId,
       qty: l.qty
@@ -2224,8 +2259,13 @@ function envoyerCommande() {
   db.collection('shipments').add(nouveauColis)
     .then(() => {
       etat.dernierNumeroCommande = numeroCommande;
-      etat.panier = [];
-      sauvegarderPanier();
+      if (etat.achatDirect) {
+        // Achat direct : seul l'article acheté disparaît, le panier reste tel quel
+        etat.achatDirect = null;
+      } else {
+        etat.panier = [];
+        sauvegarderPanier();
+      }
       naviguerVers('confirmation');
     })
     .catch((erreur) => {
