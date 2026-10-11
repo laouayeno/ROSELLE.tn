@@ -596,6 +596,106 @@ appCheck.activate(
 const db = firebase.firestore();
 
 /* ============================================================
+   STATISTIQUES DE VISITE (anonymes) — collection Firestore siteStats
+   ------------------------------------------------------------
+   Un seul document par jour (ex. siteStats/2026-10-11) contenant
+   uniquement des compteurs : visiteurs, sessions, téléphone ou
+   ordinateur, provenance (Instagram, Facebook, TikTok, Google…),
+   heure de visite, vues et ajouts au panier par article.
+   Aucune donnée personnelle n'est enregistrée (pas de nom, pas
+   d'adresse IP, pas de cookie publicitaire).
+   Le tableau de bord de ROSELLE Stock relit ces compteurs.
+   Toute erreur est ignorée : le suivi ne peut jamais bloquer le site.
+   Pour ne pas compter ses propres visites : ouvrir une fois le site
+   avec ?nostats=1 à la fin de l'adresse (?nostats=0 pour annuler).
+   ============================================================ */
+const suivi = (() => {
+  const inc = () => firebase.firestore.FieldValue.increment(1);
+  const lire = (stockage, cle) => { try { return stockage.getItem(cle); } catch (e) { return null; } };
+  const ecrire = (stockage, cle, valeur) => { try { stockage.setItem(cle, valeur); } catch (e) {} };
+
+  try {
+    const p = new URLSearchParams(window.location.search).get('nostats');
+    if (p === '1') ecrire(localStorage, 'roselle_nostats', '1');
+    if (p === '0') { try { localStorage.removeItem('roselle_nostats'); } catch (e) {} }
+  } catch (e) {}
+  const actif = !navigator.webdriver && lire(localStorage, 'roselle_nostats') !== '1';
+
+  // Date et heure de Tunisie (pas celles du téléphone de la cliente)
+  function jour() {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tunis', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function heure() {
+    try { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tunis', hour: '2-digit', hourCycle: 'h23' }).format(new Date()).slice(0, 2); }
+    catch (e) { return String(new Date().getHours()).padStart(2, '0'); }
+  }
+
+  function envoyer(donnees) {
+    if (!actif) return;
+    try { db.collection('siteStats').doc(jour()).set(donnees, { merge: true }).catch(() => {}); } catch (e) {}
+  }
+
+  // Provenance : paramètre utm_source, sinon site précédent, sinon navigateur intégré d'une appli
+  function provenance() {
+    let source = '';
+    try { source = (new URLSearchParams(window.location.search).get('utm_source') || '').toLowerCase(); } catch (e) {}
+    let ref = '';
+    try { ref = document.referrer ? new URL(document.referrer).hostname.toLowerCase() : ''; } catch (e) {}
+    if (ref === window.location.hostname) ref = '';
+    const ua = navigator.userAgent || '';
+    const texte = source + ' ' + ref;
+    if (/instagram|\big\b/.test(texte) || /Instagram/i.test(ua)) return 'instagram';
+    if (/facebook|fb\.|\bfb\b|messenger/.test(texte) || /FBAN|FBAV|FB_IAB/i.test(ua)) return 'facebook';
+    if (/tiktok/.test(texte) || /musical_ly|BytedanceWebview|TikTok/i.test(ua)) return 'tiktok';
+    if (/google/.test(texte)) return 'google';
+    if (/whatsapp|wa\.me/.test(texte)) return 'whatsapp';
+    if (!texte.trim()) return 'direct';
+    return 'autre';
+  }
+
+  // Une visite par navigateur et par jour, une session par onglet ouvert
+  function compterVisite() {
+    if (lire(sessionStorage, 'roselle_session')) return;
+    ecrire(sessionStorage, 'roselle_session', '1');
+    const aujourdhui = jour();
+    const donnees = { sessions: inc(), hours: { [heure()]: inc() } };
+    if (lire(localStorage, 'roselle_dernier_jour') !== aujourdhui) {
+      donnees.visitors = inc();
+      if (!lire(localStorage, 'roselle_deja_venue')) donnees.newVisitors = inc();
+      donnees[/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? 'mobile' : 'desktop'] = inc();
+      donnees.src = { [provenance()]: inc() };
+      ecrire(localStorage, 'roselle_dernier_jour', aujourdhui);
+      ecrire(localStorage, 'roselle_deja_venue', '1');
+    }
+    envoyer(donnees);
+  }
+
+  // Une seule fois par session et par clé (évite de compter 10 fois la même fiche)
+  function premiereFois(cle) {
+    let vus = [];
+    try { vus = JSON.parse(lire(sessionStorage, 'roselle_vus') || '[]'); } catch (e) {}
+    if (vus.includes(cle)) return false;
+    vus.push(cle);
+    ecrire(sessionStorage, 'roselle_vus', JSON.stringify(vus.slice(-200)));
+    return true;
+  }
+
+  const idValide = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id);
+
+  return {
+    visite: compterVisite,
+    vueArticle(id) { if (idValide(id) && premiereFois('v:' + id)) envoyer({ productViews: { [id]: inc() } }); },
+    ajoutPanier(id) {
+      if (!idValide(id)) return;
+      if (premiereFois('p:' + id)) envoyer({ cartAdds: { [id]: inc() } });
+      if (premiereFois('panier')) envoyer({ cartSessions: inc() });
+    },
+    passageCommande() { if (premiereFois('commande')) envoyer({ checkouts: inc() }); }
+  };
+})();
+
+/* ============================================================
    ÉTAT GLOBAL DE L'APPLICATION
    ============================================================ */
 // Clé du panier dans le stockage du navigateur. Elle DOIT être déclarée avant
@@ -882,6 +982,8 @@ function appliquerNavigation(vue, parametres) {
   document.getElementById('menu-mobile').classList.remove('ouvert');
   window.scrollTo({ top: 0, behavior: 'instant' });
   rendre();
+  if (vue === 'produit') suivi.vueArticle(parametres.produitId);
+  if (vue === 'commande') suivi.passageCommande();
 }
 
 // Réagit aux changements d'URL : rechargement de page, bouton précédent/suivant,
@@ -1688,6 +1790,7 @@ function ajouterAuPanier(produitId) {
 
   mettreAJourCompteurPanier();
   sauvegarderPanier();
+  suivi.ajoutPanier(produitId);
   afficherToast('Article ajouté au panier');
 }
 
@@ -1856,6 +1959,7 @@ function ajouterPackAuPanier(produitId) {
 
   mettreAJourCompteurPanier();
   sauvegarderPanier();
+  suivi.ajoutPanier(produitId);
   afficherToast('Pack ajouté au panier');
 }
 
@@ -2116,6 +2220,7 @@ function vueAPropos() {
 {
   const { vue, parametres } = analyserHash();
   appliquerNavigation(vue, parametres);
+  suivi.visite();
 }
 </script>
 
