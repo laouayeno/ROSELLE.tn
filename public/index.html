@@ -573,7 +573,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.10</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -623,8 +623,13 @@ const db = firebase.firestore();
 /* ============================================================
    STATISTIQUES DE VISITE (anonymes) — collection Firestore siteStats
    ------------------------------------------------------------
-   Un seul document par jour (ex. siteStats/2026-10-11) contenant
-   uniquement des compteurs : visiteurs, sessions, téléphone ou
+   Chaque jour est découpé en 50 petits documents « tiroirs »
+   (ex. siteStats/2026-10-11_07). Chaque visiteuse écrit toujours
+   dans le même tiroir, tiré au hasard à son arrivée : ainsi, pendant
+   un pic (20 000 visiteuses en même temps), les écritures sont
+   réparties sur 50 documents au lieu d'un seul, et Firestore ne
+   sature pas. ROSELLE Stock additionne les tiroirs de chaque jour.
+   Les documents contiennent uniquement des compteurs : visiteurs, sessions, téléphone ou
    ordinateur, provenance (Instagram, Facebook, TikTok, Google…),
    heure de visite, vues et ajouts au panier par article.
    Aucune donnée personnelle n'est enregistrée (pas de nom, pas
@@ -656,9 +661,22 @@ const suivi = (() => {
     catch (e) { return String(new Date().getHours()).padStart(2, '0'); }
   }
 
+  // Nombre de tiroirs par jour (doit rester en phase avec les règles Firestore : 00 à 49)
+  const NB_TIROIRS = 50;
+
+  // Tiroir de cette visiteuse : tiré au hasard une fois, puis gardé pour tout l'onglet
+  function tiroir() {
+    let n = parseInt(lire(sessionStorage, 'roselle_tiroir'), 10);
+    if (!(n >= 0 && n < NB_TIROIRS)) {
+      n = Math.floor(Math.random() * NB_TIROIRS);
+      ecrire(sessionStorage, 'roselle_tiroir', String(n));
+    }
+    return String(n).padStart(2, '0');
+  }
+
   function envoyer(donnees) {
     if (!actif) return;
-    try { db.collection('siteStats').doc(jour()).set(donnees, { merge: true }).catch(() => {}); } catch (e) {}
+    try { db.collection('siteStats').doc(jour() + '_' + tiroir()).set(donnees, { merge: true }).catch(() => {}); } catch (e) {}
   }
 
   // Provenance : paramètre utm_source, sinon site précédent, sinon navigateur intégré d'une appli
