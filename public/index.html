@@ -157,6 +157,17 @@
   }
   .bouton-principal:hover { background: var(--texte); }
 
+  /* Bouton secondaire : contour noir sur fond blanc, pour une action
+     moins importante placée sous le bouton noir (ex : « Continuer mes achats »). */
+  .bouton-secondaire {
+    display: inline-block; padding: 13px 34px;
+    background: var(--blanc); color: var(--texte);
+    border: 1px solid var(--texte); border-radius: 2px;
+    font-size: 0.95rem; letter-spacing: 0.3px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .bouton-secondaire:hover { background: var(--texte); color: var(--blanc); }
+
   /* Carrousel de catégories, sur toute la largeur de l'écran.
      - iPhone : une grande photo à la fois, on glisse au doigt.
      - PC : environ 3 photos visibles, flèches ‹ › et glisser à la souris. */
@@ -574,7 +585,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.12</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.13</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -757,6 +768,10 @@ const etat = {
   filtresCatalogue: { tri: 'defaut', disponibleSeulement: false }, // barre de tri/filtre du catalogue
   reglages: {},            // contenu brut du document siteSettings/main (vide = valeurs par défaut)
   achatDirect: null,       // lignes du bouton "Acheter maintenant" (séparées du panier), sinon null
+  // Ce que la cliente a déjà tapé dans le formulaire de commande : gardé en
+  // mémoire (le temps de la visite) pour le retrouver si elle part
+  // « Continuer mes achats » puis revient commander.
+  brouillonCommande: { clientName: '', phone: '', address: '', remark: '' },
   reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
 
@@ -1934,6 +1949,34 @@ function acheterMaintenant(produitId) {
   naviguerVers('commande');
 }
 
+// Bouton « Continuer mes achats » (page panier et page de commande) :
+// ramène à l'accueil de la boutique sans rien perdre.
+// - Le panier reste tel quel.
+// - Ce qui a été tapé dans le formulaire est gardé (etat.brouillonCommande).
+// - Si la cliente venait de « Acheter maintenant », l'article choisi est
+//   mis dans le panier, pour qu'il ne disparaisse pas.
+function continuerMesAchats() {
+  if (etat.achatDirect && etat.achatDirect.length > 0) {
+    for (const ligne of etat.achatDirect) {
+      // Un article simple déjà présent dans le panier : on augmente sa quantité
+      // (sans dépasser le stock). Les articles d'un pack restent des lignes à part.
+      const ligneExistante = !ligne.packId
+        ? etat.panier.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
+        : null;
+      if (ligneExistante) {
+        ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
+      } else {
+        etat.panier.push({ ...ligne });
+      }
+    }
+    etat.achatDirect = null;
+    mettreAJourCompteurPanier();
+    sauvegarderPanier();
+    afficherToast('Article gardé dans votre panier');
+  }
+  naviguerVers('accueil');
+}
+
 // Lignes à commander sur la page de commande : l'achat direct s'il y en a
 // un en cours, sinon le contenu du panier.
 function lignesACommander() {
@@ -2141,6 +2184,7 @@ function vuePanier() {
       </div>
       <div class="rappel-paiement">Paiement à la livraison — réglez en espèces à réception de votre colis.</div>
       <button class="bouton-principal" style="width:100%;" onclick="naviguerVers('commande')">Passer la commande</button>
+      <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
     </div>
   `;
 }
@@ -2166,6 +2210,7 @@ function retirerDuPanier(index) {
    ============================================================ */
 function vueCommande() {
   const lignes = lignesACommander();
+  const brouillon = etat.brouillonCommande; // champs déjà tapés (sinon vides)
   const sousTotal = lignes.reduce((s, l) => s + l.qty * Number(l.price), 0);
   // On fige les frais affichés : la commande enverra exactement ce montant,
   // même si le dashboard change les frais pendant que la cliente remplit le formulaire.
@@ -2182,19 +2227,19 @@ function vueCommande() {
       <form id="formulaire-commande">
         <div class="champ">
           <label for="champ-nom">Nom complet</label>
-          <input type="text" id="champ-nom" name="clientName" required>
+          <input type="text" id="champ-nom" name="clientName" required value="${echapper(brouillon.clientName)}">
         </div>
         <div class="champ">
           <label for="champ-telephone">Téléphone</label>
-          <input type="tel" id="champ-telephone" name="phone" required placeholder="Ex : 20 123 456">
+          <input type="tel" id="champ-telephone" name="phone" required placeholder="Ex : 20 123 456" value="${echapper(brouillon.phone)}">
         </div>
         <div class="champ">
           <label for="champ-adresse">Adresse de livraison</label>
-          <textarea id="champ-adresse" name="address" required></textarea>
+          <textarea id="champ-adresse" name="address" required>${echapper(brouillon.address)}</textarea>
         </div>
         <div class="champ">
           <label for="champ-remarque">Remarque (optionnel)</label>
-          <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère, horaires préférés…"></textarea>
+          <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère, horaires préférés…">${echapper(brouillon.remark)}</textarea>
         </div>
 
         <div class="recap-commande">
@@ -2213,6 +2258,7 @@ function vueCommande() {
         </div>
 
         <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
+        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
       </form>
     </div>
   `;
@@ -2221,6 +2267,14 @@ function vueCommande() {
 function initialiserFormulaireCommande() {
   const formulaire = document.getElementById('formulaire-commande');
   if (!formulaire) return;
+  // À chaque lettre tapée, on garde le contenu des champs en mémoire
+  // (voir etat.brouillonCommande).
+  formulaire.addEventListener('input', (evenement) => {
+    const champ = evenement.target;
+    if (champ && champ.name && champ.name in etat.brouillonCommande) {
+      etat.brouillonCommande[champ.name] = champ.value;
+    }
+  });
   formulaire.addEventListener('submit', (evenement) => {
     evenement.preventDefault();
     envoyerCommande();
@@ -2273,6 +2327,7 @@ function envoyerCommande() {
   db.collection('shipments').add(nouveauColis)
     .then(() => {
       etat.dernierNumeroCommande = numeroCommande;
+      etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '' };
       if (etat.achatDirect) {
         // Achat direct : seul l'article acheté disparaît, le panier reste tel quel
         etat.achatDirect = null;
