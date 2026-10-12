@@ -512,13 +512,6 @@
     font-size: 0.85rem; color: var(--rose-fonce); margin-bottom: 26px;
   }
 
-  /* Lien « Modifier mon panier » au-dessus du récapitulatif de commande */
-  .lien-modifier-panier { text-align: right; margin-bottom: 8px; }
-  .lien-modifier-panier button {
-    background: none; border: none; padding: 4px 0;
-    color: var(--texte); font-size: 0.85rem; text-decoration: underline;
-  }
-
   .recap-commande { background: var(--ivoire); border-radius: 3px; padding: 18px; margin-bottom: 26px; }
   .recap-commande .ligne-recap { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 5px 0; }
 
@@ -2286,11 +2279,6 @@ function vueCommande() {
           <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère, horaires préférés…">${echapper(brouillon.remark)}</textarea>
         </div>
 
-        <!-- Lien vers le panier pour retirer ou changer un article avant de commander
-             (l'article d'« Acheter maintenant » y est mis automatiquement) -->
-        <div class="lien-modifier-panier">
-          <button type="button" onclick="naviguerVers('panier')">Modifier mon panier</button>
-        </div>
         <div class="recap-commande">
           ${lignes.map(l => `
             <div class="ligne-recap"><span>${l.name} (${l.color}, ${l.size}) ×${l.qty}</span><span>${prixFormat(l.qty * l.price)}</span></div>
@@ -2308,6 +2296,9 @@ function vueCommande() {
 
         <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
         <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
+        <!-- Ouvre le panier pour retirer ou changer un article avant de commander
+             (l'article d'« Acheter maintenant » y est mis automatiquement) -->
+        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="naviguerVers('panier')">Modifier mon panier</button>
       </form>
     </div>
   `;
