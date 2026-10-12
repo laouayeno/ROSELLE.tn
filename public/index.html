@@ -120,13 +120,13 @@
     box-shadow: 4px 0 18px rgba(0,0,0,0.12);
   }
   .menu-mobile.ouvert { transform: translateX(0); }
-  .menu-mobile .haut-menu { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .menu-mobile .haut-menu span { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--texte); }
+  .menu-mobile .haut-menu { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .menu-mobile .titre-menu { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--texte); margin-bottom: 4px; }
   /* Faux champ de recherche en haut du menu (ouvre la vraie barre de recherche) */
   .menu-mobile .recherche-menu {
-    display: flex; align-items: center; gap: 10px; width: 100%;
+    display: flex; align-items: center; gap: 10px;
     background: #F6F2F1; border: 1px solid #E6E1DF; border-radius: 24px;
-    padding: 11px 14px; margin-bottom: 10px;
+    padding: 11px 14px; flex: 1;
     font-size: 0.95rem; color: var(--texte-doux); text-align: left;
   }
   .menu-mobile .recherche-menu svg { width: 20px; height: 20px; stroke: var(--texte-doux); flex-shrink: 0; }
@@ -1259,17 +1259,18 @@ function mettreAJourNavigation() {
 
   document.getElementById('nav-desktop').innerHTML = liensNav;
   document.getElementById('menu-mobile').innerHTML = `
+    <!-- Haut du menu : barre de recherche + croix pour fermer -->
     <div class="haut-menu">
-      <span>Catégories</span>
+      <!-- Faux champ de recherche : ferme le menu et ouvre la vraie barre de recherche -->
+      <button class="recherche-menu" onclick="basculerRecherche(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+        Rechercher un article
+      </button>
       <button class="bouton-icone" onclick="basculerMenuMobile(false)" aria-label="Fermer le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <!-- Bouton de recherche dans le menu : ferme le menu et ouvre la barre de recherche -->
-    <button class="recherche-menu" onclick="basculerRecherche(true)">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
-      Rechercher un article
-    </button>` + liensNav;
+    <div class="titre-menu">Catégories</div>` + liensNav;
   // Les résultats de recherche suivent le stock en direct
   mettreAJourRecherche();
 }
