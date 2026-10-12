@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ROSELLE — Prêt-à-porter féminin</title>
+<title>Elle روز — Prêt-à-porter féminin</title>
 
 <!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&family=Tajawal:wght@300;400&display=swap" rel="stylesheet">
 
 <!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
@@ -56,46 +56,95 @@
   a { color: inherit; text-decoration: none; }
   button { font-family: 'Inter', sans-serif; cursor: pointer; }
 
-  /* ===== En-tête ===== */
+  /* ===== En-tête (V2.16) =====
+     Disposition inspirée de la référence d'Oussama :
+     [menu ☰]      [ ELLE (rose) روز ]      [loupe] [sac]
+     Trois colonnes de même largeur à gauche et à droite, pour que
+     le nom reste parfaitement centré sur l'écran. */
   header {
     position: sticky; top: 0; z-index: 50;
-    background: var(--ivoire-clair);
-    border-bottom: 1px solid var(--rose-clair);
-    padding: 14px 20px;
-    display: flex; align-items: center; justify-content: space-between;
+    background: #FBF6F5;               /* rose très pâle, comme la référence */
+    border-top: 1px solid #E6E1DF;
+    border-bottom: 1px solid #E6E1DF;
+    padding: 8px 14px;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
   }
-  header .logo-zone { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-  header .logo-zone img { height: 44px; width: 44px; object-fit: contain; border-radius: 50%; }
-  header .nom-marque { font-family: 'Playfair Display', serif; font-size: 1.3rem; letter-spacing: 0.5px; }
+  .entete-gauche { display: flex; align-items: center; justify-content: flex-start; }
+  .entete-droite { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 
-  nav.desktop-nav { display: none; gap: 28px; }
-  nav.desktop-nav a { font-size: 0.95rem; color: var(--texte-doux); }
-  nav.desktop-nav a:hover, nav.desktop-nav a.actif { color: var(--rose-fonce); }
+  /* Boutons-icônes (menu, recherche, panier) : grande zone tactile pour le doigt */
+  .bouton-icone {
+    position: relative; background: none; border: none; padding: 8px;
+    display: flex; align-items: center; justify-content: center; color: var(--texte);
+  }
+  .bouton-icone svg { width: 26px; height: 26px; stroke: var(--texte); }
+  .bouton-menu-mobile svg { width: 30px; height: 30px; }
 
-  .icones-header { display: flex; align-items: center; gap: 16px; }
-  .bouton-panier { position: relative; background: none; border: none; padding: 6px; }
-  .bouton-panier svg { width: 24px; height: 24px; stroke: var(--texte); }
+  /* Nom de marque au centre : « ELLE » + rose dans un cercle + « روز » */
+  .logo-zone { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .logo-zone .mot-marque {
+    font-family: 'Jost', 'Tajawal', sans-serif; font-weight: 300;
+    font-size: 1.25rem; letter-spacing: 0.5px; color: var(--texte); line-height: 1;
+  }
+  .logo-zone .mot-marque.latin { text-transform: uppercase; }
+  .logo-zone .mot-marque.arabe { font-family: 'Tajawal', sans-serif; font-weight: 400; font-size: 1.5rem; }
+  .logo-zone .mot-marque:empty { display: none; }
+  .logo-zone .cercle-logo {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 1.5px solid var(--texte);        /* fin cercle noir, comme la référence */
+    padding: 2px; background: #FFFFFF; object-fit: cover;
+  }
+
+  /* Pastille du panier : rond noir en bas à droite du sac */
   .compteur-panier {
-    position: absolute; top: -2px; right: -4px;
-    background: var(--rose-fonce); color: var(--blanc);
-    font-size: 0.65rem; width: 17px; height: 17px; border-radius: 50%;
+    position: absolute; bottom: 2px; right: 0;
+    background: #111111; color: var(--blanc);
+    font-size: 0.7rem; min-width: 20px; height: 20px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
+    border: 2px solid #FBF6F5;
   }
-  .bouton-menu-mobile { background: none; border: none; display: block; }
-  .bouton-menu-mobile svg { width: 24px; height: 24px; stroke: var(--texte); }
 
+  /* ===== Menu ☰ : panneau qui glisse depuis la gauche, du haut en bas ===== */
+  .voile-menu {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 90;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+  }
+  .voile-menu.ouvert { opacity: 1; pointer-events: auto; }
   .menu-mobile {
-    display: none; flex-direction: column;
-    background: var(--ivoire-clair); border-bottom: 1px solid var(--rose-clair);
-    padding: 10px 20px 18px;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 91;
+    width: min(82vw, 340px);
+    background: var(--blanc);
+    display: flex; flex-direction: column;
+    padding: 14px 22px 30px; overflow-y: auto;
+    transform: translateX(-100%); transition: transform 0.28s ease;
+    box-shadow: 4px 0 18px rgba(0,0,0,0.12);
   }
-  .menu-mobile.ouvert { display: flex; }
-  .menu-mobile a { padding: 10px 0; font-size: 1rem; border-bottom: 1px solid rgba(184,147,90,0.15); }
+  .menu-mobile.ouvert { transform: translateX(0); }
+  .menu-mobile .haut-menu { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .menu-mobile .haut-menu span { font-family: 'Jost', sans-serif; font-weight: 400; letter-spacing: 2px; font-size: 0.85rem; color: var(--texte-doux); }
+  .menu-mobile a { padding: 14px 0; font-size: 1.05rem; border-bottom: 1px solid #EEE9E7; }
 
-  @media (min-width: 860px) {
-    nav.desktop-nav { display: flex; }
-    .bouton-menu-mobile { display: none; }
+  /* ===== Recherche : barre sous l'en-tête + résultats ===== */
+  .panneau-recherche {
+    /* "top" et la hauteur sont calculés à l'ouverture (juste sous l'en-tête) */
+    display: none; position: fixed; left: 0; right: 0; top: 70px; z-index: 45;
+    background: var(--blanc); border-bottom: 1px solid #E6E1DF;
+    padding: 12px 16px; overflow-y: auto;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.08);
   }
+  .panneau-recherche.ouvert { display: block; }
+  .panneau-recherche .ligne-saisie { display: flex; align-items: center; gap: 8px; }
+  .panneau-recherche input {
+    flex: 1; font-size: 16px; /* 16px : évite le zoom automatique sur iPhone */
+    padding: 11px 14px; border: 1px solid #D9D3D0; border-radius: 24px; outline: none;
+    font-family: 'Inter', sans-serif;
+  }
+  .panneau-recherche input:focus { border-color: var(--texte); }
+  .panneau-recherche .info-recherche { color: var(--texte-doux); font-size: 0.85rem; margin: 12px 2px 4px; }
+  .panneau-recherche .grille-produits { margin-top: 10px; }
+
+  /* La barre de liens « PC » est remplacée par le menu ☰ sur tous les écrans */
+  nav.desktop-nav { display: none !important; }
 
   /* ===== Structure générale ===== */
   main { max-width: 1120px; margin: 0 auto; padding: 0 20px 80px; min-height: 60vh; }
@@ -560,21 +609,47 @@
 <body>
 
 <header>
-  <div class="logo-zone" onclick="naviguerVers('accueil')">
-    <img src="logo.jpg" alt="ROSELLE" id="logo-entete">
-    <span class="nom-marque" id="nom-marque-entete">ROSELLE</span>
+  <!-- Gauche : menu ☰ -->
+  <div class="entete-gauche">
+    <button class="bouton-icone bouton-menu-mobile" onclick="basculerMenuMobile()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
   </div>
-  <nav class="desktop-nav" id="nav-desktop"></nav>
-  <div class="icones-header">
-    <button class="bouton-panier" onclick="naviguerVers('panier')" aria-label="Panier">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L4 3H2"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+
+  <!-- Centre : « ELLE » + rose dans un cercle + « روز » (rempli par mettreAJourEnteteEtPied) -->
+  <div class="logo-zone" onclick="naviguerVers('accueil')">
+    <span class="mot-marque latin" id="nom-marque-gauche">Elle</span>
+    <img src="logo-rose.jpg" alt="Elle روز" id="logo-entete" class="cercle-logo">
+    <span class="mot-marque arabe" id="nom-marque-droite" dir="rtl">روز</span>
+  </div>
+
+  <!-- Droite : recherche + panier -->
+  <div class="entete-droite">
+    <button class="bouton-icone" onclick="basculerRecherche()" aria-label="Rechercher">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+    </button>
+    <button class="bouton-icone bouton-panier" onclick="naviguerVers('panier')" aria-label="Panier">
+      <!-- Sac de courses, comme la référence -->
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 13H6z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>
       <span class="compteur-panier" id="compteur-panier" style="display:none;">0</span>
     </button>
-    <button class="bouton-menu-mobile" onclick="basculerMenuMobile()" aria-label="Menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </div>
+  <nav class="desktop-nav" id="nav-desktop"></nav>
+</header>
+
+<!-- Panneau de recherche (s'ouvre avec la loupe) -->
+<div class="panneau-recherche" id="panneau-recherche">
+  <div class="ligne-saisie">
+    <input type="search" id="champ-recherche" placeholder="Rechercher un article…" autocomplete="off" oninput="mettreAJourRecherche()">
+    <button class="bouton-icone" onclick="basculerRecherche(false)" aria-label="Fermer la recherche">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
-</header>
+  <div id="resultats-recherche"></div>
+</div>
+
+<!-- Menu ☰ : voile sombre + panneau qui glisse depuis la gauche -->
+<div class="voile-menu" id="voile-menu" onclick="basculerMenuMobile(false)"></div>
 <div class="menu-mobile" id="menu-mobile"></div>
 
 <main id="contenu-principal">
@@ -582,13 +657,13 @@
 </main>
 
 <footer>
-  <div class="signature" id="signature-pied">ROSELLE</div>
+  <div class="signature" id="signature-pied">Elle روز</div>
   <!-- Rempli par mettreAJourEnteteEtPied() : réseaux sociaux saisis dans le dashboard + lien Contact -->
   <div class="liens-sociaux" id="liens-sociaux-pied">
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
-  <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.15</div>
+  <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.16</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -792,7 +867,7 @@ const CATEGORIES_PRINCIPALES = ['robes', 'pulls', 'pantalons', 'accessoires'];
    n'existe pas encore.
    ============================================================ */
 const REGLAGES_PAR_DEFAUT = {
-  brand: { name: 'ROSELLE', logoUrl: 'logo.jpg' },
+  brand: { name: 'Elle روز', logoUrl: 'logo.jpg' },
   hero: {
     type: 'video',
     mediaUrl: 'hero.mp4',
@@ -1051,7 +1126,8 @@ function appliquerNavigation(vue, parametres) {
   if (vue === 'produit') {
     etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
   }
-  document.getElementById('menu-mobile').classList.remove('ouvert');
+  basculerMenuMobile(false);
+  basculerRecherche(false);
   window.scrollTo({ top: 0, behavior: 'instant' });
   rendre();
   if (vue === 'produit') suivi.vueArticle(parametres.produitId);
@@ -1065,8 +1141,57 @@ window.addEventListener('hashchange', () => {
   appliquerNavigation(vue, parametres);
 });
 
-function basculerMenuMobile() {
-  document.getElementById('menu-mobile').classList.toggle('ouvert');
+// Ouvre/ferme le menu ☰ (panneau à gauche). Sans argument : inverse l'état.
+function basculerMenuMobile(ouvrir) {
+  const menu = document.getElementById('menu-mobile');
+  const doitOuvrir = (typeof ouvrir === 'boolean') ? ouvrir : !menu.classList.contains('ouvert');
+  menu.classList.toggle('ouvert', doitOuvrir);
+  document.getElementById('voile-menu').classList.toggle('ouvert', doitOuvrir);
+  if (doitOuvrir) basculerRecherche(false);
+}
+
+/* ============================================================
+   RECHERCHE (loupe de l'en-tête)
+   ------------------------------------------------------------
+   Cherche dans le nom et la catégorie des articles, sans tenir
+   compte des accents ni des majuscules. Les résultats s'affichent
+   sous la barre, la page en dessous ne bouge pas.
+   ============================================================ */
+function basculerRecherche(ouvrir) {
+  const panneau = document.getElementById('panneau-recherche');
+  const doitOuvrir = (typeof ouvrir === 'boolean') ? ouvrir : !panneau.classList.contains('ouvert');
+  panneau.classList.toggle('ouvert', doitOuvrir);
+  if (doitOuvrir) {
+    // Place le panneau juste sous l'en-tête, et le limite à la hauteur de l'écran
+    const basEntete = document.querySelector('header').getBoundingClientRect().bottom;
+    panneau.style.top = basEntete + 'px';
+    panneau.style.maxHeight = (window.innerHeight - basEntete) + 'px';
+    basculerMenuMobile(false);
+    mettreAJourRecherche();
+    document.getElementById('champ-recherche').focus();
+  }
+}
+
+// Simplifie un texte pour la comparaison : minuscules, sans accents
+function texteRecherche(texte) {
+  return (texte || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function mettreAJourRecherche() {
+  const panneau = document.getElementById('panneau-recherche');
+  if (!panneau.classList.contains('ouvert')) return;
+  const zone = document.getElementById('resultats-recherche');
+  const mots = texteRecherche(document.getElementById('champ-recherche').value).split(/\s+/).filter(Boolean);
+  if (!mots.length) { zone.innerHTML = ''; return; }
+  // Un article correspond si TOUS les mots tapés se trouvent dans son nom ou sa catégorie
+  const trouves = etat.produits.filter(p => {
+    const texte = texteRecherche(p.name + ' ' + (p.cat || ''));
+    return mots.every(m => texte.includes(m));
+  }).slice(0, 24);
+  zone.innerHTML = trouves.length
+    ? `<div class="info-recherche">${trouves.length} article${trouves.length > 1 ? 's' : ''}</div>
+       <div class="grille-produits">${trouves.map(carteProduitHTML).join('')}</div>`
+    : `<div class="info-recherche">Aucun article trouvé.</div>`;
 }
 
 /* ============================================================
@@ -1125,7 +1250,15 @@ function mettreAJourNavigation() {
   }).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
 
   document.getElementById('nav-desktop').innerHTML = liensNav;
-  document.getElementById('menu-mobile').innerHTML = liensNav;
+  document.getElementById('menu-mobile').innerHTML = `
+    <div class="haut-menu">
+      <span>MENU</span>
+      <button class="bouton-icone" onclick="basculerMenuMobile(false)" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>` + liensNav;
+  // Les résultats de recherche suivent le stock en direct
+  mettreAJourRecherche();
 }
 
 // Applique le logo, le nom de marque et les réseaux sociaux du dashboard
@@ -1134,10 +1267,17 @@ function mettreAJourEnteteEtPied() {
   const nom = reglageTexte('brand', 'name');
   const logo = reglageUrl('brand', 'logoUrl');
 
-  const imgLogo = document.getElementById('logo-entete');
-  if (imgLogo.getAttribute('src') !== logo) imgLogo.setAttribute('src', logo);
-  imgLogo.setAttribute('alt', nom);
-  document.getElementById('nom-marque-entete').textContent = nom;
+  // Le cercle du haut affiche toujours la rose (logo-rose.jpg) ; le logo
+  // du dashboard (variable "logo") reste utilisé ailleurs (accueil).
+  document.getElementById('logo-entete').setAttribute('alt', nom);
+  // Le nom est coupé en deux autour du cercle : la partie en lettres latines
+  // à gauche (« Elle »), la partie en arabe à droite (« روز »).
+  // Sans partie arabe, tout le nom va à gauche.
+  const posArabe = nom.search(/[\u0600-\u06FF]/);
+  const gauche = posArabe >= 0 ? nom.slice(0, posArabe).trim() : nom;
+  const droite = posArabe >= 0 ? nom.slice(posArabe).trim() : '';
+  document.getElementById('nom-marque-gauche').textContent = gauche;
+  document.getElementById('nom-marque-droite').textContent = droite;
   document.getElementById('signature-pied').textContent = nom;
   document.getElementById('marque-copyright').textContent = nom;
   document.title = nom + ' — Prêt-à-porter féminin';
