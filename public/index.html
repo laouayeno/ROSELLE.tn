@@ -84,7 +84,13 @@
      reliés par des ramages (tiges, feuilles, vrilles). Image à fond transparent. */
   .logo-zone { display: flex; align-items: center; cursor: pointer; }
   .logo-zone .logo-nom { height: 60px; width: auto; display: block; }
-  @media (min-width: 860px) { .logo-zone .logo-nom { height: 72px; } }
+  /* Ordinateur (V2.18) : grand logo sur environ la moitié de la largeur
+     de l'écran, qui rapetisse quand on fait défiler la page pour ne pas
+     cacher les articles (classe « reduit » posée par le script). */
+  @media (min-width: 860px) {
+    .logo-zone .logo-nom { height: auto; width: min(54vw, 780px); transition: width 0.25s ease; }
+    header.reduit .logo-zone .logo-nom { width: 190px; }
+  }
 
   /* Pastille du panier : rond noir en bas à droite du sac */
   .compteur-panier {
@@ -668,7 +674,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.17</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.18</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1291,6 +1297,12 @@ function contactsMenu() {
   if (!lignes.length) return '';
   return `<div class="contacts-menu"><div class="titre-menu">Contact</div>${lignes.join('')}</div>`;
 }
+
+// Ordinateur : l'en-tête se réduit dès qu'on descend un peu dans la page
+// (le grand logo reste visible tout en haut).
+window.addEventListener('scroll', () => {
+  document.querySelector('header').classList.toggle('reduit', window.scrollY > 40);
+}, { passive: true });
 
 // Applique le logo, le nom de marque et les réseaux sociaux du dashboard
 // à l'en-tête, au pied de page et au titre de l'onglet.
