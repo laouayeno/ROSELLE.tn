@@ -595,7 +595,7 @@
   }
   footer .liens-sociaux { display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; }
   footer .liens-sociaux a { color: var(--rose-fonce); font-size: 0.85rem; }
-  footer .signature { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--texte); margin-bottom: 10px; }
+  footer .signature-logo { display: block; height: 84px; width: auto; margin: 0 auto 14px; }
 
   /* ===== Chargement / erreurs globales ===== */
   .chargement-page { text-align: center; padding: 100px 20px; color: var(--texte-doux); }
@@ -660,7 +660,8 @@
 </main>
 
 <footer>
-  <div class="signature" id="signature-pied">Elle روز</div>
+  <!-- Même logo dessiné qu'en haut de page -->
+  <img src="logo-nom.png" alt="Elle روز" id="signature-pied" class="signature-logo">
   <!-- Rempli par mettreAJourEnteteEtPied() : réseaux sociaux saisis dans le dashboard + lien Contact -->
   <div class="liens-sociaux" id="liens-sociaux-pied">
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
@@ -1286,7 +1287,7 @@ function mettreAJourEnteteEtPied() {
   // Le haut de page affiche toujours le logo dessiné (logo-nom.png) ;
   // le nom du dashboard sert au texte (pied de page, titre de l'onglet).
   document.getElementById('logo-entete').setAttribute('alt', nom);
-  document.getElementById('signature-pied').textContent = nom;
+  document.getElementById('signature-pied').setAttribute('alt', nom);
   document.getElementById('marque-copyright').textContent = nom;
   document.title = nom + ' — Prêt-à-porter féminin';
 
