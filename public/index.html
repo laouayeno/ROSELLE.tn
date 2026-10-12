@@ -89,11 +89,8 @@
   .logo-zone .mot-marque.latin { text-transform: uppercase; }
   .logo-zone .mot-marque.arabe { font-family: 'Tajawal', sans-serif; font-weight: 400; font-size: 1.5rem; }
   .logo-zone .mot-marque:empty { display: none; }
-  .logo-zone .cercle-logo {
-    width: 46px; height: 46px; border-radius: 50%;
-    border: 1.5px solid var(--texte);        /* fin cercle noir, comme la référence */
-    padding: 2px; background: #FFFFFF; object-fit: cover;
-  }
+  /* Rose dessinée dans sa couronne de feuilles (image avec fond transparent) */
+  .logo-zone .cercle-logo { width: 62px; height: 62px; object-fit: contain; display: block; }
 
   /* Pastille du panier : rond noir en bas à droite du sac */
   .compteur-panier {
@@ -633,7 +630,7 @@
   <!-- Centre : « ELLE » + rose dans un cercle + « روز » (rempli par mettreAJourEnteteEtPied) -->
   <div class="logo-zone" onclick="naviguerVers('accueil')">
     <span class="mot-marque latin" id="nom-marque-gauche">Elle</span>
-    <img src="logo-rose.jpg" alt="Elle روز" id="logo-entete" class="cercle-logo">
+    <img src="logo-rose.png" alt="Elle روز" id="logo-entete" class="cercle-logo">
     <span class="mot-marque arabe" id="nom-marque-droite" dir="rtl">روز</span>
   </div>
 
@@ -1294,7 +1291,7 @@ function mettreAJourEnteteEtPied() {
   const nom = reglageTexte('brand', 'name');
   const logo = reglageUrl('brand', 'logoUrl');
 
-  // Le cercle du haut affiche toujours la rose (logo-rose.jpg) ; le logo
+  // Le cercle du haut affiche toujours la rose (logo-rose.png) ; le logo
   // du dashboard (variable "logo") reste utilisé ailleurs (accueil).
   document.getElementById('logo-entete').setAttribute('alt', nom);
   // Le nom est coupé en deux autour du cercle : la partie en lettres latines
