@@ -7,7 +7,7 @@
 
 <!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&family=Tajawal:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&display=swap" rel="stylesheet">
 
 <!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
@@ -80,17 +80,11 @@
   .bouton-icone svg { width: 26px; height: 26px; stroke: var(--texte); }
   .bouton-menu-mobile svg { width: 30px; height: 30px; }
 
-  /* Nom de marque au centre : « ELLE » + rose dans un cercle + « روز » */
-  .logo-zone { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .logo-zone .mot-marque {
-    font-family: 'Jost', 'Tajawal', sans-serif; font-weight: 300;
-    font-size: 1.25rem; letter-spacing: 0.5px; color: var(--texte); line-height: 1;
-  }
-  .logo-zone .mot-marque.latin { text-transform: uppercase; }
-  .logo-zone .mot-marque.arabe { font-family: 'Tajawal', sans-serif; font-weight: 400; font-size: 1.5rem; }
-  .logo-zone .mot-marque:empty { display: none; }
-  /* Rose dessinée dans sa couronne de feuilles (image avec fond transparent) */
-  .logo-zone .cercle-logo { width: 62px; height: 62px; object-fit: contain; display: block; }
+  /* Logo complet au centre : « Elle », la rose dans sa couronne et « روز »,
+     reliés par des ramages (tiges, feuilles, vrilles). Image à fond transparent. */
+  .logo-zone { display: flex; align-items: center; cursor: pointer; }
+  .logo-zone .logo-nom { height: 60px; width: auto; display: block; }
+  @media (min-width: 860px) { .logo-zone .logo-nom { height: 72px; } }
 
   /* Pastille du panier : rond noir en bas à droite du sac */
   .compteur-panier {
@@ -627,11 +621,9 @@
     </button>
   </div>
 
-  <!-- Centre : « ELLE » + rose dans un cercle + « روز » (rempli par mettreAJourEnteteEtPied) -->
+  <!-- Centre : logo complet « Elle (rose) روز » avec ses ramages (une seule image) -->
   <div class="logo-zone" onclick="naviguerVers('accueil')">
-    <span class="mot-marque latin" id="nom-marque-gauche">Elle</span>
-    <img src="logo-rose.png" alt="Elle روز" id="logo-entete" class="cercle-logo">
-    <span class="mot-marque arabe" id="nom-marque-droite" dir="rtl">روز</span>
+    <img src="logo-nom.png" alt="Elle روز" id="logo-entete" class="logo-nom">
   </div>
 
   <!-- Droite : recherche + panier -->
@@ -1291,17 +1283,9 @@ function mettreAJourEnteteEtPied() {
   const nom = reglageTexte('brand', 'name');
   const logo = reglageUrl('brand', 'logoUrl');
 
-  // Le cercle du haut affiche toujours la rose (logo-rose.png) ; le logo
-  // du dashboard (variable "logo") reste utilisé ailleurs (accueil).
+  // Le haut de page affiche toujours le logo dessiné (logo-nom.png) ;
+  // le nom du dashboard sert au texte (pied de page, titre de l'onglet).
   document.getElementById('logo-entete').setAttribute('alt', nom);
-  // Le nom est coupé en deux autour du cercle : la partie en lettres latines
-  // à gauche (« Elle »), la partie en arabe à droite (« روز »).
-  // Sans partie arabe, tout le nom va à gauche.
-  const posArabe = nom.search(/[\u0600-\u06FF]/);
-  const gauche = posArabe >= 0 ? nom.slice(0, posArabe).trim() : nom;
-  const droite = posArabe >= 0 ? nom.slice(posArabe).trim() : '';
-  document.getElementById('nom-marque-gauche').textContent = gauche;
-  document.getElementById('nom-marque-droite').textContent = droite;
   document.getElementById('signature-pied').textContent = nom;
   document.getElementById('marque-copyright').textContent = nom;
   document.title = nom + ' — Prêt-à-porter féminin';
