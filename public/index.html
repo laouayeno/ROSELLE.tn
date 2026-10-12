@@ -121,6 +121,12 @@
   }
   .menu-mobile.ouvert { transform: translateX(0); }
   .menu-mobile .haut-menu { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .menu-mobile .ligne-titre-menu { display: flex; justify-content: space-between; align-items: center; margin: -4px -8px 10px 0; }
+  .menu-mobile .etiquette-menu {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Jost', sans-serif; font-weight: 400; letter-spacing: 3px; font-size: 0.95rem; color: var(--texte);
+  }
+  .menu-mobile .etiquette-menu svg { width: 28px; height: 28px; stroke: var(--texte); }
   .menu-mobile .titre-menu { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--texte); margin-bottom: 4px; }
   /* Faux champ de recherche en haut du menu (ouvre la vraie barre de recherche) */
   .menu-mobile .recherche-menu {
@@ -1259,15 +1265,22 @@ function mettreAJourNavigation() {
 
   document.getElementById('nav-desktop').innerHTML = liensNav;
   document.getElementById('menu-mobile').innerHTML = `
-    <!-- Haut du menu : barre de recherche + croix pour fermer -->
+    <!-- Tout en haut : les 3 lignes + le mot MENU, et la croix pour fermer -->
+    <div class="ligne-titre-menu">
+      <span class="etiquette-menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        MENU
+      </span>
+      <button class="bouton-icone" onclick="basculerMenuMobile(false)" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <!-- Puis la barre de recherche -->
     <div class="haut-menu">
       <!-- Faux champ de recherche : ferme le menu et ouvre la vraie barre de recherche -->
       <button class="recherche-menu" onclick="basculerRecherche(true)">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
         Rechercher un article
-      </button>
-      <button class="bouton-icone" onclick="basculerMenuMobile(false)" aria-label="Fermer le menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
     <div class="titre-menu">Catégories</div>` + liensNav;
