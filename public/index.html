@@ -101,6 +101,27 @@
       letter-spacing: 0.04em; padding: 6px 0; border-bottom: 1px solid transparent;
     }
     nav.desktop-nav a:hover, nav.desktop-nav a.actif { border-bottom-color: var(--texte); }
+    /* Boutons « Collections ⌄ » et « Contact ⌄ » : la flèche se retourne quand la bande est ouverte */
+    nav.desktop-nav .bouton-deroulant {
+      background: none; border: none; border-bottom: 1px solid transparent; cursor: pointer;
+      color: var(--texte); font: inherit; font-size: 0.95rem; letter-spacing: 0.04em;
+      padding: 6px 0; display: flex; align-items: center; gap: 6px;
+    }
+    nav.desktop-nav .bouton-deroulant svg { width: 14px; height: 14px; stroke: var(--texte); transition: transform 0.2s ease; }
+    nav.desktop-nav .bouton-deroulant:hover, nav.desktop-nav .bouton-deroulant.ouvert { border-bottom-color: var(--texte); }
+    nav.desktop-nav .bouton-deroulant.ouvert svg { transform: rotate(180deg); }
+    /* Bande blanche pleine largeur sous la barre, avec la liste des choix
+       alignée sous le bouton cliqué (position posée par le script) */
+    .bande-deroulante.ouverte {
+      display: block; position: absolute; left: 0; right: 0; top: 100%;
+      background: var(--blanc); border-bottom: 1px solid #E6E1DF;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.06); padding: 22px 0 26px;
+    }
+    .bande-deroulante .liste-bande { display: flex; flex-direction: column; gap: 4px; }
+    .bande-deroulante .liste-bande a, .bande-deroulante .liste-bande span {
+      color: var(--texte); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.04em; padding: 6px 0;
+    }
+    .bande-deroulante .liste-bande a:hover { text-decoration: underline; }
     /* Logo et icônes dans la colonne de droite, le logo juste avant la loupe */
     .logo-zone { grid-column: 3; grid-row: 1; justify-self: end; margin-right: 96px; }
     .logo-zone .logo-nom { height: 48px; }
@@ -178,6 +199,7 @@
 
   /* Barre de liens : seulement sur ordinateur (le téléphone garde le menu ☰) */
   nav.desktop-nav { display: none; }
+  .bande-deroulante { display: none; }
 
   /* ===== Structure générale ===== */
   main { max-width: 1120px; margin: 0 auto; padding: 0 20px 80px; min-height: 60vh; }
@@ -691,6 +713,8 @@
     </button>
   </div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
+  <!-- Ordinateur : bande de choix qui descend sous la barre (Collections, Contact) -->
+  <div class="bande-deroulante" id="bande-deroulante"></div>
 </header>
 
 <!-- Panneau de recherche (s'ouvre avec la loupe) -->
@@ -894,6 +918,7 @@ const suivi = (() => {
 const CLE_PANIER = 'roselle_panier';
 
 const etat = {
+  bandeOuverte: null,          // ordinateur : bande ouverte sous la barre (collections / contact)
   produits: [],           // liste des produits chargés depuis publicCatalog
   chargementTermine: false,
   vueActuelle: 'accueil',  // accueil | catalogue | produit | panier | commande | confirmation | apropos
@@ -1185,6 +1210,7 @@ function appliquerNavigation(vue, parametres) {
   }
   basculerMenuMobile(false);
   basculerRecherche(false);
+  fermerBande();
   window.scrollTo({ top: 0, behavior: 'instant' });
   rendre();
   if (vue === 'produit') suivi.vueArticle(parametres.produitId);
@@ -1196,6 +1222,44 @@ function appliquerNavigation(vue, parametres) {
 window.addEventListener('hashchange', () => {
   const { vue, parametres } = analyserHash();
   appliquerNavigation(vue, parametres);
+});
+
+// Ordinateur : ouvre la bande « Collections » ou « Contact » sous la barre.
+// Un 2e clic sur le même bouton la referme ; un clic sur l'autre bouton
+// change simplement son contenu.
+function basculerBande(nom) {
+  etat.bandeOuverte = (etat.bandeOuverte === nom) ? null : nom;
+  document.querySelectorAll('#nav-desktop .bouton-deroulant').forEach(b =>
+    b.classList.toggle('ouvert', b.dataset.bande === etat.bandeOuverte));
+  remplirBande();
+}
+
+function fermerBande() {
+  if (!etat.bandeOuverte) return;
+  basculerBande(etat.bandeOuverte);
+}
+
+// Remplit la bande avec les choix, alignés sous le bouton cliqué
+function remplirBande() {
+  const bande = document.getElementById('bande-deroulante');
+  const nom = etat.bandeOuverte;
+  bande.classList.toggle('ouverte', !!nom);
+  if (!nom) { bande.innerHTML = ''; return; }
+
+  const lignes = nom === 'collections'
+    ? categoriesAffichees().map(cat => `<a href="#" data-cat="${echapper(cat.id)}"
+        onclick="ouvrirCategorie(this); return false;">${echapper(cat.label)}</a>`)
+    : lignesContact();
+  bande.innerHTML = `<div class="liste-bande">${lignes.join('')}</div>`;
+
+  const bouton = document.querySelector(`#nav-desktop .bouton-deroulant[data-bande="${nom}"]`);
+  const gauche = bouton ? bouton.getBoundingClientRect().left : 40;
+  bande.querySelector('.liste-bande').style.marginLeft = Math.round(gauche) + 'px';
+}
+
+// Un clic ailleurs que dans la barre ferme la bande
+document.addEventListener('click', e => {
+  if (etat.bandeOuverte && !e.target.closest('header')) fermerBande();
 });
 
 // Ouvre/ferme le menu ☰ (panneau à gauche). Sans argument : inverse l'état.
@@ -1306,10 +1370,20 @@ function mettreAJourNavigation() {
         onclick="ouvrirCategorie(this); return false;">${echapper(cat.label)}</a>`;
   }).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
 
-  // Ordinateur : « Accueil » en premier, puis les catégories et « À propos »
+  // Ordinateur : Accueil · Collections ⌄ · À propos · Contact ⌄
+  // (Collections et Contact ouvrent une bande de choix sous la barre)
   const accueilActif = !['catalogue', 'produit', 'panier', 'commande', 'confirmation', 'apropos'].includes(etat.vueActuelle);
+  const fleche = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  const boutonBande = (nom, libelle) =>
+    `<button class="bouton-deroulant ${etat.bandeOuverte === nom ? 'ouvert' : ''}" data-bande="${nom}"
+       onclick="basculerBande('${nom}')">${libelle} ${fleche}</button>`;
   document.getElementById('nav-desktop').innerHTML =
-    `<a href="#" class="${accueilActif ? 'actif' : ''}" onclick="naviguerVers('accueil'); return false;">Accueil</a>` + liensNav;
+    `<a href="#" class="${accueilActif ? 'actif' : ''}" onclick="naviguerVers('accueil'); return false;">Accueil</a>`
+    + boutonBande('collections', 'Collections')
+    + `<a href="#" class="${etat.vueActuelle === 'apropos' ? 'actif' : ''}" onclick="naviguerVers('apropos'); return false;">À propos</a>`
+    + (lignesContact().length ? boutonBande('contact', 'Contact') : '');
+  // Une bande ouverte suit le stock en direct (catégories) sans se fermer
+  if (etat.bandeOuverte) remplirBande();
   document.getElementById('menu-mobile').innerHTML = `
     <!-- Tout en haut : les 3 lignes + le mot MENU, et la croix pour fermer -->
     <div class="ligne-titre-menu">
