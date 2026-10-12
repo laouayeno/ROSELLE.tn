@@ -84,12 +84,25 @@
      reliés par des ramages (tiges, feuilles, vrilles). Image à fond transparent. */
   .logo-zone { display: flex; align-items: center; cursor: pointer; }
   .logo-zone .logo-nom { height: 60px; width: auto; display: block; }
-  /* Ordinateur (V2.18) : grand logo sur environ la moitié de la largeur
-     de l'écran, qui rapetisse quand on fait défiler la page pour ne pas
-     cacher les articles (classe « reduit » posée par le script). */
+  /* Ordinateur (V2.18) : barre fine comme la référence d'Oussama.
+     [Accueil  catégories…  À propos]          [logo] [loupe] [sac]
+     Les liens sont directement dans la barre : pas de menu ☰ à gauche. */
   @media (min-width: 860px) {
-    .logo-zone .logo-nom { height: auto; width: min(54vw, 780px); transition: width 0.25s ease; }
-    header.reduit .logo-zone .logo-nom { width: 190px; }
+    header { display: flex; align-items: center; gap: 24px; padding: 6px 40px; }
+    .entete-gauche { display: none; }
+    nav.desktop-nav {
+      order: 1; flex: 1; display: flex !important; align-items: center; gap: 28px;
+      overflow-x: auto; scrollbar-width: none; white-space: nowrap;
+    }
+    nav.desktop-nav::-webkit-scrollbar { display: none; }
+    nav.desktop-nav a {
+      color: var(--texte); text-decoration: none; font-size: 0.95rem;
+      letter-spacing: 0.04em; padding: 6px 0; border-bottom: 1px solid transparent;
+    }
+    nav.desktop-nav a:hover, nav.desktop-nav a.actif { border-bottom-color: var(--texte); }
+    .logo-zone { order: 2; }
+    .logo-zone .logo-nom { height: 48px; }
+    .entete-droite { order: 3; }
   }
 
   /* Pastille du panier : rond noir en bas à droite du sac */
@@ -161,8 +174,8 @@
   .panneau-recherche .info-recherche { color: var(--texte-doux); font-size: 0.85rem; margin: 12px 2px 4px; }
   .panneau-recherche .grille-produits { margin-top: 10px; }
 
-  /* La barre de liens « PC » est remplacée par le menu ☰ sur tous les écrans */
-  nav.desktop-nav { display: none !important; }
+  /* Barre de liens : seulement sur ordinateur (le téléphone garde le menu ☰) */
+  nav.desktop-nav { display: none; }
 
   /* ===== Structure générale ===== */
   main { max-width: 1120px; margin: 0 auto; padding: 0 20px 80px; min-height: 60vh; }
@@ -206,29 +219,31 @@
      Sur la page d'accueil, le logo quitte la barre du haut et descend dans
      un demi-cercle crème posé sur la vidéo, bordé d'une branche à feuilles
      (dessinée en SVG par domeAccueilHTML). Dès qu'on descend dans la page,
-     le petit logo revient dans la barre du haut. Sur ordinateur : pas de
-     demi-cercle pour l'instant (version PC à venir). */
-  .dome-accueil { display: none; }
+     le petit logo revient dans la barre du haut. Même principe sur
+     ordinateur, avec un demi-cercle plus petit. */
+  .dome-accueil {
+    display: block; position: absolute; z-index: 3;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 52vw; pointer-events: none;
+  }
+  .dome-accueil svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dome-accueil img {
+    position: absolute; left: 50%; top: 2%; transform: translateX(-50%);
+    width: 56%; height: auto; pointer-events: auto; cursor: pointer;
+  }
+  /* Accueil, tout en haut : barre sans logo et sans trait du bas,
+     pour qu'elle se fonde dans le demi-cercle */
+  body.sur-accueil header:not(.reduit) .logo-zone { visibility: hidden; }
+  body.sur-accueil header:not(.reduit) { border-bottom-color: #FBF6F5; }
   @media (max-width: 859px) {
-    .dome-accueil {
-      display: block; position: absolute; z-index: 3;
-      top: 0; left: 50%; transform: translateX(-50%);
-      width: 52vw; pointer-events: none;
-    }
-    .dome-accueil svg { display: block; width: 100%; height: auto; overflow: visible; }
-    .dome-accueil img {
-      position: absolute; left: 50%; top: 2%; transform: translateX(-50%);
-      width: 56%; height: auto; pointer-events: auto; cursor: pointer;
-    }
-    /* Accueil, tout en haut : barre sans logo et sans trait du bas,
-       pour qu'elle se fonde dans le demi-cercle */
-    body.sur-accueil header:not(.reduit) .logo-zone { visibility: hidden; }
-    body.sur-accueil header:not(.reduit) { border-bottom-color: #FBF6F5; }
     /* Barre du haut plus fine : le grand logo est maintenant dans le
        demi-cercle, la barre n'a plus besoin d'être aussi haute */
     header { padding: 2px 10px; }
     header .bouton-icone { padding: 5px; }
     .logo-zone .logo-nom { height: 42px; }
+  }
+  @media (min-width: 860px) {
+    .dome-accueil { width: min(26vw, 380px); }
   }
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
@@ -1289,7 +1304,10 @@ function mettreAJourNavigation() {
         onclick="ouvrirCategorie(this); return false;">${echapper(cat.label)}</a>`;
   }).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
 
-  document.getElementById('nav-desktop').innerHTML = liensNav;
+  // Ordinateur : « Accueil » en premier, puis les catégories et « À propos »
+  const accueilActif = !['catalogue', 'produit', 'panier', 'commande', 'confirmation', 'apropos'].includes(etat.vueActuelle);
+  document.getElementById('nav-desktop').innerHTML =
+    `<a href="#" class="${accueilActif ? 'actif' : ''}" onclick="naviguerVers('accueil'); return false;">Accueil</a>` + liensNav;
   document.getElementById('menu-mobile').innerHTML = `
     <!-- Tout en haut : les 3 lignes + le mot MENU, et la croix pour fermer -->
     <div class="ligne-titre-menu">
@@ -1327,8 +1345,8 @@ function contactsMenu() {
   return `<div class="contacts-menu"><div class="titre-menu">Contact</div>${lignes.join('')}</div>`;
 }
 
-// Ordinateur : l'en-tête se réduit dès qu'on descend un peu dans la page
-// (le grand logo reste visible tout en haut).
+// Dès qu'on descend un peu dans la page, le petit logo revient dans la
+// barre du haut (sur l'accueil, il est dans le demi-cercle tout en haut).
 window.addEventListener('scroll', () => {
   document.querySelector('header').classList.toggle('reduit', window.scrollY > 40);
 }, { passive: true });
