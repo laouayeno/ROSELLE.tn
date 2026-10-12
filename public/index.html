@@ -121,7 +121,15 @@
   }
   .menu-mobile.ouvert { transform: translateX(0); }
   .menu-mobile .haut-menu { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .menu-mobile .haut-menu span { font-family: 'Jost', sans-serif; font-weight: 400; letter-spacing: 2px; font-size: 0.85rem; color: var(--texte-doux); }
+  .menu-mobile .haut-menu span { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--texte); }
+  /* Faux champ de recherche en haut du menu (ouvre la vraie barre de recherche) */
+  .menu-mobile .recherche-menu {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: #F6F2F1; border: 1px solid #E6E1DF; border-radius: 24px;
+    padding: 11px 14px; margin-bottom: 10px;
+    font-size: 0.95rem; color: var(--texte-doux); text-align: left;
+  }
+  .menu-mobile .recherche-menu svg { width: 20px; height: 20px; stroke: var(--texte-doux); flex-shrink: 0; }
   .menu-mobile a { padding: 14px 0; font-size: 1.05rem; border-bottom: 1px solid #EEE9E7; }
 
   /* ===== Recherche : barre sous l'en-tête + résultats ===== */
@@ -1252,11 +1260,16 @@ function mettreAJourNavigation() {
   document.getElementById('nav-desktop').innerHTML = liensNav;
   document.getElementById('menu-mobile').innerHTML = `
     <div class="haut-menu">
-      <span>MENU</span>
+      <span>Catégories</span>
       <button class="bouton-icone" onclick="basculerMenuMobile(false)" aria-label="Fermer le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-    </div>` + liensNav;
+    </div>
+    <!-- Bouton de recherche dans le menu : ferme le menu et ouvre la barre de recherche -->
+    <button class="recherche-menu" onclick="basculerRecherche(true)">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+      Rechercher un article
+    </button>` + liensNav;
   // Les résultats de recherche suivent le stock en direct
   mettreAJourRecherche();
 }
