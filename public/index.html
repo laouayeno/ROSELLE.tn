@@ -588,7 +588,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">ROSELLE</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.14</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.15</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1037,11 +1037,16 @@ function naviguerVers(vue, parametres = {}) {
 
 // Applique réellement le changement de vue (appelé après un changement d'URL)
 function appliquerNavigation(vue, parametres) {
+  const vuePrecedente = etat.vueActuelle; // page que la cliente quitte
   etat.vueActuelle = vue;
   etat.parametresVue = parametres;
   // Un achat direct ("Acheter maintenant") ne vaut que pour la page de
   // commande qui suit : si la cliente la quitte (retour, panier, accueil…),
   // il est oublié, et un nouveau choix repart de zéro.
+  // Exception : si elle ouvre son panier depuis la page de commande, l'article
+  // est mis dans le panier, pour qu'elle retrouve les mêmes articles que
+  // dans sa commande (et le même nombre sur l'icône du panier).
+  if (vue === 'panier' && vuePrecedente === 'commande') verserAchatDirectDansPanier();
   if (vue !== 'commande') etat.achatDirect = null;
   if (vue === 'produit') {
     etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
@@ -1157,7 +1162,10 @@ function capitaliser(texte) {
 }
 
 function mettreAJourCompteurPanier() {
-  const total = etat.panier.reduce((s, l) => s + l.qty, 0);
+  // Sur la page de commande d'un « Acheter maintenant », l'icône compte aussi
+  // l'article acheté : le chiffre correspond ainsi aux articles de la commande.
+  const lignes = (etat.vueActuelle === 'commande') ? lignesACommander() : etat.panier;
+  const total = lignes.reduce((s, l) => s + l.qty, 0);
   const badge = document.getElementById('compteur-panier');
   if (total > 0) { badge.style.display = 'flex'; badge.textContent = total; }
   else { badge.style.display = 'none'; }
@@ -1960,24 +1968,32 @@ function acheterMaintenant(produitId) {
 //   mis dans le panier, pour qu'il ne disparaisse pas.
 function continuerMesAchats() {
   if (etat.achatDirect && etat.achatDirect.length > 0) {
-    for (const ligne of etat.achatDirect) {
-      // Un article simple déjà présent dans le panier : on augmente sa quantité
-      // (sans dépasser le stock). Les articles d'un pack restent des lignes à part.
-      const ligneExistante = !ligne.packId
-        ? etat.panier.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
-        : null;
-      if (ligneExistante) {
-        ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
-      } else {
-        etat.panier.push({ ...ligne });
-      }
-    }
-    etat.achatDirect = null;
-    mettreAJourCompteurPanier();
-    sauvegarderPanier();
+    verserAchatDirectDansPanier();
     afficherToast('Article gardé dans votre panier');
   }
   naviguerVers('accueil');
+}
+
+// Met l'article de « Acheter maintenant » dans le panier, puis oublie
+// l'achat direct (utilisé par « Continuer mes achats » et quand la cliente
+// ouvre son panier depuis la page de commande).
+function verserAchatDirectDansPanier() {
+  if (!etat.achatDirect) return;
+  for (const ligne of etat.achatDirect) {
+    // Un article simple déjà présent dans le panier : on augmente sa quantité
+    // (sans dépasser le stock). Les articles d'un pack restent des lignes à part.
+    const ligneExistante = !ligne.packId
+      ? etat.panier.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
+      : null;
+    if (ligneExistante) {
+      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
+    } else {
+      etat.panier.push({ ...ligne });
+    }
+  }
+  etat.achatDirect = null;
+  mettreAJourCompteurPanier();
+  sauvegarderPanier();
 }
 
 // Lignes à commander sur la page de commande.
@@ -2280,6 +2296,9 @@ function vueCommande() {
 
         <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
         <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
+        <!-- Ouvre le panier pour retirer ou changer un article avant de commander
+             (l'article d'« Acheter maintenant » y est mis automatiquement) -->
+        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="naviguerVers('panier')">Modifier mon panier</button>
       </form>
     </div>
   `;
