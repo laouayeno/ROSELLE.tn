@@ -411,21 +411,32 @@
     .bloc-texte p { font-size: 1.12rem; }
   }
 
-  /* Bloc texte avec photo / GIF / vidéo :
-     iPhone = média au-dessus du texte ; PC = côte à côte, côté au choix */
+  /* Bloc texte avec photo / GIF / vidéo (V2.21, choix d'Oussama) :
+     - le média prend toute la largeur de l'écran, sans coins arrondis
+     - iPhone : média à droite = sous le texte ; média à gauche = au-dessus
+     - PC : côte à côte, le média touche le bord de l'écran de son côté */
   .bloc-texte.avec-media { max-width: 1120px; display: grid; gap: 24px; }
   .media-bloc img, .media-bloc video {
-    width: 100%; display: block; border-radius: 6px; background: var(--rose-clair);
+    width: 100%; display: block; background: var(--rose-clair);
   }
+  /* Sur téléphone, le média sort des marges de la page (bord à bord) */
+  .bloc-texte.avec-media .media-bloc { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+  .bloc-texte.avec-media.media-droite .media-bloc { order: 2; }
+  .bloc-texte.avec-media.media-gauche .media-bloc { order: 0; }
   @media (min-width: 780px) {
-    .bloc-texte.avec-media { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
-    .bloc-texte.avec-media.media-droite .media-bloc { order: 2; }
-    .bloc-texte.avec-media.media-gauche .media-bloc { order: 0; }
+    /* Sur PC, tout le bloc fait la largeur de l'écran : moitié média, moitié texte */
+    .bloc-texte.avec-media {
+      max-width: none; width: 100vw;
+      margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; align-items: center;
+    }
+    .bloc-texte.avec-media .media-bloc { margin-left: 0; margin-right: 0; }
+    .bloc-texte.avec-media .texte-bloc { padding: 40px clamp(32px, 6vw, 96px); max-width: 640px; justify-self: center; }
   }
 
-  /* Bloc image seule */
-  .bloc-image { display: block; margin-top: 48px; }
-  .bloc-image img { width: 100%; border-radius: 6px; display: block; }
+  /* Bloc image seule : toute la largeur de l'écran, bord à bord */
+  .bloc-image { display: block; margin-top: 48px; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+  .bloc-image img { width: 100%; display: block; }
   .entete-section a { font-size: 0.85rem; color: var(--rose-fonce); border-bottom: 1px solid var(--rose-fonce); }
 
   /* ===== Pétales flottants décoratifs (touche florale en arrière-plan) ===== */
@@ -768,7 +779,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.20</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.21</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1913,7 +1924,8 @@ document.addEventListener('dragstart', (e) => {
 // Texte libre : titre + paragraphes
 // Bloc texte, avec en option une photo, un GIF ou une courte vidéo à côté :
 // - PC : texte d'un côté, média de l'autre (mediaSide : 'right' par défaut, ou 'left')
-// - iPhone : média au-dessus du texte
+// - iPhone : média à droite = sous le texte, média à gauche = au-dessus (V2.21)
+// - le média prend toute la largeur de l'écran (voir le CSS .media-bloc)
 function blocTexteHTML(bloc) {
   const media = urlSure(bloc.mediaUrl, '');
   if (!bloc.title && !bloc.body && !media) return '';
