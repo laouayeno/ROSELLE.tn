@@ -117,7 +117,8 @@
       background: var(--blanc); border-bottom: 1px solid #E6E1DF;
       box-shadow: 0 10px 18px rgba(0,0,0,0.06); padding: 22px 0 26px;
     }
-    .bande-deroulante .liste-bande { display: flex; flex-direction: column; gap: 4px; }
+    .bande-deroulante.ouverte { z-index: 4; }   /* passe devant le demi-cercle */
+    .bande-deroulante .liste-bande { display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
     .bande-deroulante .liste-bande a, .bande-deroulante .liste-bande span {
       color: var(--texte); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.04em; padding: 6px 0;
     }
@@ -181,9 +182,11 @@
   }
   .menu-mobile .deroulant-menu svg { width: 18px; height: 18px; stroke: var(--texte); transition: transform 0.2s ease; }
   .menu-mobile .deroulant-bloc.ouvert .deroulant-menu svg { transform: rotate(180deg); }
-  .menu-mobile .liste-deroulant { display: none; flex-direction: column; padding: 4px 0 8px 14px; }
+  .menu-mobile .liste-deroulant { display: none; flex-direction: column; padding: 4px 0 8px 14px; min-height: 40px; }
   .menu-mobile .deroulant-bloc.ouvert .liste-deroulant { display: flex; }
   .menu-mobile .deroulant-bloc { margin-bottom: 18px; }
+  /* Texte gris d'une liste vide (menu ☰ et bande ordinateur) */
+  .liste-vide { color: #9A8F93; font-size: 0.9rem; font-style: italic; padding: 8px 0; }
   /* Contacts (« Contact ⌄ » en bas du menu) : seulement ceux saisis dans le dashboard */
   .menu-mobile [data-deroulant="contact"] { margin-top: 26px; }
   .menu-mobile [data-deroulant="contact"] + [data-deroulant="reseaux"] { margin-top: -18px; }
@@ -254,23 +257,25 @@
   /* ===== Demi-cercle de l'accueil (téléphone, V2.18) =====
      Sur la page d'accueil, le logo quitte la barre du haut et descend dans
      un demi-cercle crème posé sur la vidéo, bordé d'une branche à feuilles
-     (dessinée en SVG par domeAccueilHTML). Dès qu'on descend dans la page,
-     le petit logo revient dans la barre du haut. Même principe sur
-     ordinateur, avec un demi-cercle plus petit. */
+     (dessinée en SVG par domeAccueilHTML). V2.19 : le demi-cercle est
+     accroché sous la barre du haut et la suit quand on descend ou remonte
+     dans la page. Même principe sur ordinateur, avec un demi-cercle plus petit. */
   .dome-accueil {
     display: block; position: absolute; z-index: 3;
-    top: 0; left: 50%; transform: translateX(-50%);
+    top: 100%; left: 50%; transform: translateX(-50%);
     width: 52vw; pointer-events: none;
+    /* Rien ne dépasse au-dessus du bas de la barre (bouts des racines) */
+    clip-path: inset(0 -50% -50% -50%);
   }
   .dome-accueil svg { display: block; width: 100%; height: auto; overflow: visible; }
   .dome-accueil img {
     position: absolute; left: 50%; top: 2%; transform: translateX(-50%);
     width: 56%; height: auto; pointer-events: auto; cursor: pointer;
   }
-  /* Accueil, tout en haut : barre sans logo et sans trait du bas,
+  /* Accueil : barre sans petit logo et sans trait du bas,
      pour qu'elle se fonde dans le demi-cercle */
-  body.sur-accueil header:not(.reduit) .logo-zone { visibility: hidden; }
-  body.sur-accueil header:not(.reduit) { border-bottom-color: #FBF6F5; }
+  body.sur-accueil header .logo-zone { visibility: hidden; }
+  body.sur-accueil header { border-bottom-color: #FBF6F5; }
   @media (max-width: 859px) {
     /* Barre du haut plus fine : le grand logo est maintenant dans le
        demi-cercle, la barre n'a plus besoin d'être aussi haute */
@@ -724,6 +729,8 @@
       <span class="compteur-panier" id="compteur-panier" style="display:none;">0</span>
     </button>
   </div>
+  <!-- Accueil : demi-cercle avec le logo, accroché sous la barre (il descend avec elle) -->
+  <div id="dome-entete"></div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
   <!-- Ordinateur : bande de choix qui descend sous la barre (Collections, Contact) -->
   <div class="bande-deroulante" id="bande-deroulante"></div>
@@ -756,7 +763,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.18</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.19</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1282,11 +1289,21 @@ function remplirBande() {
     ? collectionsAffichees().map(col => `<a href="#" data-col="${echapper(col.id)}"
         onclick="ouvrirCollection(this); return false;">${echapper(col.label)}</a>`)
     : lignesContact(nom === 'reseaux' ? 'reseaux' : 'contact');
-  bande.innerHTML = `<div class="liste-bande">${lignes.join('')}</div>`;
+  bande.innerHTML = `<div class="liste-bande">${lignes.length ? lignes.join('') : messageVide(nom)}</div>`;
 
   const bouton = document.querySelector(`#nav-desktop .bouton-deroulant[data-bande="${nom}"]`);
   const gauche = bouton ? bouton.getBoundingClientRect().left : 40;
   bande.querySelector('.liste-bande').style.marginLeft = Math.round(gauche) + 'px';
+}
+
+// Petit texte gris quand une liste déroulante est vide (V2.19, choix d'Oussama)
+function messageVide(nom) {
+  const textes = {
+    collections: 'Aucune collection pour le moment',
+    contact: 'Aucun contact pour le moment',
+    reseaux: 'Aucun réseau social pour le moment'
+  };
+  return `<span class="liste-vide">${textes[nom] || 'Rien pour le moment'}</span>`;
 }
 
 // Un clic ailleurs que dans la barre ferme la bande
@@ -1411,11 +1428,12 @@ function mettreAJourNavigation() {
        onclick="basculerBande('${nom}')">${libelle} ${fleche}</button>`;
   document.getElementById('nav-desktop').innerHTML =
     `<a href="#" class="${accueilActif ? 'actif' : ''}" onclick="naviguerVers('accueil'); return false;">Accueil</a>`
-    + (collectionsAffichees().length ? boutonBande('collections', 'Collections') : '')
+    + boutonBande('collections', 'Collections')
     // Les catégories (Robes, Pulls…) restent directement dans la barre, puis « À propos »
     + liensNav
-    + (lignesContact('contact').length ? boutonBande('contact', 'Contact') : '')
-    + (lignesContact('reseaux').length ? boutonBande('reseaux', 'Réseaux sociaux') : '');
+    // Toujours affichés, même sans contenu : la bande s'ouvre alors vide
+    + boutonBande('contact', 'Contact')
+    + boutonBande('reseaux', 'Réseaux sociaux');
   // Une bande ouverte suit le stock en direct (catégories) sans se fermer
   if (etat.bandeOuverte) remplirBande();
   document.getElementById('menu-mobile').innerHTML = `
@@ -1452,15 +1470,15 @@ function mettreAJourNavigation() {
 // Rien n'est affiché si aucune coordonnée n'est renseignée.
 // Téléphone : lignes « Collections ⌄ » et « Contact ⌄ » du menu ☰. Un appui
 // déroule la liste sous la ligne et retourne la flèche ; une section sans
-// contenu (aucune collection visible, aucun contact saisi) n'apparaît pas.
+// contenu (aucune collection visible, aucun contact saisi) reste affichée :
+// elle s'ouvre alors sur un espace vide (V2.19, choix d'Oussama).
 function deroulantMenuHTML(nom, titre, lignes) {
-  if (!lignes.length) return '';
   const ouvert = etat.menuDeplie[nom];
   return `<div class="deroulant-bloc ${ouvert ? 'ouvert' : ''}" data-deroulant="${nom}">
     <button class="deroulant-menu" onclick="basculerDeroulantMenu('${nom}')">${titre}
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
-    <div class="liste-deroulant">${lignes.join('')}</div>
+    <div class="liste-deroulant">${lignes.length ? lignes.join('') : messageVide(nom)}</div>
   </div>`;
 }
 
@@ -1479,12 +1497,6 @@ function contactsMenu() {
   return deroulantMenuHTML('contact', 'Contact', lignesContact('contact'))
     + deroulantMenuHTML('reseaux', 'Réseaux sociaux', lignesContact('reseaux'));
 }
-
-// Dès qu'on descend un peu dans la page, le petit logo revient dans la
-// barre du haut (sur l'accueil, il est dans le demi-cercle tout en haut).
-window.addEventListener('scroll', () => {
-  document.querySelector('header').classList.toggle('reduit', window.scrollY > 40);
-}, { passive: true });
 
 // Applique le logo, le nom de marque et les réseaux sociaux du dashboard
 // à l'en-tête, au pied de page et au titre de l'onglet.
@@ -1561,7 +1573,13 @@ function rendre() {
 
   // Repère « page d'accueil » pour le demi-cercle (le logo y quitte la barre du haut)
   const vuesAutres = ['catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'];
-  document.body.classList.toggle('sur-accueil', !vuesAutres.includes(etat.vueActuelle));
+  const surAccueil = !vuesAutres.includes(etat.vueActuelle);
+  document.body.classList.toggle('sur-accueil', surAccueil);
+  // Le demi-cercle est dans la barre du haut : il reste collé à elle
+  // quand on descend ou remonte dans la page (V2.19, choix d'Oussama)
+  const dome = document.getElementById('dome-entete');
+  if (surAccueil && !dome.innerHTML) dome.innerHTML = domeAccueilHTML(reglageTexte('brand', 'name'));
+  if (!surAccueil) dome.innerHTML = '';
 
   switch (etat.vueActuelle) {
     case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
@@ -1629,7 +1647,6 @@ function heroAccueil() {
   const html = `
     <section class="hero-video-section">
       ${mediaHTML}
-      ${domeAccueilHTML(nom)}
       <div class="hero-video-texte">
         <p>${echapper(texte)}</p>
         <button class="bouton-principal" ${lienAttributs(lienBouton)}>${echapper(libelleBouton)}</button>
