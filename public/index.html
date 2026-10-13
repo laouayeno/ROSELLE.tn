@@ -1026,8 +1026,9 @@ function categoriesAffichees() {
       label: c.label ? String(c.label) : capitaliser(String(c.id)),
       imageUrl: urlSure(c.imageUrl, '')
     }));
-  if (valides.length) return valides;
-  return CATEGORIES_PRINCIPALES.map(id => ({ id, label: capitaliser(id), imageUrl: '' }));
+  const liste2 = valides.length ? valides : CATEGORIES_PRINCIPALES.map(id => ({ id, label: capitaliser(id), imageUrl: '' }));
+  // Une catégorie sans aucun article n'apparaît pas (barre, menu ☰, tuiles de l'accueil)
+  return liste2.filter(c => produitsParCategorie(c.id).length > 0);
 }
 
 // Collections créées dans le Stock (Apparence > Collections), dans leur ordre,
