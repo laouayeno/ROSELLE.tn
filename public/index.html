@@ -89,7 +89,10 @@
      Trois colonnes : la 1re vide et la 3e de même largeur, pour que les
      liens restent bien centrés. Pas de menu ☰ sur ordinateur. */
   @media (min-width: 860px) {
-    header { grid-template-columns: 1fr auto 1fr; column-gap: 20px; padding: 6px 32px; }
+    header { grid-template-columns: 1fr auto 1fr; column-gap: 20px; padding: 2px 32px; }
+    /* V2.20 : barre plus fine (icônes moins espacées) */
+    header .bouton-icone { padding: 4px; }
+    header .bouton-icone svg { width: 22px; height: 22px; }
     .entete-gauche { display: none; }
     nav.desktop-nav {
       grid-column: 2; grid-row: 1; display: flex !important; align-items: center; gap: 22px;
@@ -123,9 +126,10 @@
       color: var(--texte); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.04em; padding: 6px 0;
     }
     .bande-deroulante .liste-bande a:hover { text-decoration: underline; }
-    /* Logo et icônes dans la colonne de droite, le logo juste avant la loupe */
-    .logo-zone { grid-column: 3; grid-row: 1; justify-self: end; margin-right: 150px; }
-    .logo-zone .logo-nom { height: 48px; }
+    /* V2.20 : le petit logo est collé juste après le dernier lien de la barre
+       (« Réseaux sociaux »), quelle que soit la largeur de l'écran */
+    .logo-zone { grid-column: 3; grid-row: 1; justify-self: start; margin-left: 4px; }
+    .logo-zone .logo-nom { height: 42px; }
     .entete-droite { grid-column: 3; grid-row: 1; justify-self: end; }
   }
 
@@ -284,7 +288,8 @@
     .logo-zone .logo-nom { height: 42px; }
   }
   @media (min-width: 860px) {
-    .dome-accueil { width: min(26vw, 380px); }
+    /* V2.20 : demi-cercle et logo plus petits (choix d'Oussama) */
+    .dome-accueil { width: min(18vw, 260px); }
   }
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
@@ -763,7 +768,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.19</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.20</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
