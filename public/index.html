@@ -185,6 +185,8 @@
   .menu-mobile .liste-deroulant { display: none; flex-direction: column; padding: 4px 0 8px 14px; min-height: 40px; }
   .menu-mobile .deroulant-bloc.ouvert .liste-deroulant { display: flex; }
   .menu-mobile .deroulant-bloc { margin-bottom: 18px; }
+  /* Texte gris d'une liste vide (menu ☰ et bande ordinateur) */
+  .liste-vide { color: #9A8F93; font-size: 0.9rem; font-style: italic; padding: 8px 0; }
   /* Contacts (« Contact ⌄ » en bas du menu) : seulement ceux saisis dans le dashboard */
   .menu-mobile [data-deroulant="contact"] { margin-top: 26px; }
   .menu-mobile [data-deroulant="contact"] + [data-deroulant="reseaux"] { margin-top: -18px; }
@@ -1287,11 +1289,21 @@ function remplirBande() {
     ? collectionsAffichees().map(col => `<a href="#" data-col="${echapper(col.id)}"
         onclick="ouvrirCollection(this); return false;">${echapper(col.label)}</a>`)
     : lignesContact(nom === 'reseaux' ? 'reseaux' : 'contact');
-  bande.innerHTML = `<div class="liste-bande">${lignes.join('')}</div>`;
+  bande.innerHTML = `<div class="liste-bande">${lignes.length ? lignes.join('') : messageVide(nom)}</div>`;
 
   const bouton = document.querySelector(`#nav-desktop .bouton-deroulant[data-bande="${nom}"]`);
   const gauche = bouton ? bouton.getBoundingClientRect().left : 40;
   bande.querySelector('.liste-bande').style.marginLeft = Math.round(gauche) + 'px';
+}
+
+// Petit texte gris quand une liste déroulante est vide (V2.19, choix d'Oussama)
+function messageVide(nom) {
+  const textes = {
+    collections: 'Aucune collection pour le moment',
+    contact: 'Aucun contact pour le moment',
+    reseaux: 'Aucun réseau social pour le moment'
+  };
+  return `<span class="liste-vide">${textes[nom] || 'Rien pour le moment'}</span>`;
 }
 
 // Un clic ailleurs que dans la barre ferme la bande
@@ -1466,7 +1478,7 @@ function deroulantMenuHTML(nom, titre, lignes) {
     <button class="deroulant-menu" onclick="basculerDeroulantMenu('${nom}')">${titre}
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
-    <div class="liste-deroulant">${lignes.join('')}</div>
+    <div class="liste-deroulant">${lignes.length ? lignes.join('') : messageVide(nom)}</div>
   </div>`;
 }
 
