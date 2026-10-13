@@ -1031,12 +1031,14 @@ function categoriesAffichees() {
 }
 
 // Collections créées dans le Stock (Apparence > Collections), dans leur ordre,
-// sans celles qui sont cachées. Chaque article a au plus une collection
+// sans celles qui sont cachées ou vides. Chaque article a au plus une collection
 // (son champ « collection » = id de la collection).
 function collectionsAffichees() {
   const liste = etat.reglages && Array.isArray(etat.reglages.collections) ? etat.reglages.collections : [];
   return liste
     .filter(c => c && c.id && c.label && c.visible !== false)
+    // Une collection vide (aucun article rangé dedans) n'apparaît pas sur le site
+    .filter(c => etat.produits.some(p => p.collection === c.id))
     .map(c => ({ id: String(c.id), label: String(c.label) }));
 }
 
