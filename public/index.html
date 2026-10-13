@@ -84,7 +84,49 @@
      reliés par des ramages (tiges, feuilles, vrilles). Image à fond transparent. */
   .logo-zone { display: flex; align-items: center; cursor: pointer; }
   .logo-zone .logo-nom { height: 60px; width: auto; display: block; }
-  @media (min-width: 860px) { .logo-zone .logo-nom { height: 72px; } }
+  /* Ordinateur (V2.18) : barre fine, liens au centre (choix d'Oussama).
+     [            ]  [Accueil  catégories…  À propos]  [logo] [loupe] [sac]
+     Trois colonnes : la 1re vide et la 3e de même largeur, pour que les
+     liens restent bien centrés. Pas de menu ☰ sur ordinateur. */
+  @media (min-width: 860px) {
+    header { grid-template-columns: 1fr auto 1fr; column-gap: 20px; padding: 6px 32px; }
+    .entete-gauche { display: none; }
+    nav.desktop-nav {
+      grid-column: 2; grid-row: 1; display: flex !important; align-items: center; gap: 22px;
+      max-width: calc(100vw - 500px); overflow-x: auto; scrollbar-width: none; white-space: nowrap;
+    }
+    nav.desktop-nav::-webkit-scrollbar { display: none; }
+    nav.desktop-nav a {
+      color: var(--texte); text-decoration: none; font-size: 0.92rem;
+      letter-spacing: 0.03em; padding: 6px 0; border-bottom: 1px solid transparent;
+    }
+    nav.desktop-nav a:hover, nav.desktop-nav a.actif { border-bottom-color: var(--texte); }
+    /* Boutons « Collections ⌄ » et « Contact ⌄ » : la flèche se retourne quand la bande est ouverte */
+    nav.desktop-nav .bouton-deroulant {
+      background: none; border: none; border-bottom: 1px solid transparent; cursor: pointer;
+      color: var(--texte); font: inherit; font-size: 0.92rem; letter-spacing: 0.03em;
+      padding: 6px 0; display: flex; align-items: center; gap: 6px;
+    }
+    nav.desktop-nav .bouton-deroulant svg { width: 14px; height: 14px; stroke: var(--texte); transition: transform 0.2s ease; }
+    nav.desktop-nav .bouton-deroulant:hover, nav.desktop-nav .bouton-deroulant.ouvert { border-bottom-color: var(--texte); }
+    nav.desktop-nav .bouton-deroulant.ouvert svg { transform: rotate(180deg); }
+    /* Bande blanche pleine largeur sous la barre, avec la liste des choix
+       alignée sous le bouton cliqué (position posée par le script) */
+    .bande-deroulante.ouverte {
+      display: block; position: absolute; left: 0; right: 0; top: 100%;
+      background: var(--blanc); border-bottom: 1px solid #E6E1DF;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.06); padding: 22px 0 26px;
+    }
+    .bande-deroulante .liste-bande { display: flex; flex-direction: column; gap: 4px; }
+    .bande-deroulante .liste-bande a, .bande-deroulante .liste-bande span {
+      color: var(--texte); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.04em; padding: 6px 0;
+    }
+    .bande-deroulante .liste-bande a:hover { text-decoration: underline; }
+    /* Logo et icônes dans la colonne de droite, le logo juste avant la loupe */
+    .logo-zone { grid-column: 3; grid-row: 1; justify-self: end; margin-right: 150px; }
+    .logo-zone .logo-nom { height: 48px; }
+    .entete-droite { grid-column: 3; grid-row: 1; justify-self: end; }
+  }
 
   /* Pastille du panier : rond noir en bas à droite du sac */
   .compteur-panier {
@@ -131,10 +173,22 @@
   /* Lien « Accueil » au-dessus des catégories (V2.17) */
   .menu-mobile a.lien-accueil { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .menu-mobile a.lien-accueil svg { width: 20px; height: 20px; stroke: var(--texte); flex-shrink: 0; }
-  /* Contacts en bas du menu (V2.17) : seulement ceux saisis dans le dashboard */
-  .menu-mobile .contacts-menu { margin-top: 26px; display: flex; flex-direction: column; gap: 4px; }
-  .menu-mobile .contacts-menu .item-contact a,
-  .menu-mobile .contacts-menu .item-contact span { padding: 8px 0; border-bottom: none; font-size: 0.98rem; }
+  /* « Collections ⌄ » (V2.18) : la liste se déplie sous la ligne, la flèche se retourne */
+  .menu-mobile .deroulant-menu {
+    width: 100%; background: none; border: none; border-bottom: 1px solid #EEE9E7; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; font: inherit; font-size: 1.05rem; color: var(--texte); text-align: left;
+  }
+  .menu-mobile .deroulant-menu svg { width: 18px; height: 18px; stroke: var(--texte); transition: transform 0.2s ease; }
+  .menu-mobile .deroulant-bloc.ouvert .deroulant-menu svg { transform: rotate(180deg); }
+  .menu-mobile .liste-deroulant { display: none; flex-direction: column; padding: 4px 0 8px 14px; }
+  .menu-mobile .deroulant-bloc.ouvert .liste-deroulant { display: flex; }
+  .menu-mobile .deroulant-bloc { margin-bottom: 18px; }
+  /* Contacts (« Contact ⌄ » en bas du menu) : seulement ceux saisis dans le dashboard */
+  .menu-mobile [data-deroulant="contact"] { margin-top: 26px; }
+  .menu-mobile [data-deroulant="contact"] + [data-deroulant="reseaux"] { margin-top: -18px; }
+  .menu-mobile .liste-deroulant .item-contact a,
+  .menu-mobile .liste-deroulant .item-contact span { padding: 8px 0; border-bottom: none; font-size: 0.98rem; }
 
   /* ===== Recherche : barre sous l'en-tête + résultats ===== */
   .panneau-recherche {
@@ -155,8 +209,9 @@
   .panneau-recherche .info-recherche { color: var(--texte-doux); font-size: 0.85rem; margin: 12px 2px 4px; }
   .panneau-recherche .grille-produits { margin-top: 10px; }
 
-  /* La barre de liens « PC » est remplacée par le menu ☰ sur tous les écrans */
-  nav.desktop-nav { display: none !important; }
+  /* Barre de liens : seulement sur ordinateur (le téléphone garde le menu ☰) */
+  nav.desktop-nav { display: none; }
+  .bande-deroulante { display: none; }
 
   /* ===== Structure générale ===== */
   main { max-width: 1120px; margin: 0 auto; padding: 0 20px 80px; min-height: 60vh; }
@@ -195,6 +250,37 @@
     text-shadow: 0 1px 8px rgba(0,0,0,0.45); margin-bottom: 16px;
   }
   .hero-video-texte .bouton-principal { background: var(--blanc); color: var(--texte); }
+
+  /* ===== Demi-cercle de l'accueil (téléphone, V2.18) =====
+     Sur la page d'accueil, le logo quitte la barre du haut et descend dans
+     un demi-cercle crème posé sur la vidéo, bordé d'une branche à feuilles
+     (dessinée en SVG par domeAccueilHTML). Dès qu'on descend dans la page,
+     le petit logo revient dans la barre du haut. Même principe sur
+     ordinateur, avec un demi-cercle plus petit. */
+  .dome-accueil {
+    display: block; position: absolute; z-index: 3;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 52vw; pointer-events: none;
+  }
+  .dome-accueil svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dome-accueil img {
+    position: absolute; left: 50%; top: 2%; transform: translateX(-50%);
+    width: 56%; height: auto; pointer-events: auto; cursor: pointer;
+  }
+  /* Accueil, tout en haut : barre sans logo et sans trait du bas,
+     pour qu'elle se fonde dans le demi-cercle */
+  body.sur-accueil header:not(.reduit) .logo-zone { visibility: hidden; }
+  body.sur-accueil header:not(.reduit) { border-bottom-color: #FBF6F5; }
+  @media (max-width: 859px) {
+    /* Barre du haut plus fine : le grand logo est maintenant dans le
+       demi-cercle, la barre n'a plus besoin d'être aussi haute */
+    header { padding: 2px 10px; }
+    header .bouton-icone { padding: 5px; }
+    .logo-zone .logo-nom { height: 42px; }
+  }
+  @media (min-width: 860px) {
+    .dome-accueil { width: min(26vw, 380px); }
+  }
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
     position: relative;
@@ -639,6 +725,8 @@
     </button>
   </div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
+  <!-- Ordinateur : bande de choix qui descend sous la barre (Collections, Contact) -->
+  <div class="bande-deroulante" id="bande-deroulante"></div>
 </header>
 
 <!-- Panneau de recherche (s'ouvre avec la loupe) -->
@@ -668,7 +756,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.17</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.18</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -842,6 +930,8 @@ const suivi = (() => {
 const CLE_PANIER = 'roselle_panier';
 
 const etat = {
+  bandeOuverte: null,          // ordinateur : bande ouverte sous la barre (collections / contact)
+  menuDeplie: {},              // téléphone : listes dépliées dans le menu ☰ (collections, contact)
   produits: [],           // liste des produits chargés depuis publicCatalog
   chargementTermine: false,
   vueActuelle: 'accueil',  // accueil | catalogue | produit | panier | commande | confirmation | apropos
@@ -936,8 +1026,25 @@ function categoriesAffichees() {
       label: c.label ? String(c.label) : capitaliser(String(c.id)),
       imageUrl: urlSure(c.imageUrl, '')
     }));
-  if (valides.length) return valides;
-  return CATEGORIES_PRINCIPALES.map(id => ({ id, label: capitaliser(id), imageUrl: '' }));
+  const liste2 = valides.length ? valides : CATEGORIES_PRINCIPALES.map(id => ({ id, label: capitaliser(id), imageUrl: '' }));
+  // Une catégorie sans aucun article n'apparaît pas (barre, menu ☰, tuiles de l'accueil)
+  return liste2.filter(c => produitsParCategorie(c.id).length > 0);
+}
+
+// Collections créées dans le Stock (Apparence > Collections), dans leur ordre,
+// sans celles qui sont cachées ou vides. Chaque article a au plus une collection
+// (son champ « collection » = id de la collection).
+function collectionsAffichees() {
+  const liste = etat.reglages && Array.isArray(etat.reglages.collections) ? etat.reglages.collections : [];
+  return liste
+    .filter(c => c && c.id && c.label && c.visible !== false)
+    // Une collection vide (aucun article rangé dedans) n'apparaît pas sur le site
+    .filter(c => etat.produits.some(p => p.collection === c.id))
+    .map(c => ({ id: String(c.id), label: String(c.label) }));
+}
+
+function ouvrirCollection(element) {
+  naviguerVers('collection', { collectionId: element.dataset.col });
 }
 
 // Libellé d'une catégorie (celui du dashboard s'il existe), à partir de son identifiant.
@@ -1089,6 +1196,7 @@ function rafraichirApresDonnees() {
 function construireHash(vue, parametres) {
   if (vue === 'catalogue' && parametres.categorie) return '#catalogue/' + encodeURIComponent(parametres.categorie);
   if (vue === 'produit' && parametres.produitId) return '#produit/' + encodeURIComponent(parametres.produitId);
+  if (vue === 'collection' && parametres.collectionId) return '#collection/' + encodeURIComponent(parametres.collectionId);
   return '#' + vue;
 }
 
@@ -1099,6 +1207,7 @@ function analyserHash() {
   const [vue, param] = brut.split('/');
   if (vue === 'catalogue' && param) return { vue: 'catalogue', parametres: { categorie: decodeURIComponent(param) } };
   if (vue === 'produit' && param) return { vue: 'produit', parametres: { produitId: decodeURIComponent(param) } };
+  if (vue === 'collection' && param) return { vue: 'collection', parametres: { collectionId: decodeURIComponent(param) } };
   if (['accueil', 'panier', 'commande', 'confirmation', 'apropos'].includes(vue)) return { vue, parametres: {} };
   return { vue: 'accueil', parametres: {} };
 }
@@ -1133,6 +1242,7 @@ function appliquerNavigation(vue, parametres) {
   }
   basculerMenuMobile(false);
   basculerRecherche(false);
+  fermerBande();
   window.scrollTo({ top: 0, behavior: 'instant' });
   rendre();
   if (vue === 'produit') suivi.vueArticle(parametres.produitId);
@@ -1144,6 +1254,44 @@ function appliquerNavigation(vue, parametres) {
 window.addEventListener('hashchange', () => {
   const { vue, parametres } = analyserHash();
   appliquerNavigation(vue, parametres);
+});
+
+// Ordinateur : ouvre la bande « Collections » ou « Contact » sous la barre.
+// Un 2e clic sur le même bouton la referme ; un clic sur l'autre bouton
+// change simplement son contenu.
+function basculerBande(nom) {
+  etat.bandeOuverte = (etat.bandeOuverte === nom) ? null : nom;
+  document.querySelectorAll('#nav-desktop .bouton-deroulant').forEach(b =>
+    b.classList.toggle('ouvert', b.dataset.bande === etat.bandeOuverte));
+  remplirBande();
+}
+
+function fermerBande() {
+  if (!etat.bandeOuverte) return;
+  basculerBande(etat.bandeOuverte);
+}
+
+// Remplit la bande avec les choix, alignés sous le bouton cliqué
+function remplirBande() {
+  const bande = document.getElementById('bande-deroulante');
+  const nom = etat.bandeOuverte;
+  bande.classList.toggle('ouverte', !!nom);
+  if (!nom) { bande.innerHTML = ''; return; }
+
+  const lignes = nom === 'collections'
+    ? collectionsAffichees().map(col => `<a href="#" data-col="${echapper(col.id)}"
+        onclick="ouvrirCollection(this); return false;">${echapper(col.label)}</a>`)
+    : lignesContact(nom === 'reseaux' ? 'reseaux' : 'contact');
+  bande.innerHTML = `<div class="liste-bande">${lignes.join('')}</div>`;
+
+  const bouton = document.querySelector(`#nav-desktop .bouton-deroulant[data-bande="${nom}"]`);
+  const gauche = bouton ? bouton.getBoundingClientRect().left : 40;
+  bande.querySelector('.liste-bande').style.marginLeft = Math.round(gauche) + 'px';
+}
+
+// Un clic ailleurs que dans la barre ferme la bande
+document.addEventListener('click', e => {
+  if (etat.bandeOuverte && !e.target.closest('header')) fermerBande();
 });
 
 // Ouvre/ferme le menu ☰ (panneau à gauche). Sans argument : inverse l'état.
@@ -1254,7 +1402,22 @@ function mettreAJourNavigation() {
         onclick="ouvrirCategorie(this); return false;">${echapper(cat.label)}</a>`;
   }).join('') + `<a href="#" onclick="naviguerVers('apropos'); return false;">À propos</a>`;
 
-  document.getElementById('nav-desktop').innerHTML = liensNav;
+  // Ordinateur : Accueil · Collections ⌄ · catégories · À propos · Contact ⌄ · Réseaux sociaux ⌄
+  // (Collections et Contact ouvrent une bande de choix sous la barre)
+  const accueilActif = !['catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'].includes(etat.vueActuelle);
+  const fleche = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  const boutonBande = (nom, libelle) =>
+    `<button class="bouton-deroulant ${etat.bandeOuverte === nom ? 'ouvert' : ''}" data-bande="${nom}"
+       onclick="basculerBande('${nom}')">${libelle} ${fleche}</button>`;
+  document.getElementById('nav-desktop').innerHTML =
+    `<a href="#" class="${accueilActif ? 'actif' : ''}" onclick="naviguerVers('accueil'); return false;">Accueil</a>`
+    + (collectionsAffichees().length ? boutonBande('collections', 'Collections') : '')
+    // Les catégories (Robes, Pulls…) restent directement dans la barre, puis « À propos »
+    + liensNav
+    + (lignesContact('contact').length ? boutonBande('contact', 'Contact') : '')
+    + (lignesContact('reseaux').length ? boutonBande('reseaux', 'Réseaux sociaux') : '');
+  // Une bande ouverte suit le stock en direct (catégories) sans se fermer
+  if (etat.bandeOuverte) remplirBande();
   document.getElementById('menu-mobile').innerHTML = `
     <!-- Tout en haut : les 3 lignes + le mot MENU, et la croix pour fermer -->
     <div class="ligne-titre-menu">
@@ -1279,6 +1442,7 @@ function mettreAJourNavigation() {
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
       Accueil
     </a>
+` + collectionsMenu() + `
     <div class="titre-menu">Catégories</div>` + liensNav + contactsMenu();
   // Les résultats de recherche suivent le stock en direct
   mettreAJourRecherche();
@@ -1286,11 +1450,41 @@ function mettreAJourNavigation() {
 
 // Bas du menu ☰ : titre « Contact » + coordonnées saisies dans le dashboard.
 // Rien n'est affiché si aucune coordonnée n'est renseignée.
-function contactsMenu() {
-  const lignes = lignesContact();
+// Téléphone : lignes « Collections ⌄ » et « Contact ⌄ » du menu ☰. Un appui
+// déroule la liste sous la ligne et retourne la flèche ; une section sans
+// contenu (aucune collection visible, aucun contact saisi) n'apparaît pas.
+function deroulantMenuHTML(nom, titre, lignes) {
   if (!lignes.length) return '';
-  return `<div class="contacts-menu"><div class="titre-menu">Contact</div>${lignes.join('')}</div>`;
+  const ouvert = etat.menuDeplie[nom];
+  return `<div class="deroulant-bloc ${ouvert ? 'ouvert' : ''}" data-deroulant="${nom}">
+    <button class="deroulant-menu" onclick="basculerDeroulantMenu('${nom}')">${titre}
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="liste-deroulant">${lignes.join('')}</div>
+  </div>`;
 }
+
+function basculerDeroulantMenu(nom) {
+  etat.menuDeplie[nom] = !etat.menuDeplie[nom];
+  const bloc = document.querySelector(`.menu-mobile [data-deroulant="${nom}"]`);
+  if (bloc) bloc.classList.toggle('ouvert', etat.menuDeplie[nom]);
+}
+
+function collectionsMenu() {
+  return deroulantMenuHTML('collections', 'Collections', collectionsAffichees().map(col =>
+    `<a href="#" data-col="${echapper(col.id)}" onclick="ouvrirCollection(this); return false;">${echapper(col.label)}</a>`));
+}
+
+function contactsMenu() {
+  return deroulantMenuHTML('contact', 'Contact', lignesContact('contact'))
+    + deroulantMenuHTML('reseaux', 'Réseaux sociaux', lignesContact('reseaux'));
+}
+
+// Dès qu'on descend un peu dans la page, le petit logo revient dans la
+// barre du haut (sur l'accueil, il est dans le demi-cercle tout en haut).
+window.addEventListener('scroll', () => {
+  document.querySelector('header').classList.toggle('reduit', window.scrollY > 40);
+}, { passive: true });
 
 // Applique le logo, le nom de marque et les réseaux sociaux du dashboard
 // à l'en-tête, au pied de page et au titre de l'onglet.
@@ -1365,8 +1559,13 @@ function rendre() {
     return;
   }
 
+  // Repère « page d'accueil » pour le demi-cercle (le logo y quitte la barre du haut)
+  const vuesAutres = ['catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'];
+  document.body.classList.toggle('sur-accueil', !vuesAutres.includes(etat.vueActuelle));
+
   switch (etat.vueActuelle) {
     case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
+    case 'collection': conteneur.innerHTML = vueCatalogue(null, etat.parametresVue.collectionId); break;
     case 'produit': conteneur.innerHTML = vueProduit(etat.parametresVue.produitId); break;
     case 'panier': conteneur.innerHTML = vuePanier(); break;
     case 'commande': conteneur.innerHTML = vueCommande(); break;
@@ -1430,6 +1629,7 @@ function heroAccueil() {
   const html = `
     <section class="hero-video-section">
       ${mediaHTML}
+      ${domeAccueilHTML(nom)}
       <div class="hero-video-texte">
         <p>${echapper(texte)}</p>
         <button class="bouton-principal" ${lienAttributs(lienBouton)}>${echapper(libelleBouton)}</button>
@@ -1439,6 +1639,76 @@ function heroAccueil() {
   // La signature résume ce qui, s'il change, impose de reconstruire le héros
   const signature = JSON.stringify([type, media, affiche, nom, texte, libelleBouton, lienBouton]);
   return { html, signature };
+}
+
+// Demi-cercle crème de l'accueil, bordé d'une branche à feuilles, avec le
+// logo dedans. Dessin calculé ici (aucune image à télécharger) :
+// - le demi-cercle est la moitié basse d'une ellipse collée à la barre du haut,
+// - la branche suit son bord avec une légère ondulation,
+// - les feuilles (contour noir comme le logo, fond crème pour rester
+//   visibles sur la vidéo) partent de la branche, une dehors, une dedans.
+function domeAccueilHTML(nom) {
+  // Demi-cercle = morceau de cercle coupé par la barre du haut :
+  // largeur 400, profondeur 140 (unités du dessin).
+  const CX = 200, LARG = 200, PROF = 140;
+  const R = (LARG * LARG + PROF * PROF) / (2 * PROF);  // rayon du cercle
+  const CY = PROF - R;                                 // centre (au-dessus de la barre)
+  const ENCRE = '#2A2326', CREME = '#FBF6F5';
+
+  // 1. Trajet de la branche : petite racine qui sort à gauche, le bord du
+  //    demi-cercle (avec une légère ondulation), puis une racine à droite.
+  const trajet = [];
+  for (let k = 0; k <= 20; k++) {                      // racine gauche
+    const u = k / 20;
+    trajet.push([-28 + 28 * u, 16 - 18 * u + 6 * Math.sin(u * Math.PI)]);
+  }
+  const phi0 = Math.asin(LARG / R);
+  for (let k = 0; k <= 120; k++) {                     // bord du demi-cercle
+    const phi = phi0 - 2 * phi0 * k / 120;              // de gauche à droite
+    const r = R + 1.5 + 2.2 * Math.sin(phi * 9);
+    trajet.push([CX - r * Math.sin(phi), CY + r * Math.cos(phi)]);
+  }
+  for (let k = 0; k <= 20; k++) {                      // racine droite
+    const u = k / 20;
+    trajet.push([400 + 30 * u, -2 + 20 * u - 5 * Math.sin(u * Math.PI)]);
+  }
+  const branche = `<polyline points="${trajet.map(q => q.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${ENCRE}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  // 2. Feuilles réparties le long de la branche. Chacune : forme pointue
+  //    un peu courbée, nervure, fond crème (visible sur la vidéo).
+  //    La plupart pendent vers l'extérieur ; quelques-unes rentrent.
+  const feuille = (x, y, angle, taille) => `
+    <g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${angle.toFixed(1)}) scale(${taille.toFixed(2)})">
+      <path d="M0 0 C6 -7, 15 -8, 23 -1 C15 4, 6 4, 0 0 Z" fill="${CREME}" stroke="${ENCRE}" stroke-width="1.1" stroke-linejoin="round"/>
+      <path d="M1 0 C8 -2, 15 -2, 21 -1" fill="none" stroke="${ENCRE}" stroke-width="0.7"/>
+    </g>`;
+  const feuilles = [];
+  const NB = 19;
+  for (let i = 0; i < NB; i++) {
+    const idx = Math.round(4 + (trajet.length - 9) * i / (NB - 1));
+    const [x, y] = trajet[idx], [x2, y2] = trajet[idx + 1];
+    const tangente = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI;
+    // Côté extérieur : celui qui s'éloigne du centre du cercle
+    const nx = -(y2 - y), ny = x2 - x;
+    const exterieur = ((x - CX) * nx + (y - CY) * ny) > 0 ? 1 : -1;
+    const dedans = i % 4 === 2;                        // 1 feuille sur 4 rentre
+    const cote = dedans ? -exterieur : exterieur;
+    const ecart = 38 + 14 * Math.sin(i * 2.3);         // angles variés
+    const taille = 0.85 + 0.25 * Math.abs(Math.sin(i * 1.3));
+    feuilles.push(feuille(x, y, tangente + cote * ecart, taille));
+    // De temps en temps, une deuxième petite feuille au même endroit
+    if (i % 3 === 0) feuilles.push(feuille(x, y, tangente + cote * (ecart + 32), taille * 0.7));
+  }
+
+  return `
+    <div class="dome-accueil">
+      <svg viewBox="0 0 400 165" aria-hidden="true">
+        <path d="M0 0 A${R.toFixed(1)} ${R.toFixed(1)} 0 0 0 400 0 Z" fill="${CREME}"/>
+        ${branche}
+        ${feuilles.join('')}
+      </svg>
+      <img src="logo-nom.png" alt="${echapper(nom)}" onclick="naviguerVers('accueil')">
+    </div>`;
 }
 
 // Liste des blocs à afficher sous le héros. Sans blocs dans le dashboard,
@@ -1660,8 +1930,11 @@ function blocImageHTML(bloc) {
 /* ============================================================
    VUE — CATALOGUE
    ============================================================ */
-function vueCatalogue(categorie) {
+function vueCatalogue(categorie, collectionId) {
   let produits = categorie ? produitsParCategorie(categorie) : etat.produits;
+  // Page d'une collection : seulement ses articles
+  const collection = collectionId ? collectionsAffichees().find(c => c.id === collectionId) : null;
+  if (collectionId) produits = etat.produits.filter(p => p.collection === collectionId);
 
   // Filtre "disponible seulement"
   if (etat.filtresCatalogue.disponibleSeulement) {
@@ -1681,7 +1954,7 @@ function vueCatalogue(categorie) {
     <div class="bloc-section" style="margin-top:30px; position:relative;">
       ${petalesDecorHTML()}
       <div class="entete-section" style="position:relative; z-index:1;">
-        <h2>${categorie ? echapper(libelleCategorie(categorie)) : 'Toute la collection'}</h2>
+        <h2>${collectionId ? echapper(collection ? collection.label : 'Collection') : categorie ? echapper(libelleCategorie(categorie)) : 'Toute la collection'}</h2>
       </div>
 
       <div class="barre-filtre" style="position:relative; z-index:1;">
@@ -2581,7 +2854,11 @@ function vueAPropos() {
 // Lignes de contact (e-mail, téléphone, WhatsApp, adresse, réseaux),
 // uniquement celles réellement saisies dans le dashboard.
 // Servent à la page À propos et au bas du menu ☰.
-function lignesContact() {
+// Lignes de contact saisies dans le Stock (Apparence > Contact et réseaux).
+// quoi = 'contact'  : email, téléphone, WhatsApp, adresse
+//        'reseaux'  : Instagram, Facebook, TikTok
+//        (rien)     : tout (page « À propos »)
+function lignesContact(quoi) {
   const c = etat.reglages.contact || {};
 
   // Icônes (traits fins, couleur reprise du thème)
@@ -2590,7 +2867,9 @@ function lignesContact() {
     phone: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .7 2.9a2 2 0 0 1-.4 2.1L8 10a16 16 0 0 0 6 6l1.3-1.4a2 2 0 0 1 2.1-.4c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2.1z"/></svg>',
     whatsapp: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21 12a9 9 0 0 1-13.4 7.8L3 21l1.3-4.4A9 9 0 1 1 21 12z"/></svg>',
     address: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-    lien: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>'
+    lien: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>',
+    facebook: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h-2.5A3.5 3.5 0 0 0 9 6.5V10H6.5v3.5H9V21h3.5v-7.5H15l.5-3.5h-3V7a1 1 0 0 1 1-1H15z"/></svg>',
+    tiktok: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.5 2.7 2.3 4.3 5 4.5"/></svg>'
   };
 
   // Uniquement les coordonnées réellement saisies dans le dashboard
@@ -2603,11 +2882,14 @@ function lignesContact() {
   if (whatsapp) lignes.push(`<div class="item-contact">${icones.whatsapp}<a href="https://wa.me/${whatsapp}" target="_blank" rel="noopener">WhatsApp</a></div>`);
   const adresse = String(c.address || '').trim();
   if (adresse) lignes.push(`<div class="item-contact">${icones.address}<span>${echapper(adresse)}</span></div>`);
-  [['Instagram', c.instagramUrl], ['Facebook', c.facebookUrl], ['TikTok', c.tiktokUrl]].forEach(([libelle, url]) => {
+  const reseaux = [];
+  [['Instagram', c.instagramUrl, icones.lien], ['Facebook', c.facebookUrl, icones.facebook], ['TikTok', c.tiktokUrl, icones.tiktok]].forEach(([libelle, url, icone]) => {
     const u = urlSure(url, '');
-    if (u) lignes.push(`<div class="item-contact">${icones.lien}<a href="${echapper(u)}" target="_blank" rel="noopener">${libelle}</a></div>`);
+    if (u) reseaux.push(`<div class="item-contact">${icone}<a href="${echapper(u)}" target="_blank" rel="noopener">${libelle}</a></div>`);
   });
-  return lignes;
+  if (quoi === 'contact') return lignes;
+  if (quoi === 'reseaux') return reseaux;
+  return lignes.concat(reseaux);
 }
 
 /* ============================================================
