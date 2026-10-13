@@ -126,9 +126,10 @@
       color: var(--texte); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.04em; padding: 6px 0;
     }
     .bande-deroulante .liste-bande a:hover { text-decoration: underline; }
-    /* Logo et icônes dans la colonne de droite, le logo juste avant la loupe */
-    .logo-zone { grid-column: 3; grid-row: 1; justify-self: end; margin-right: 150px; }
-    .logo-zone .logo-nom { height: 36px; }
+    /* V2.20 : le petit logo est collé juste après le dernier lien de la barre
+       (« Réseaux sociaux »), quelle que soit la largeur de l'écran */
+    .logo-zone { grid-column: 3; grid-row: 1; justify-self: start; margin-left: 4px; }
+    .logo-zone .logo-nom { height: 42px; }
     .entete-droite { grid-column: 3; grid-row: 1; justify-self: end; }
   }
 
