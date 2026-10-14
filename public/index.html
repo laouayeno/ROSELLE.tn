@@ -779,7 +779,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.21</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.22</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2735,8 +2735,8 @@ function vueCommande() {
           <input type="text" id="champ-nom" name="clientName" required value="${echapper(brouillon.clientName)}">
         </div>
         <div class="champ">
-          <label for="champ-telephone">Téléphone</label>
-          <input type="tel" id="champ-telephone" name="phone" required placeholder="Ex : 20 123 456" value="${echapper(brouillon.phone)}">
+          <label for="champ-telephone">Téléphone (8 chiffres)</label>
+          <input type="tel" id="champ-telephone" name="phone" required inputmode="numeric" maxlength="8" autocomplete="tel-national" placeholder="Ex : 20123456" value="${echapper(brouillon.phone)}">
         </div>
         <div class="champ">
           <label for="champ-adresse">Adresse de livraison</label>
@@ -2779,6 +2779,10 @@ function initialiserFormulaireCommande() {
   // (voir etat.brouillonCommande).
   formulaire.addEventListener('input', (evenement) => {
     const champ = evenement.target;
+    // Téléphone : on ne garde que les chiffres, 8 au maximum (V2.22).
+    if (champ && champ.id === 'champ-telephone') {
+      champ.value = champ.value.replace(/[^0-9]/g, '').slice(0, 8);
+    }
     if (champ && champ.name && champ.name in etat.brouillonCommande) {
       etat.brouillonCommande[champ.name] = champ.value;
     }
@@ -2795,12 +2799,18 @@ function envoyerCommande() {
   bandeauErreur.innerHTML = '';
 
   const clientName = document.getElementById('champ-nom').value.trim();
-  const phone = document.getElementById('champ-telephone').value.trim();
+  // Téléphone : on retire espaces et tirets, il doit rester exactement 8 chiffres (V2.22).
+  const phone = document.getElementById('champ-telephone').value.replace(/[^0-9]/g, '');
   const address = document.getElementById('champ-adresse').value.trim();
   const remark = document.getElementById('champ-remarque').value.trim();
 
   if (!clientName || !phone || !address) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de remplir tous les champs obligatoires.</div>`;
+    return;
+  }
+  if (!/^[0-9]{8}$/.test(phone)) {
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Le numéro de téléphone doit contenir exactement 8 chiffres.</div>`;
+    document.getElementById('champ-telephone').focus();
     return;
   }
   const lignes = lignesACommander();
