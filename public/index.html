@@ -80,9 +80,9 @@
   .bouton-icone svg { width: 26px; height: 26px; stroke: var(--texte); }
   .bouton-menu-mobile svg { width: 30px; height: 30px; }
 
-  /* Logo (V2.22, choix d'Oussama) : la rose dorée dans sa couronne de branches.
-     Image carrée à fond transparent (logo-rose-or.png). L'ancien logo noir et blanc
-     « Elle + rose + روز » (logo-nom.png) n'est plus utilisé. */
+  /* Logo complet au centre : « Elle », la rose dans sa couronne et « روز »,
+     reliés par des ramages (tiges, feuilles, vrilles). Image à fond transparent.
+     V2.22 : le rond du milieu est la rose dorée (choix d'Oussama). */
   .logo-zone { display: flex; align-items: center; cursor: pointer; }
   .logo-zone .logo-nom { height: 60px; width: auto; display: block; }
   /* Ordinateur (V2.18) : barre fine, liens au centre (choix d'Oussama).
@@ -275,8 +275,7 @@
   .dome-accueil svg { display: block; width: 100%; height: auto; overflow: visible; }
   .dome-accueil img {
     position: absolute; left: 50%; top: 2%; transform: translateX(-50%);
-    /* V2.22 : logo carré (rose dorée), plus étroit que l'ancien logo en longueur */
-    width: 34%; height: auto; pointer-events: auto; cursor: pointer;
+    width: 56%; height: auto; pointer-events: auto; cursor: pointer;
   }
   /* Accueil : barre sans petit logo et sans trait du bas,
      pour qu'elle se fonde dans le demi-cercle */
@@ -733,7 +732,7 @@
 
   <!-- Centre : logo complet « Elle (rose) روز » avec ses ramages (une seule image) -->
   <div class="logo-zone" onclick="naviguerVers('accueil')">
-    <img src="logo-rose-or.png" alt="Elle روز" id="logo-entete" class="logo-nom">
+    <img src="logo-nom.png" alt="Elle روز" id="logo-entete" class="logo-nom">
   </div>
 
   <!-- Droite : recherche + panier -->
@@ -775,7 +774,7 @@
 
 <footer>
   <!-- Même logo dessiné qu'en haut de page -->
-  <img src="logo-rose-or.png" alt="Elle روز" id="signature-pied" class="signature-logo">
+  <img src="logo-nom.png" alt="Elle روز" id="signature-pied" class="signature-logo">
   <!-- Rempli par mettreAJourEnteteEtPied() : réseaux sociaux saisis dans le dashboard + lien Contact -->
   <div class="liens-sociaux" id="liens-sociaux-pied">
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
@@ -1522,7 +1521,7 @@ function mettreAJourEnteteEtPied() {
   const nom = reglageTexte('brand', 'name');
   const logo = reglageUrl('brand', 'logoUrl');
 
-  // Le haut de page affiche toujours le logo dessiné (logo-rose-or.png) ;
+  // Le haut de page affiche toujours le logo dessiné (logo-nom.png) ;
   // le nom du dashboard sert au texte (pied de page, titre de l'onglet).
   document.getElementById('logo-entete').setAttribute('alt', nom);
   document.getElementById('signature-pied').setAttribute('alt', nom);
@@ -1742,7 +1741,7 @@ function domeAccueilHTML(nom) {
         ${branche}
         ${feuilles.join('')}
       </svg>
-      <img src="logo-rose-or.png" alt="${echapper(nom)}" onclick="naviguerVers('accueil')">
+      <img src="logo-nom.png" alt="${echapper(nom)}" onclick="naviguerVers('accueil')">
     </div>`;
 }
 
