@@ -779,7 +779,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.22</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.23</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2793,6 +2793,30 @@ function initialiserFormulaireCommande() {
   });
 }
 
+// Compare les quantités demandées (regroupées par article + variante)
+// au stock disponible actuel du catalogue. Renvoie la liste des
+// variantes dont il ne reste pas assez : [{ libelle, reste }].
+function articlesEpuises(lignes) {
+  const demandes = new Map();
+  for (const l of lignes) {
+    const cle = l.productId + '|' + l.variantId;
+    const deja = demandes.get(cle);
+    if (deja) deja.qty += Number(l.qty) || 0;
+    else demandes.set(cle, { ligne: l, qty: Number(l.qty) || 0 });
+  }
+  const manquants = [];
+  for (const { ligne, qty } of demandes.values()) {
+    const produit = trouverProduit(ligne.productId);
+    const variante = produit ? (produit.variants || []).find(v => v.id === ligne.variantId) : null;
+    const reste = variante ? Math.max(0, Number(variante.qty) || 0) : 0;
+    if (qty > reste) {
+      const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
+      manquants.push({ libelle: (ligne.name || 'Article') + (details ? ` (${details})` : ''), reste });
+    }
+  }
+  return manquants;
+}
+
 function envoyerCommande() {
   const boutonValider = document.getElementById('bouton-valider-commande');
   const bandeauErreur = document.getElementById('bandeau-erreur-commande');
@@ -2816,6 +2840,18 @@ function envoyerCommande() {
   const lignes = lignesACommander();
   if (lignes.length === 0) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Votre panier est vide.</div>`;
+    return;
+  }
+  // V2.23 : dernière vérification du stock juste avant l'envoi
+  // (le catalogue est tenu à jour en direct, une autre cliente a pu
+  // prendre la dernière pièce pendant que celle-ci remplissait le formulaire).
+  const manquants = articlesEpuises(lignes);
+  if (manquants.length) {
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">
+      Désolé, ce stock vient de changer :<br>
+      ${manquants.map(m => `• ${echapper(m.libelle)} : ${m.reste > 0 ? `il n'en reste que ${m.reste}` : 'épuisé'}`).join('<br>')}<br>
+      Merci de modifier votre panier avant de confirmer.
+    </div>`;
     return;
   }
 
