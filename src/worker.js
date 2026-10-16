@@ -64,13 +64,24 @@ async function traiterCommande(requete, env) {
     return json({ ok: false, erreur: 'non-configure' }, 503);
   }
 
+  // Si la clé est refusée par Google (supprimée, désactivée, mauvais rôle),
+  // on répond 503 : le site enregistre alors la commande comme avant,
+  // au lieu de bloquer les ventes.
+  let jeton;
   try {
-    const jeton = await jetonGoogle(compte);
+    jeton = await jetonGoogle(compte);
+  } catch (e) {
+    console.error('Clé Google refusée :', e && e.message);
+    return json({ ok: false, erreur: 'non-configure' }, 503);
+  }
+  try {
     const resultat = await enregistrerAvecTransaction(jeton, commande);
     if (!resultat.ok) return json(resultat, 409);
     return json({ ok: true, ref: commande.ref });
   } catch (e) {
     console.error('Erreur commande :', e && e.message);
+    // Droits insuffisants sur Firestore (401/403) : même repli que sans clé.
+    if (e && (e.code === 401 || e.code === 403)) return json({ ok: false, erreur: 'non-configure' }, 503);
     return json({ ok: false, erreur: 'serveur' }, 500);
   }
 }
