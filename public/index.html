@@ -779,7 +779,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.23</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.24</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2847,11 +2847,7 @@ function envoyerCommande() {
   // prendre la dernière pièce pendant que celle-ci remplissait le formulaire).
   const manquants = articlesEpuises(lignes);
   if (manquants.length) {
-    bandeauErreur.innerHTML = `<div class="bandeau-erreur">
-      Désolé, ce stock vient de changer :<br>
-      ${manquants.map(m => `• ${echapper(m.libelle)} : ${m.reste > 0 ? `il n'en reste que ${m.reste}` : 'épuisé'}`).join('<br>')}<br>
-      Merci de modifier votre panier avant de confirmer.
-    </div>`;
+    afficherStockChange(bandeauErreur, manquants);
     return;
   }
 
@@ -2872,29 +2868,69 @@ function envoyerCommande() {
     items: lignes.map(l => ({
       productId: l.productId,
       variantId: l.variantId,
-      qty: l.qty
+      qty: Math.round(Number(l.qty)) || 1
     })),
     deliveryFee: (typeof etat.fraisAffiches === 'number') ? etat.fraisAffiches : fraisLivraison(), // frais affichés à la cliente sur la page de commande (nombre)
     date: new Date().toISOString()
   };
 
-  db.collection('shipments').add(nouveauColis)
-    .then(() => {
-      etat.dernierNumeroCommande = numeroCommande;
-      etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '' };
-      // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
-      etat.achatDirect = null;
-      etat.panier = [];
-      sauvegarderPanier();
-      mettreAJourCompteurPanier();
-      naviguerVers('confirmation');
+  // Commande réussie : on vide le panier et on affiche la confirmation.
+  const reussite = () => {
+    etat.dernierNumeroCommande = numeroCommande;
+    etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '' };
+    // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
+    etat.achatDirect = null;
+    etat.panier = [];
+    sauvegarderPanier();
+    mettreAJourCompteurPanier();
+    naviguerVers('confirmation');
+  };
+  const echec = (erreur) => {
+    console.error('Erreur lors de la création de la commande :', erreur);
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.</div>`;
+    boutonValider.disabled = false;
+    boutonValider.textContent = 'Confirmer la commande';
+  };
+  // Ancienne méthode : écriture directe dans Firestore (sans vérification du stock côté serveur).
+  const envoiDirect = () => db.collection('shipments').add(nouveauColis).then(reussite).catch(echec);
+
+  // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
+  // vérifie le stock et crée le colis en une seule opération, 24 h/24.
+  // Si le Worker n'est pas encore installé (pas de clé : réponse 503, ou
+  // adresse inconnue : 404/405), on garde l'ancienne méthode pour ne
+  // jamais bloquer les ventes.
+  fetch('/api/commande', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(nouveauColis)
+  })
+    .then(async (reponse) => {
+      const donnees = await reponse.json().catch(() => ({}));
+      if (reponse.ok && donnees.ok) return reussite();
+      if (reponse.status === 409 && Array.isArray(donnees.manquants)) {
+        // Stock insuffisant au moment exact de l'envoi
+        boutonValider.disabled = false;
+        boutonValider.textContent = 'Confirmer la commande';
+        afficherStockChange(bandeauErreur, donnees.manquants.map(m => {
+          const ligne = lignes.find(l => l.productId === m.productId && l.variantId === m.variantId) || {};
+          const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
+          return { libelle: (ligne.name || 'Article') + (details ? ` (${details})` : ''), reste: Number(m.reste) || 0 };
+        }));
+        return;
+      }
+      if (reponse.status === 503 || reponse.status === 404 || reponse.status === 405) return envoiDirect();
+      echec('Réponse du serveur : ' + reponse.status);
     })
-    .catch((erreur) => {
-      console.error('Erreur lors de la création de la commande :', erreur);
-      bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.</div>`;
-      boutonValider.disabled = false;
-      boutonValider.textContent = 'Confirmer la commande';
-    });
+    .catch(echec);
+}
+
+// Message rouge « le stock vient de changer » (V2.23, réutilisé en V2.24).
+function afficherStockChange(bandeauErreur, manquants) {
+  bandeauErreur.innerHTML = `<div class="bandeau-erreur">
+    Désolé, ce stock vient de changer :<br>
+    ${manquants.map(m => `• ${echapper(m.libelle)} : ${m.reste > 0 ? `il n'en reste que ${m.reste}` : 'épuisé'}`).join('<br>')}<br>
+    Merci de modifier votre panier avant de confirmer.
+  </div>`;
 }
 
 /* ============================================================

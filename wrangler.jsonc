@@ -5,8 +5,17 @@
 {
   "name": "rosellestore",
   "compatibility_date": "2026-10-09",
+  // V2.24 : petit programme qui enregistre les commandes (src/worker.js).
+  // Il ne tourne QUE pour les adresses /api/... ; tout le reste du site
+  // (pages, images, vidéo) reste servi directement, sans compter dans
+  // les 100 000 requêtes gratuites par jour.
+  "main": "src/worker.js",
   // Site statique : tous les fichiers du dossier public/ sont servis tels quels
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
   }
+  // Clé secrète FIREBASE_SA : ajoutée à la main dans Cloudflare
+  // (Workers > rosellestore > Paramètres > Variables et secrets), jamais ici.
 }

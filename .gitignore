@@ -1,0 +1,4 @@
+# Fichiers locaux de Wrangler (jamais dans le dépôt)
+.wrangler/
+.dev.vars
+node_modules/
