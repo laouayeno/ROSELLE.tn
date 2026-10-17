@@ -581,6 +581,20 @@
     border-radius: 50% 50% 0 0 / 14% 14% 0 0;
   }
   .carte-produit .photo-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+  /* V2.28 : hors de l'accueil (catégories, collections, recherche), photo
+     rectangulaire dans une carte blanche, texte centré (choix B d'Oussama).
+     L'accueil garde les photos en arche. */
+  body:not(.sur-accueil) .carte-produit { border-radius: 4px; }
+  body:not(.sur-accueil) .carte-produit .photo-wrap { aspect-ratio: 2/3; border-radius: 4px 4px 0 0; }
+  body:not(.sur-accueil) .carte-produit .infos { padding: 16px 12px 18px; min-height: 0; }
+  /* Photos plus grandes : page plus large sur ordinateur (4 par ligne),
+     moins de marge sur les côtés au téléphone (2 par ligne) */
+  /* (body.page-grille = pages catégorie, collection et résultats de recherche) */
+  @media (min-width: 960px) { body.page-grille main { max-width: 1540px; } }
+  @media (max-width: 639px) {
+    body.page-grille main { padding-left: 10px; padding-right: 10px; }
+    body:not(.sur-accueil) .grille-produits { gap: 18px 8px; }
+  }
   .carte-produit:hover .photo-wrap img { transform: scale(1.04); }
   /* V2.25 : « Épuisé » et « Soldes » sont écrits sous le prix, sans cadre
      (avant, l'étiquette était sur la photo et l'arche la coupait) */
@@ -850,7 +864,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.27</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.28</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1731,6 +1745,8 @@ function rendre() {
   const vuesAutres = ['recherche', 'catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'];
   const surAccueil = !vuesAutres.includes(etat.vueActuelle);
   document.body.classList.toggle('sur-accueil', surAccueil);
+  // V2.28 : pages en grille d'articles, plus larges (voir CSS body.page-grille)
+  document.body.classList.toggle('page-grille', ['catalogue', 'collection', 'recherche'].includes(etat.vueActuelle));
   // Le demi-cercle est dans la barre du haut : il reste collé à elle
   // quand on descend ou remonte dans la page (V2.19, choix d'Oussama)
   const dome = document.getElementById('dome-entete');
