@@ -215,6 +215,60 @@
   .panneau-recherche input:focus { border-color: var(--texte); }
   .panneau-recherche .info-recherche { color: var(--texte-doux); font-size: 0.85rem; margin: 12px 2px 4px; }
   .panneau-recherche .grille-produits { margin-top: 10px; }
+  /* V2.27 : aperçu pendant la frappe, en 2 colonnes comme la référence
+     d'Oussama : « Articles » à gauche, « Suggestions » à droite, et en bas
+     une ligne « Rechercher “…” → » qui ouvre la page de résultats. */
+  .apercu-recherche { display: flex; gap: 28px; margin-top: 14px; }
+  .apercu-recherche .colonne-articles { flex: 1.6; min-width: 0; }
+  .apercu-recherche .colonne-suggestions { flex: 1; min-width: 0; }
+  .apercu-recherche h4 {
+    font-family: 'Inter', sans-serif; font-weight: 500; font-size: 0.7rem;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--texte-doux);
+    padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid #E6E1DF;
+  }
+  .apercu-article {
+    display: flex; gap: 14px; align-items: center; padding: 8px 0; cursor: pointer;
+  }
+  .apercu-article .vignette {
+    width: 52px; height: 70px; flex-shrink: 0; object-fit: cover;
+    background: var(--rose-clair); border-radius: 3px;
+  }
+  .apercu-article .categorie-apercu {
+    font-size: 0.65rem; letter-spacing: 1px; text-transform: uppercase; color: var(--texte-doux);
+  }
+  .apercu-article .nom-apercu { font-weight: 700; font-size: 0.95rem; color: var(--texte); margin: 2px 0; }
+  .apercu-article .prix-apercu { font-size: 0.88rem; color: var(--rose-fonce); }
+  .apercu-article:hover .nom-apercu { text-decoration: underline; }
+  .suggestion-recherche {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 7px 0; font-family: 'Inter', sans-serif; font-size: 0.95rem;
+    font-weight: 600; color: var(--texte); cursor: pointer;
+  }
+  .suggestion-recherche:hover { text-decoration: underline; }
+  .rien-trouve { color: var(--texte-doux); font-size: 0.88rem; padding: 8px 0; }
+  .ligne-rechercher-tout {
+    display: flex; justify-content: space-between; align-items: center; width: 100%;
+    margin-top: 14px; padding: 14px 2px 4px; background: none; border: none;
+    border-top: 1px solid #E6E1DF; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--texte);
+  }
+  .ligne-rechercher-tout svg { width: 18px; height: 18px; stroke: var(--texte); }
+  @media (max-width: 859px) {
+    /* Téléphone : les 2 colonnes l'une sous l'autre, les suggestions en premier */
+    .apercu-recherche { flex-direction: column-reverse; gap: 16px; }
+  }
+  /* Page « Résultats de recherche » : champ centré sous le titre */
+  .champ-page-recherche {
+    display: flex; align-items: center; gap: 8px; max-width: 620px; margin: 0 auto 26px;
+    border: 1px solid var(--texte); border-radius: 24px; padding: 4px 6px 4px 16px;
+    position: relative; z-index: 1; background: var(--blanc);
+  }
+  .champ-page-recherche input {
+    flex: 1; border: none; outline: none; font-size: 16px; padding: 8px 0;
+    font-family: 'Inter', sans-serif; background: transparent;
+  }
+  .champ-page-recherche button { background: none; border: none; padding: 6px; cursor: pointer; }
+  .champ-page-recherche svg { width: 20px; height: 20px; stroke: var(--texte); }
   @media (min-width: 860px) {
     /* V2.25 : sur ordinateur, la recherche est une fenêtre centrée
        de largeur moyenne (plus sur toute la largeur de la page) */
@@ -252,6 +306,11 @@
     width: 100vw;
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
+  }
+  @media (min-width: 860px) {
+    /* V2.26 : sur ordinateur, la vidéo descend jusqu'en bas de l'écran
+       (hauteur de l'écran moins la barre du haut, sans limite de 720 px) */
+    .hero-video-section { height: calc(100vh - 50px); max-height: none; }
   }
   .hero-video-section video,
   .hero-video-section img.media-hero {
@@ -767,7 +826,7 @@
 <!-- Panneau de recherche (s'ouvre avec la loupe) -->
 <div class="panneau-recherche" id="panneau-recherche">
   <div class="ligne-saisie">
-    <input type="search" id="champ-recherche" placeholder="Rechercher un article…" autocomplete="off" oninput="mettreAJourRecherche()">
+    <input type="search" id="champ-recherche" placeholder="Rechercher un article…" autocomplete="off" oninput="mettreAJourRecherche()" onkeydown="if (event.key === 'Enter') lancerRecherche(this.value)">
     <button class="bouton-icone" onclick="basculerRecherche(false)" aria-label="Fermer la recherche">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
@@ -791,7 +850,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.25</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.27</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1232,6 +1291,7 @@ function construireHash(vue, parametres) {
   if (vue === 'catalogue' && parametres.categorie) return '#catalogue/' + encodeURIComponent(parametres.categorie);
   if (vue === 'produit' && parametres.produitId) return '#produit/' + encodeURIComponent(parametres.produitId);
   if (vue === 'collection' && parametres.collectionId) return '#collection/' + encodeURIComponent(parametres.collectionId);
+  if (vue === 'recherche') return '#recherche/' + encodeURIComponent(parametres.texte || '');
   return '#' + vue;
 }
 
@@ -1243,6 +1303,7 @@ function analyserHash() {
   if (vue === 'catalogue' && param) return { vue: 'catalogue', parametres: { categorie: decodeURIComponent(param) } };
   if (vue === 'produit' && param) return { vue: 'produit', parametres: { produitId: decodeURIComponent(param) } };
   if (vue === 'collection' && param) return { vue: 'collection', parametres: { collectionId: decodeURIComponent(param) } };
+  if (vue === 'recherche') return { vue: 'recherche', parametres: { texte: decodeURIComponent(param || '') } };
   if (['accueil', 'panier', 'commande', 'confirmation', 'apropos'].includes(vue)) return { vue, parametres: {} };
   return { vue: 'accueil', parametres: {} };
 }
@@ -1377,21 +1438,86 @@ function texteRecherche(texte) {
   return (texte || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// Articles qui correspondent au texte tapé : un article correspond si TOUS
+// les mots tapés se trouvent dans son nom ou sa catégorie
+function articlesTrouves(texte) {
+  const mots = texteRecherche(texte).split(/\s+/).filter(Boolean);
+  if (!mots.length) return [];
+  return etat.produits.filter(p => {
+    const contenu = texteRecherche(p.name + ' ' + (p.cat || '') + ' ' + libelleCategorie(p.cat));
+    return mots.every(m => contenu.includes(m));
+  });
+}
+
+// Suggestions (V2.27) : catégories, noms d'articles et mots des noms qui
+// contiennent le texte tapé. Ceux qui COMMENCENT par le texte passent en premier.
+function suggestionsRecherche(texte) {
+  const cherche = texteRecherche(texte).trim();
+  if (!cherche) return [];
+  const candidats = new Map(); // clé simplifiée -> texte affiché (sans doublons)
+  const ajouter = (t) => {
+    const propre = String(t || '').trim();
+    const cle = texteRecherche(propre);
+    if (propre.length >= 2 && !candidats.has(cle)) candidats.set(cle, propre);
+  };
+  categoriesAffichees().forEach(c => ajouter(c.label));
+  etat.produits.forEach(p => {
+    ajouter(p.name);
+    String(p.name || '').split(/[\s,.'’-]+/).filter(m => m.length >= 3).forEach(m => ajouter(m.toLowerCase()));
+  });
+  const mots = cherche.split(/\s+/);
+  return [...candidats.entries()]
+    .filter(([cle]) => mots.every(m => cle.includes(m)))
+    .sort(([a], [b]) => (b.startsWith(cherche) - a.startsWith(cherche)) || a.length - b.length)
+    .slice(0, 6)
+    .map(([, affiche]) => affiche);
+}
+
+// Ouvre la page « Résultats de recherche » pour le texte donné
+function lancerRecherche(texte) {
+  const propre = String(texte || '').trim();
+  if (!propre) return;
+  naviguerVers('recherche', { texte: propre });
+}
+
 function mettreAJourRecherche() {
   const panneau = document.getElementById('panneau-recherche');
   if (!panneau.classList.contains('ouvert')) return;
   const zone = document.getElementById('resultats-recherche');
-  const mots = texteRecherche(document.getElementById('champ-recherche').value).split(/\s+/).filter(Boolean);
-  if (!mots.length) { zone.innerHTML = ''; return; }
-  // Un article correspond si TOUS les mots tapés se trouvent dans son nom ou sa catégorie
-  const trouves = etat.produits.filter(p => {
-    const texte = texteRecherche(p.name + ' ' + (p.cat || ''));
-    return mots.every(m => texte.includes(m));
-  }).slice(0, 24);
-  zone.innerHTML = trouves.length
-    ? `<div class="info-recherche">${trouves.length} article${trouves.length > 1 ? 's' : ''}</div>
-       <div class="grille-produits">${trouves.map(carteProduitHTML).join('')}</div>`
-    : `<div class="info-recherche">Aucun article trouvé.</div>`;
+  const texte = document.getElementById('champ-recherche').value.trim();
+  if (!texte) { zone.innerHTML = ''; return; }
+  const articles = articlesTrouves(texte).slice(0, 4);
+  const suggestions = suggestionsRecherche(texte);
+  // Le texte passe par JSON.stringify puis echapper() pour aller sans risque dans onclick
+  const enAttribut = (t) => echapper(JSON.stringify(t));
+  zone.innerHTML = `
+    <div class="apercu-recherche">
+      <div class="colonne-articles">
+        <h4>Articles</h4>
+        ${articles.length ? articles.map(p => {
+          const { actuel, ancien } = prixUnitaireEffectif(p);
+          const photo = urlSure(photoParDefaut(p));
+          return `
+            <div class="apercu-article" onclick="naviguerVers('produit', {produitId: ${enAttribut(p.id)}})">
+              ${photo ? `<img class="vignette" src="${echapper(photo)}" alt="">` : `<div class="vignette"></div>`}
+              <div>
+                <div class="categorie-apercu">${echapper(libelleCategorie(p.cat))}</div>
+                <div class="nom-apercu">${echapper(p.name)}</div>
+                <div class="prix-apercu">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
+              </div>
+            </div>`;
+        }).join('') : `<div class="rien-trouve">Aucun article trouvé.</div>`}
+      </div>
+      ${suggestions.length ? `
+        <div class="colonne-suggestions">
+          <h4>Suggestions</h4>
+          ${suggestions.map(t => `<button class="suggestion-recherche" onclick="lancerRecherche(${enAttribut(t)})">${echapper(t)}</button>`).join('')}
+        </div>` : ''}
+    </div>
+    <button class="ligne-rechercher-tout" onclick="lancerRecherche(${enAttribut(texte)})">
+      <span>Rechercher « ${echapper(texte)} »</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+    </button>`;
 }
 
 /* ============================================================
@@ -1602,7 +1728,7 @@ function rendre() {
   }
 
   // Repère « page d'accueil » pour le demi-cercle (le logo y quitte la barre du haut)
-  const vuesAutres = ['catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'];
+  const vuesAutres = ['recherche', 'catalogue', 'collection', 'produit', 'panier', 'commande', 'confirmation', 'apropos'];
   const surAccueil = !vuesAutres.includes(etat.vueActuelle);
   document.body.classList.toggle('sur-accueil', surAccueil);
   // Le demi-cercle est dans la barre du haut : il reste collé à elle
@@ -1614,6 +1740,7 @@ function rendre() {
   switch (etat.vueActuelle) {
     case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
     case 'collection': conteneur.innerHTML = vueCatalogue(null, etat.parametresVue.collectionId); break;
+    case 'recherche': conteneur.innerHTML = vueRecherche(etat.parametresVue.texte); break;
     case 'produit': conteneur.innerHTML = vueProduit(etat.parametresVue.produitId); break;
     case 'panier': conteneur.innerHTML = vuePanier(); break;
     case 'commande': conteneur.innerHTML = vueCommande(); break;
@@ -2028,6 +2155,59 @@ function vueCatalogue(categorie, collectionId) {
                (Catégories trouvées dans le catalogue : ${[...new Set(etat.produits.map(p => p.cat))].join(', ')})
              </div>` : ''}
            </div>`}
+    </div>
+  `;
+}
+
+/* ============================================================
+   VUE — RÉSULTATS DE RECHERCHE (V2.27)
+   ------------------------------------------------------------
+   S'ouvre avec Entrée, une suggestion ou « Rechercher “…” → ».
+   Même filtre « En stock seulement » et même tri que le catalogue.
+   ============================================================ */
+function vueRecherche(texte) {
+  let produits = articlesTrouves(texte);
+  if (etat.filtresCatalogue.disponibleSeulement) {
+    produits = produits.filter(p => stockTotalDisponible(p) > 0);
+  }
+  if (etat.filtresCatalogue.tri === 'prix-asc') {
+    produits.sort((a, b) => prixUnitaireEffectif(a).actuel - prixUnitaireEffectif(b).actuel);
+  } else if (etat.filtresCatalogue.tri === 'prix-desc') {
+    produits.sort((a, b) => prixUnitaireEffectif(b).actuel - prixUnitaireEffectif(a).actuel);
+  }
+  return `
+    <div class="bloc-section" style="margin-top:30px; position:relative;">
+      ${petalesDecorHTML()}
+      <div class="entete-section" style="position:relative; z-index:1; justify-content:center; text-align:center;">
+        <h2>Résultats de recherche</h2>
+      </div>
+
+      <div class="champ-page-recherche">
+        <input type="search" id="champ-page-recherche" value="${echapper(texte)}" placeholder="Rechercher un article…"
+               onkeydown="if (event.key === 'Enter') lancerRecherche(this.value)">
+        <button onclick="lancerRecherche(document.getElementById('champ-page-recherche').value)" aria-label="Rechercher">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+        </button>
+      </div>
+
+      <div class="barre-filtre" style="position:relative; z-index:1;">
+        <span class="compte-produits">${produits.length} résultat${produits.length > 1 ? 's' : ''}</span>
+        <div class="controles-filtre">
+          <label class="case-disponible">
+            <input type="checkbox" ${etat.filtresCatalogue.disponibleSeulement ? 'checked' : ''} onchange="changerDisponibiliteCatalogue(this.checked)">
+            En stock seulement
+          </label>
+          <select class="select-tri" onchange="changerTriCatalogue(this.value)">
+            <option value="defaut" ${etat.filtresCatalogue.tri === 'defaut' ? 'selected' : ''}>Trier : pertinence</option>
+            <option value="prix-asc" ${etat.filtresCatalogue.tri === 'prix-asc' ? 'selected' : ''}>Prix croissant</option>
+            <option value="prix-desc" ${etat.filtresCatalogue.tri === 'prix-desc' ? 'selected' : ''}>Prix décroissant</option>
+          </select>
+        </div>
+      </div>
+
+      ${produits.length
+        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(carteProduitHTML).join('')}</div>`
+        : `<div class="message-vide" style="position:relative; z-index:1;">Aucun article trouvé pour « ${echapper(texte)} ».</div>`}
     </div>
   `;
 }
