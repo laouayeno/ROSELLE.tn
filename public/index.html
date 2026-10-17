@@ -280,6 +280,11 @@
      pour qu'elle se fonde dans le demi-cercle */
   body.sur-accueil header .logo-zone { visibility: hidden; }
   body.sur-accueil header { border-bottom-color: #FBF6F5; }
+  /* V2.25 : pendant que la recherche est ouverte, le demi-cercle
+     passait par-dessus le champ. On le cache et on remet le petit
+     logo dans la barre ; tout revient à la fermeture de la recherche. */
+  body.recherche-ouverte #dome-entete { display: none; }
+  body.sur-accueil.recherche-ouverte header .logo-zone { visibility: visible; }
   @media (max-width: 859px) {
     /* Barre du haut plus fine : le grand logo est maintenant dans le
        demi-cercle, la barre n'a plus besoin d'être aussi haute */
@@ -779,7 +784,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.24</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.25</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1347,6 +1352,8 @@ function basculerRecherche(ouvrir) {
   const panneau = document.getElementById('panneau-recherche');
   const doitOuvrir = (typeof ouvrir === 'boolean') ? ouvrir : !panneau.classList.contains('ouvert');
   panneau.classList.toggle('ouvert', doitOuvrir);
+  // V2.25 : cache le demi-cercle de l'accueil pendant la recherche (voir CSS)
+  document.body.classList.toggle('recherche-ouverte', doitOuvrir);
   if (doitOuvrir) {
     // Place le panneau juste sous l'en-tête, et le limite à la hauteur de l'écran
     const basEntete = document.querySelector('header').getBoundingClientRect().bottom;
