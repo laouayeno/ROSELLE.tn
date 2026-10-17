@@ -215,6 +215,15 @@
   .panneau-recherche input:focus { border-color: var(--texte); }
   .panneau-recherche .info-recherche { color: var(--texte-doux); font-size: 0.85rem; margin: 12px 2px 4px; }
   .panneau-recherche .grille-produits { margin-top: 10px; }
+  @media (min-width: 860px) {
+    /* V2.25 : sur ordinateur, la recherche est une fenêtre centrée
+       de largeur moyenne (plus sur toute la largeur de la page) */
+    .panneau-recherche {
+      left: 50%; right: auto; transform: translateX(-50%); width: 680px;
+      border: 1px solid #E6E1DF; border-radius: 0 0 14px 14px;
+    }
+    .panneau-recherche .grille-produits { grid-template-columns: repeat(3, 1fr); }
+  }
 
   /* Barre de liens : seulement sur ordinateur (le téléphone garde le menu ☰) */
   nav.desktop-nav { display: none; }
@@ -280,6 +289,11 @@
      pour qu'elle se fonde dans le demi-cercle */
   body.sur-accueil header .logo-zone { visibility: hidden; }
   body.sur-accueil header { border-bottom-color: #FBF6F5; }
+  /* V2.25 : pendant que la recherche est ouverte, le demi-cercle
+     passait par-dessus le champ. On le cache et on remet le petit
+     logo dans la barre ; tout revient à la fermeture de la recherche. */
+  body.recherche-ouverte #dome-entete { display: none; }
+  body.sur-accueil.recherche-ouverte header .logo-zone { visibility: visible; }
   @media (max-width: 859px) {
     /* Barre du haut plus fine : le grand logo est maintenant dans le
        demi-cercle, la barre n'a plus besoin d'être aussi haute */
@@ -509,11 +523,14 @@
   }
   .carte-produit .photo-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
   .carte-produit:hover .photo-wrap img { transform: scale(1.04); }
-  .badge-epuise {
-    position: absolute; top: 10px; left: 10px;
-    background: var(--texte); color: var(--blanc); font-size: 0.65rem;
-    padding: 4px 9px; letter-spacing: 0.5px;
+  /* V2.25 : « Épuisé » et « Soldes » sont écrits sous le prix, sans cadre
+     (avant, l'étiquette était sur la photo et l'arche la coupait) */
+  .badge-epuise, .badge-solde {
+    display: block; margin-top: 8px;
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
   }
+  .badge-epuise { color: var(--texte-doux); }   /* gris */
+  .badge-solde  { color: var(--rose-fonce); }   /* couleur du prix */
   .carte-produit .infos {
     background: var(--blanc); padding: 40px 12px 48px; min-height: 150px; text-align: center;
     border-radius: 0 0 6px 6px;
@@ -524,11 +541,6 @@
   }
   .carte-produit .prix { font-size: 0.96rem; color: var(--rose-fonce); margin-top: 6px; }
   .prix-barre { color: var(--texte-doux); text-decoration: line-through; font-size: 0.85em; margin-right: 6px; }
-  .badge-solde {
-    position: absolute; top: 10px; right: 10px;
-    background: var(--rose-fonce); color: var(--blanc); font-size: 0.65rem;
-    padding: 4px 9px; letter-spacing: 0.5px;
-  }
 
   .message-vide { text-align: center; color: var(--texte-doux); padding: 60px 20px; }
 
@@ -779,7 +791,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.24</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.25</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1347,6 +1359,8 @@ function basculerRecherche(ouvrir) {
   const panneau = document.getElementById('panneau-recherche');
   const doitOuvrir = (typeof ouvrir === 'boolean') ? ouvrir : !panneau.classList.contains('ouvert');
   panneau.classList.toggle('ouvert', doitOuvrir);
+  // V2.25 : cache le demi-cercle de l'accueil pendant la recherche (voir CSS)
+  document.body.classList.toggle('recherche-ouverte', doitOuvrir);
   if (doitOuvrir) {
     // Place le panneau juste sous l'en-tête, et le limite à la hauteur de l'écran
     const basEntete = document.querySelector('header').getBoundingClientRect().bottom;
@@ -2118,11 +2132,12 @@ function carteProduitHTML(produit) {
     <div class="carte-produit" onclick="naviguerVers('produit', {produitId: '${produit.id}'})">
       <div class="photo-wrap">
         ${photo ? `<img src="${photo}" alt="${produit.name}">` : ''}
-        ${!disponible ? `<span class="badge-epuise">Épuisé</span>` : (ancien ? `<span class="badge-solde">Soldes</span>` : '')}
       </div>
       <div class="infos">
         <div class="nom">${produit.name}</div>
         <div class="prix">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
+        <!-- V2.25 : mention sous le prix (plus sur la photo) -->
+        ${!disponible ? `<span class="badge-epuise">Épuisé</span>` : (ancien ? `<span class="badge-solde">Soldes</span>` : '')}
       </div>
     </div>
   `;
