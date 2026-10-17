@@ -253,6 +253,11 @@
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
   }
+  @media (min-width: 860px) {
+    /* V2.26 : sur ordinateur, la vidéo descend jusqu'en bas de l'écran
+       (hauteur de l'écran moins la barre du haut, sans limite de 720 px) */
+    .hero-video-section { height: calc(100vh - 50px); max-height: none; }
+  }
   .hero-video-section video,
   .hero-video-section img.media-hero {
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -791,7 +796,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.25</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.26</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
