@@ -873,7 +873,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.31</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.32</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1115,6 +1115,65 @@ function urlSure(url, secours) {
   const u = (url === undefined || url === null ? '' : String(url)).trim();
   return /^https:\/\//i.test(u) ? u : (secours || '');
 }
+
+/* ===== V2.32 : photos et vidéos plus légères (Cloudinary) =====
+   Avant, le site téléchargeait chaque photo dans sa taille d'origine
+   (souvent plusieurs Mo). Maintenant on demande à Cloudinary une copie :
+     - à la taille de l'écran (jamais plus grande que la photo d'origine),
+     - au format le plus léger que le téléphone sait lire (f_auto),
+     - en qualité « best » : la plus haute de la compression automatique,
+       pour garder la finesse des photos professionnelles.
+   La photo d'origine reste intacte chez Cloudinary.
+   Seules les adresses Cloudinary « simples » sont modifiées : les autres
+   (ou celles qui ont déjà des réglages) sont gardées telles quelles. */
+const REGLAGE_PHOTO = 'f_auto,q_auto:best,c_limit,w_';
+const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
+
+// largeurAffichee = largeur à l'écran en points (ex. 400), ou 'ecran' pour toute la largeur
+function photoOptimisee(url, largeurAffichee) {
+  // Adresse non Cloudinary (ex. logo.jpg du site) : rendue telle quelle, comme avant
+  const u = url === undefined || url === null ? '' : String(url).trim();
+  const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/i);
+  if (!m || !adresseSansReglage(m[2])) return u;
+  // Rien n'est affiché plus large que l'écran : on ne demande jamais plus grand
+  const ecran = window.innerWidth || 400;
+  const points = largeurAffichee === 'ecran' ? ecran : Math.min(largeurAffichee, ecran);
+  // Écrans « Retina » : 2 ou 3 pixels par point (on s'arrête à 3)
+  const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+  // Arrondi au-dessus par paliers de 200 px (moins de copies différentes), maximum 2400 px
+  const largeur = Math.min(2400, Math.ceil(pixels / 200) * 200);
+  return m[1] + REGLAGE_PHOTO + largeur + '/' + m[2];
+}
+
+function videoOptimisee(url) {
+  const u = url === undefined || url === null ? '' : String(url).trim();
+  const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.+)$/i);
+  if (!m || !adresseSansReglage(m[2])) return u;
+  // Vidéo limitée à 1920 px (Full HD) : une vidéo 4K devient bien plus légère
+  return m[1] + REGLAGE_VIDEO + '/' + m[2];
+}
+
+// Vrai si l'adresse commence par le numéro de version (v123…/) ou directement
+// par le nom du fichier, donc sans réglage Cloudinary déjà présent.
+function adresseSansReglage(reste) {
+  const premier = reste.split('/')[0];
+  return /^v\d+$/.test(premier) || !/[_,]/.test(premier) || reste.indexOf('/') === -1;
+}
+
+// Sécurité : si Cloudinary n'arrive pas à fournir la copie allégée
+// (ex. vidéo très lourde encore en préparation), on recharge l'original.
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (!el || !el.getAttribute) return;
+  const src = el.getAttribute('src') || '';
+  if (src.indexOf('/upload/' + REGLAGE_PHOTO) !== -1) {
+    el.setAttribute('src', src.replace(/\/upload\/f_auto,q_auto:best,c_limit,w_\d+\//, '/upload/'));
+  } else if (src.indexOf('/upload/' + REGLAGE_VIDEO + '/') !== -1) {
+    el.setAttribute('src', src.replace('/upload/' + REGLAGE_VIDEO + '/', '/upload/'));
+    // pour <source>, il faut relancer la vidéo qui la contient
+    if (el.tagName === 'SOURCE' && el.parentElement && el.parentElement.load) el.parentElement.load();
+  }
+}, true);
 
 // Lit un champ texte d'une section des réglages, avec repli sur la valeur par défaut.
 function reglageTexte(section, champ) {
@@ -1529,7 +1588,7 @@ function mettreAJourRecherche() {
           const photo = urlSure(photoParDefaut(p));
           return `
             <div class="apercu-article" onclick="naviguerVers('produit', {produitId: ${enAttribut(p.id)}})">
-              ${photo ? `<img class="vignette" src="${echapper(photo)}" alt="">` : `<div class="vignette"></div>`}
+              ${photo ? `<img class="vignette" src="${echapper(photoOptimisee(photo, 120))}" alt="">` : `<div class="vignette"></div>`}
               <div>
                 <div class="categorie-apercu">${echapper(libelleCategorie(p.cat))}</div>
                 <div class="nom-apercu">${echapper(p.name)}</div>
@@ -1829,9 +1888,9 @@ function heroAccueil() {
   const lienBouton = brut.buttonLink || REGLAGES_PAR_DEFAUT.hero.buttonLink;
 
   const mediaHTML = type === 'image'
-    ? `<img class="media-hero" src="${echapper(media)}" alt="${echapper(nom)}">`
-    : `<video autoplay muted loop playsinline poster="${echapper(affiche)}">
-         <source src="${echapper(media)}" type="video/mp4">
+    ? `<img class="media-hero" src="${echapper(photoOptimisee(media, 'ecran'))}" alt="${echapper(nom)}">`
+    : `<video autoplay muted loop playsinline poster="${echapper(photoOptimisee(affiche, 'ecran'))}">
+         <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
        </video>`;
 
   const html = `
@@ -1957,7 +2016,7 @@ function blocBanniereHTML(bloc) {
   }
   return `
     <a href="#" class="bloc-banniere" ${lienAttributs(bloc.link)}>
-      <img src="${echapper(image)}" alt="${echapper(bloc.title || '')}" loading="lazy">
+      <img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="${echapper(bloc.title || '')}" loading="lazy">
       ${(titre || sousTitre || bouton) ? `<div class="texte-banniere">${titre}${sousTitre}${bouton}</div>` : ''}
     </a>`;
 }
@@ -1992,7 +2051,7 @@ function blocCategoriesHTML(titre) {
           return `
             <a class="tuile-categorie" href="#" data-cat="${echapper(cat.id)}" onclick="ouvrirCategorie(this); return false;">
               <div class="photo-wrap">
-                ${photo ? `<img src="${echapper(photo)}" alt="${echapper(cat.label)}" loading="lazy">` : ''}
+                ${photo ? `<img src="${echapper(photoOptimisee(photo, 600))}" alt="${echapper(cat.label)}" loading="lazy">` : ''}
               </div>
               <span>${echapper(cat.label)}</span>
             </a>`;
@@ -2114,8 +2173,8 @@ function blocTexteHTML(bloc) {
   // Vidéo si le type le dit, ou si l'adresse finit par .mp4 / .webm ; sinon image (GIF compris)
   const estVideo = bloc.mediaType === 'video' || /\.(mp4|webm)(\?|#|$)/i.test(media);
   const mediaHTML = estVideo
-    ? `<video src="${echapper(media)}" autoplay muted loop playsinline preload="metadata"></video>`
-    : `<img src="${echapper(media)}" alt="${echapper(bloc.title || '')}" loading="lazy">`;
+    ? `<video src="${echapper(videoOptimisee(media))}" autoplay muted loop playsinline preload="metadata"></video>`
+    : `<img src="${echapper(photoOptimisee(media, 1000))}" alt="${echapper(bloc.title || '')}" loading="lazy">`;
   const cote = bloc.mediaSide === 'left' ? 'media-gauche' : 'media-droite';
 
   return `
@@ -2129,7 +2188,7 @@ function blocTexteHTML(bloc) {
 function blocImageHTML(bloc) {
   const image = urlSure(bloc.imageUrl, '');
   if (!image) return '';
-  const img = `<img src="${echapper(image)}" alt="" loading="lazy">`;
+  const img = `<img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="" loading="lazy">`;
   return bloc.link
     ? `<a href="#" class="bloc-image" ${lienAttributs(bloc.link)}>${img}</a>`
     : `<div class="bloc-image">${img}</div>`;
@@ -2344,7 +2403,7 @@ function carteProduitHTML(produit) {
   return `
     <div class="carte-produit" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap">
-        ${photo ? `<img src="${echapper(photo)}" alt="${echapper(produit.name)}">` : ''}
+        ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2)))}" alt="${echapper(produit.name)}">` : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
@@ -2375,7 +2434,7 @@ function vueProduit(produitId) {
     </a>
     <div class="fiche-produit">
       <div class="visuel-produit">
-        <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoParDefaut(produit))}" alt="${echapper(produit.name)}">
+        <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoOptimisee(photoParDefaut(produit), 800))}" alt="${echapper(produit.name)}">
         <div class="galerie-miniatures" id="galerie-miniatures"></div>
       </div>
       <div class="details-produit">
@@ -2406,7 +2465,7 @@ function vueProduit(produitId) {
                 const photoSwatch = photosVariante(v)[0];
                 return `
                   <button type="button" class="swatch-couleur" data-couleur="${echapper(couleur)}" title="${echapper(couleur)}" onclick="choisirCouleur(${enJs(produitId)}, ${enJs(couleur)})">
-                    ${photoSwatch ? `<img src="${echapper(photoSwatch)}" alt="${echapper(couleur)}">` : ''}
+                    ${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="${echapper(couleur)}">` : ''}
                   </button>`;
               }).join('')}
             </div>
@@ -2485,13 +2544,13 @@ function choisirCouleur(produitId, couleur) {
   const varianteCouleur = (produit.variants || []).find(v => v.color === couleur && ((v.photos && v.photos.length) || v.photo));
   const photos = photosVariante(varianteCouleur);
   if (photos.length) {
-    document.getElementById('photo-produit-principale').src = photos[0];
+    document.getElementById('photo-produit-principale').src = photoOptimisee(photos[0], 800);
   }
   const conteneurGalerie = document.getElementById('galerie-miniatures');
   if (photos.length > 1) {
     conteneurGalerie.innerHTML = photos.map((url, i) => `
       <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto(${enJs(url)}, this)">
-        <img src="${echapper(url)}" alt="${echapper(produit.name)}">
+        <img src="${echapper(photoOptimisee(url, 120))}" alt="${echapper(produit.name)}">
       </button>
     `).join('');
   } else {
@@ -2514,7 +2573,7 @@ function choisirCouleur(produitId, couleur) {
 }
 
 function selectionnerPhoto(url, boutonClique) {
-  document.getElementById('photo-produit-principale').src = url;
+  document.getElementById('photo-produit-principale').src = photoOptimisee(url, 800);
   document.querySelectorAll('.miniature-photo').forEach(el => el.classList.remove('selectionnee'));
   boutonClique.classList.add('selectionnee');
 }
@@ -2763,7 +2822,7 @@ function choisirFormule(cle, qte) {
           const photoSwatch = photosVariante(v)[0];
           return `
             <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})">
-              ${photoSwatch ? `<img src="${echapper(photoSwatch)}" alt="${echapper(c)}">` : ''}
+              ${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="${echapper(c)}">` : ''}
             </button>`;
         }).join('')}
       </div>
@@ -2792,14 +2851,14 @@ function choisirCouleurPack(index, couleur) {
   const varianteCouleur = (produit.variants || []).find(v => v.color === couleur && ((v.photos && v.photos.length) || v.photo));
   const photos = photosVariante(varianteCouleur);
   if (photos.length) {
-    document.getElementById('photo-produit-principale').src = photos[0];
+    document.getElementById('photo-produit-principale').src = photoOptimisee(photos[0], 800);
   }
   const conteneurGalerie = document.getElementById('galerie-miniatures');
   if (conteneurGalerie) {
     conteneurGalerie.innerHTML = photos.length > 1
       ? photos.map((url, i) => `
           <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto(${enJs(url)}, this)">
-            <img src="${echapper(url)}" alt="${echapper(couleur)}">
+            <img src="${echapper(photoOptimisee(url, 120))}" alt="${echapper(couleur)}">
           </button>
         `).join('')
       : '';
@@ -2898,7 +2957,7 @@ function vuePanier() {
       <div>
         ${etat.panier.map((ligne, index) => `
           <div class="ligne-panier">
-            ${urlSure(ligne.photo) ? `<img src="${echapper(urlSure(ligne.photo))}" alt="${echapper(ligne.name)}">` : ''}
+            ${urlSure(ligne.photo) ? `<img src="${echapper(photoOptimisee(ligne.photo, 120))}" alt="${echapper(ligne.name)}">` : ''}
             <div class="infos-ligne">
               <div class="nom">${echapper(ligne.name)}</div>
               <div class="variante">${echapper(ligne.color)} · ${echapper(ligne.size)}${ligne.packLabel ? ` · <span style="color:var(--dore);">${echapper(ligne.packLabel)}</span>` : ''}</div>
