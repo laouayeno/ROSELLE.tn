@@ -864,7 +864,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.29</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.30</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2534,11 +2534,19 @@ function choisirTaille(produitId, couleur, taille) {
   actualiserBoutonAjouter(produitId);
 }
 
+// V2.30 : au plus 20 pièces du même article par commande (même limite que
+// le serveur, qui refuserait sinon la commande avec un message peu clair).
+const MAX_PAR_ARTICLE = 20;
+function plafond(stock) {
+  return Math.min(Math.max(0, Number(stock) || 0), MAX_PAR_ARTICLE);
+}
+
 function changerQuantite(delta) {
   const produit = trouverProduit(etat.parametresVue.produitId);
   const variante = varianteChoisie(produit);
-  const max = variante ? Number(variante.qty) : 1;
+  const max = variante ? plafond(variante.qty) : 1;
   let nouvelle = etat.produitCourant.quantiteChoisie + delta;
+  if (variante && delta > 0 && nouvelle > MAX_PAR_ARTICLE) afficherToast('Maximum 20 pièces par article et par commande');
   nouvelle = Math.max(1, Math.min(nouvelle, max || 1));
   etat.produitCourant.quantiteChoisie = nouvelle;
   document.getElementById('quantite-choisie').textContent = nouvelle;
@@ -2588,7 +2596,7 @@ function placerArticleDans(lignes, produitId) {
   const quantiteDemandee = etat.produitCourant.quantiteChoisie;
 
   if (ligneExistante) {
-    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, Number(variante.qty));
+    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, plafond(variante.qty));
   } else {
     lignes.push({
       productId: produitId,
@@ -2600,7 +2608,7 @@ function placerArticleDans(lignes, produitId) {
       color: variante.color,
       photo: photosVariante(variante)[0] || photoParDefaut(produit),
       qty: quantiteDemandee,
-      stockDispo: Number(variante.qty)
+      stockDispo: plafond(variante.qty)
     });
   }
   return true;
@@ -2673,7 +2681,7 @@ function verserAchatDirectDansPanier() {
       ? etat.panier.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
       : null;
     if (ligneExistante) {
-      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
+      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, plafond(ligne.stockDispo) || MAX_PAR_ARTICLE);
     } else {
       etat.panier.push({ ...ligne });
     }
@@ -2699,7 +2707,7 @@ function lignesACommander() {
       ? lignes.find(l => l.productId === ligne.productId && l.variantId === ligne.variantId && !l.packId)
       : null;
     if (ligneExistante) {
-      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, Number(ligne.stockDispo) || ligneExistante.qty + ligne.qty);
+      ligneExistante.qty = Math.min(ligneExistante.qty + ligne.qty, plafond(ligne.stockDispo) || MAX_PAR_ARTICLE);
     } else {
       lignes.push({ ...ligne });
     }
@@ -2828,7 +2836,7 @@ function placerPackDans(lignes, produitId) {
 
     const ligneExistante = lignes.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
     if (ligneExistante) {
-      ligneExistante.qty = Math.min(ligneExistante.qty + 1, Number(variante.qty));
+      ligneExistante.qty = Math.min(ligneExistante.qty + 1, plafond(variante.qty));
     } else {
       lignes.push({
         productId: produitId,
@@ -2840,7 +2848,7 @@ function placerPackDans(lignes, produitId) {
         color: variante.color,
         photo: photosVariante(variante)[0] || photoParDefaut(produit),
         qty: 1,
-        stockDispo: Number(variante.qty),
+        stockDispo: plafond(variante.qty),
         packId: idPack,
         packLabel: `Pack ${palier.qte} articles`
       });
@@ -2917,7 +2925,11 @@ function modifierQteLignePanier(index, delta) {
   const ligne = etat.panier[index];
   const nouvelle = ligne.qty + delta;
   if (nouvelle < 1) return;
-  if (nouvelle > ligne.stockDispo) { afficherToast('Stock maximum atteint pour cet article'); return; }
+  // V2.30 : plafond(...) aussi pour les paniers enregistrés avant cette version
+  if (nouvelle > plafond(ligne.stockDispo)) {
+    afficherToast(nouvelle > MAX_PAR_ARTICLE ? 'Maximum 20 pièces par article et par commande' : 'Stock maximum atteint pour cet article');
+    return;
+  }
   ligne.qty = nouvelle;
   sauvegarderPanier();
   rendre();
