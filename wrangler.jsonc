@@ -15,7 +15,16 @@
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
-  }
+  },
+  // V2.29 : limites anti-robots sur les commandes (gratuites, comptées par
+  // lieu Cloudflare). "period" vaut 10 ou 60 secondes uniquement.
+  // - par connexion : 20 commandes par minute (large, car beaucoup de
+  //   clientes peuvent partager la même adresse chez un opérateur mobile) ;
+  // - par numéro de téléphone : 3 commandes par minute.
+  "ratelimits": [
+    { "name": "LIMITE_COMMANDES", "namespace_id": "2901", "simple": { "limit": 20, "period": 60 } },
+    { "name": "LIMITE_TELEPHONE", "namespace_id": "2902", "simple": { "limit": 3, "period": 60 } }
+  ]
   // Clé secrète FIREBASE_SA : ajoutée à la main dans Cloudflare
   // (Workers > rosellestore > Paramètres > Variables et secrets), jamais ici.
 }
