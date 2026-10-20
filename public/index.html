@@ -34,6 +34,12 @@
 
   * { box-sizing: border-box; }
 
+  /* V2.31 : sur iPhone (surtout en navigation privée), la page pouvait glisser
+     à gauche et à droite. On bloque le défilement de côté sur toute la page
+     (html), pas seulement dans body. Le défilement vers le bas ne change pas
+     et l'en-tête collant continue de marcher. */
+  html { overflow-x: hidden; }
+
   body {
     margin: 0;
     background: var(--ivoire-clair);
@@ -154,10 +160,13 @@
     background: var(--blanc);
     display: flex; flex-direction: column;
     padding: 14px 22px 30px; overflow-y: auto;
-    transform: translateX(-100%); transition: transform 0.28s ease;
+    transform: translateX(-100%); transition: transform 0.28s ease, visibility 0.28s;
     box-shadow: 4px 0 18px rgba(0,0,0,0.12);
+    /* V2.31 : menu fermé = vraiment caché, Safari ne peut plus faire glisser
+       la page vers lui (il est rangé hors de l'écran, à gauche) */
+    visibility: hidden;
   }
-  .menu-mobile.ouvert { transform: translateX(0); }
+  .menu-mobile.ouvert { transform: translateX(0); visibility: visible; }
   .menu-mobile .haut-menu { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
   .menu-mobile .ligne-titre-menu { display: flex; justify-content: space-between; align-items: center; margin: -4px -8px 10px 0; }
   .menu-mobile .etiquette-menu {
@@ -864,7 +873,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.30</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.31</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
