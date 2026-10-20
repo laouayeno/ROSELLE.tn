@@ -1,5 +1,5 @@
 /* ============================================================
-   ROSELLE — Worker du site de vente (V2.24)
+   ROSELLE — Worker du site de vente (V2.24, limites et frais V2.29)
 
    Rôle : recevoir les commandes du site (POST /api/commande) et les
    enregistrer dans Firestore EN UNE SEULE OPÉRATION (transaction) :
@@ -29,6 +29,8 @@ const MAX_LIGNES = 30;
 const MAX_QTE_PAR_LIGNE = 20;
 const MAX_TEXTE = 500;
 const ESSAIS_TRANSACTION = 5;
+// V2.29 : frais de livraison si la page Apparence n'en indique pas (comme le site).
+const FRAIS_PAR_DEFAUT = 8;
 
 export default {
   async fetch(requete, env) {
@@ -47,6 +49,16 @@ export default {
 async function traiterCommande(requete, env) {
   if (!env.FIREBASE_SA) return json({ ok: false, erreur: 'non-configure' }, 503);
 
+  // V2.29 : limite anti-robots, par connexion (adresse IP). Beaucoup de
+  // clientes peuvent partager la même adresse chez un opérateur mobile :
+  // la limite reste donc large (voir "ratelimits" dans wrangler.jsonc).
+  // Sans la limite (configuration absente), on continue comme avant.
+  if (env.LIMITE_COMMANDES) {
+    const ip = requete.headers.get('CF-Connecting-IP') || 'inconnue';
+    const { success } = await env.LIMITE_COMMANDES.limit({ key: 'ip:' + ip });
+    if (!success) return json({ ok: false, erreur: 'trop-de-commandes' }, 429);
+  }
+
   let corps;
   try {
     corps = await requete.json();
@@ -55,6 +67,12 @@ async function traiterCommande(requete, env) {
   }
   const commande = verifierCommande(corps);
   if (!commande) return json({ ok: false, erreur: 'invalide' }, 400);
+
+  // V2.29 : même numéro de téléphone = au plus quelques commandes par minute.
+  if (env.LIMITE_TELEPHONE) {
+    const { success } = await env.LIMITE_TELEPHONE.limit({ key: 'tel:' + commande.phone });
+    if (!success) return json({ ok: false, erreur: 'trop-de-commandes' }, 429);
+  }
 
   let compte;
   try {
@@ -118,6 +136,16 @@ function verifierCommande(c) {
   return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee };
 }
 
+/* ---------- Frais de livraison (V2.29) ---------- */
+// Même règle que fraisLivraison() du site : siteSettings/main > shipping.fee
+// s'il s'agit d'un nombre positif ou nul, sinon 8 DT.
+function fraisLivraison(reglages) {
+  const champs = reglages && reglages.fields ? reglages.fields : {};
+  const livraison = depuisFirestore(champs.shipping || null);
+  const n = livraison && livraison.fee !== undefined && livraison.fee !== null && livraison.fee !== '' ? Number(livraison.fee) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : FRAIS_PAR_DEFAUT;
+}
+
 /* ---------- Transaction Firestore ---------- */
 async function enregistrerAvecTransaction(jeton, commande) {
   // Quantités demandées, regroupées par article puis par variante.
@@ -131,14 +159,18 @@ async function enregistrerAvecTransaction(jeton, commande) {
   for (let essai = 1; essai <= ESSAIS_TRANSACTION; essai++) {
     const { transaction } = await appelFirestore(jeton, ':beginTransaction', {});
 
-    // 1. Relire le stock affiché de chaque article, dans la transaction.
+    // 1. Relire le stock affiché de chaque article, dans la transaction,
+    //    ainsi que les réglages du site (frais de livraison, V2.29).
     const lecture = await appelFirestore(jeton, ':batchGet', {
-      documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)),
+      documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)).concat(NOM_DOC('siteSettings/main')),
       transaction
     });
     const fiches = new Map();
+    let reglages = null;
     for (const r of lecture) {
-      if (r.found) fiches.set(r.found.name.split('/').pop(), r.found);
+      if (!r.found) continue;
+      if (r.found.name === NOM_DOC('siteSettings/main')) reglages = r.found;
+      else fiches.set(r.found.name.split('/').pop(), r.found);
     }
 
     // 2. Vérifier qu'il en reste assez, et préparer les nouvelles quantités.
@@ -177,7 +209,9 @@ async function enregistrerAvecTransaction(jeton, commande) {
       status: 'transit',
       confirmed: false,
       items: commande.items,
-      deliveryFee: commande.deliveryFee,
+      // V2.29 : les frais viennent des réglages du site, pas du navigateur
+      // de la cliente (qui pourrait envoyer 0).
+      deliveryFee: fraisLivraison(reglages),
       date: new Date().toISOString()
     };
     ecritures.push({

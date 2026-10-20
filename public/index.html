@@ -864,7 +864,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.28</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.29</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1092,6 +1092,13 @@ function echapper(texte) {
   return (texte === undefined || texte === null ? '' : String(texte))
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// V2.29 : met une valeur dans le code d'un bouton (onclick="...") sans que
+// ses guillemets ou caractères spéciaux puissent casser ou détourner le bouton.
+// S'écrit SANS guillemets autour : onclick="choisirCouleur(${enJs(couleur)})".
+function enJs(valeur) {
+  return echapper(JSON.stringify(valeur === undefined || valeur === null ? '' : String(valeur)));
 }
 
 // N'accepte que les adresses https:// ; sinon renvoie la valeur de secours.
@@ -1555,8 +1562,9 @@ function photoParDefaut(produit) {
 // pour rester compatible avec les produits déjà existants.
 function photosVariante(variant) {
   if (!variant) return [];
-  if (variant.photos && variant.photos.length) return variant.photos;
-  if (variant.photo) return [variant.photo];
+  // V2.29 : on ne garde que les vraies adresses https:// (sécurité)
+  if (variant.photos && variant.photos.length) return variant.photos.map(u => urlSure(u)).filter(Boolean);
+  if (variant.photo) return [urlSure(variant.photo)].filter(Boolean);
   return [];
 }
 
@@ -2168,7 +2176,7 @@ function vueCatalogue(categorie, collectionId) {
         : `<div class="message-vide" style="position:relative; z-index:1;">
              Aucun article disponible pour le moment avec ces filtres.
              ${etat.produits.length ? `<div style="margin-top:14px; font-size:0.75rem; opacity:0.6;">
-               (Catégories trouvées dans le catalogue : ${[...new Set(etat.produits.map(p => p.cat))].join(', ')})
+               (Catégories trouvées dans le catalogue : ${echapper([...new Set(etat.produits.map(p => p.cat))].join(', '))})
              </div>` : ''}
            </div>`}
     </div>
@@ -2325,12 +2333,12 @@ function carteProduitHTML(produit) {
   const disponible = stockTotalDisponible(produit) > 0;
   const { actuel, ancien } = prixUnitaireEffectif(produit);
   return `
-    <div class="carte-produit" onclick="naviguerVers('produit', {produitId: '${produit.id}'})">
+    <div class="carte-produit" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap">
-        ${photo ? `<img src="${photo}" alt="${produit.name}">` : ''}
+        ${photo ? `<img src="${echapper(photo)}" alt="${echapper(produit.name)}">` : ''}
       </div>
       <div class="infos">
-        <div class="nom">${produit.name}</div>
+        <div class="nom">${echapper(produit.name)}</div>
         <div class="prix">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
         <!-- V2.25 : mention sous le prix (plus sur la photo) -->
         ${!disponible ? `<span class="badge-epuise">Épuisé</span>` : (ancien ? `<span class="badge-solde">Soldes</span>` : '')}
@@ -2358,14 +2366,14 @@ function vueProduit(produitId) {
     </a>
     <div class="fiche-produit">
       <div class="visuel-produit">
-        <img class="photo-principale" id="photo-produit-principale" src="${photoParDefaut(produit)}" alt="${produit.name}">
+        <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoParDefaut(produit))}" alt="${echapper(produit.name)}">
         <div class="galerie-miniatures" id="galerie-miniatures"></div>
       </div>
       <div class="details-produit">
-        <div class="categorie">${produit.cat || ''}</div>
-        <h1>${produit.name}</h1>
+        <div class="categorie">${echapper(produit.cat || '')}</div>
+        <h1>${echapper(produit.name)}</h1>
         <div class="prix">${ancien ? `<span class="prix-barre">${prixFormat(ancien)}</span>` : ''}${prixFormat(actuel)}</div>
-        ${produit.ref ? `<div class="ref">Réf. ${produit.ref}</div>` : ''}
+        ${produit.ref ? `<div class="ref">Réf. ${echapper(produit.ref)}</div>` : ''}
 
         ${aDesPaliers ? `
         <div class="bloc-choix">
@@ -2388,8 +2396,8 @@ function vueProduit(produitId) {
                 const v = variants.find(v => v.color === couleur);
                 const photoSwatch = photosVariante(v)[0];
                 return `
-                  <button type="button" class="swatch-couleur" data-couleur="${couleur}" title="${couleur}" onclick="choisirCouleur('${produitId}', '${couleur}')">
-                    ${photoSwatch ? `<img src="${photoSwatch}" alt="${couleur}">` : ''}
+                  <button type="button" class="swatch-couleur" data-couleur="${echapper(couleur)}" title="${echapper(couleur)}" onclick="choisirCouleur(${enJs(produitId)}, ${enJs(couleur)})">
+                    ${photoSwatch ? `<img src="${echapper(photoSwatch)}" alt="${echapper(couleur)}">` : ''}
                   </button>`;
               }).join('')}
             </div>
@@ -2414,10 +2422,10 @@ function vueProduit(produitId) {
           </div>
         </div>
 
-        <button class="bouton-ajouter" id="bouton-ajouter" disabled onclick="gererClicAjouter('${produitId}')">
+        <button class="bouton-ajouter" id="bouton-ajouter" disabled onclick="gererClicAjouter(${enJs(produitId)})">
           ${aDesPaliers ? 'Choisissez une formule' : 'Choisir une taille'}
         </button>
-        <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant('${produitId}')">
+        <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
           Acheter maintenant
         </button>
       </div>
@@ -2473,8 +2481,8 @@ function choisirCouleur(produitId, couleur) {
   const conteneurGalerie = document.getElementById('galerie-miniatures');
   if (photos.length > 1) {
     conteneurGalerie.innerHTML = photos.map((url, i) => `
-      <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto('${url}', this)">
-        <img src="${url}" alt="${produit.name}">
+      <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto(${enJs(url)}, this)">
+        <img src="${echapper(url)}" alt="${echapper(produit.name)}">
       </button>
     `).join('');
   } else {
@@ -2485,10 +2493,10 @@ function choisirCouleur(produitId, couleur) {
   const taillesPourCouleur = (produit.variants || []).filter(v => v.color === couleur);
   const conteneurTailles = document.getElementById('options-taille');
   conteneurTailles.innerHTML = taillesPourCouleur.map(v => `
-    <button type="button" class="bouton-taille" data-taille="${v.size}"
+    <button type="button" class="bouton-taille" data-taille="${echapper(v.size)}"
       ${Number(v.qty) <= 0 ? 'disabled' : ''}
-      onclick="choisirTaille('${produitId}', '${v.color}', '${v.size}')">
-      ${v.size}
+      onclick="choisirTaille(${enJs(produitId)}, ${enJs(v.color)}, ${enJs(v.size)})">
+      ${echapper(v.size)}
     </button>
   `).join('');
 
@@ -2737,8 +2745,8 @@ function choisirFormule(cle, qte) {
           const v = (produit.variants || []).find(v => v.color === c);
           const photoSwatch = photosVariante(v)[0];
           return `
-            <button type="button" class="swatch-couleur" data-couleur="${c}" title="${c}" onclick="choisirCouleurPack(${i}, '${c}')">
-              ${photoSwatch ? `<img src="${photoSwatch}" alt="${c}">` : ''}
+            <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})">
+              ${photoSwatch ? `<img src="${echapper(photoSwatch)}" alt="${echapper(c)}">` : ''}
             </button>`;
         }).join('')}
       </div>
@@ -2773,8 +2781,8 @@ function choisirCouleurPack(index, couleur) {
   if (conteneurGalerie) {
     conteneurGalerie.innerHTML = photos.length > 1
       ? photos.map((url, i) => `
-          <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto('${url}', this)">
-            <img src="${url}" alt="${couleur}">
+          <button type="button" class="miniature-photo ${i === 0 ? 'selectionnee' : ''}" onclick="selectionnerPhoto(${enJs(url)}, this)">
+            <img src="${echapper(url)}" alt="${echapper(couleur)}">
           </button>
         `).join('')
       : '';
@@ -2783,7 +2791,7 @@ function choisirCouleurPack(index, couleur) {
   const selectTaille = document.getElementById('select-taille-pack-' + index);
   const taillesDispo = (produit.variants || []).filter(v => v.color === couleur && Number(v.qty) > 0);
   selectTaille.innerHTML = `<option value="">Taille…</option>` +
-    taillesDispo.map(v => `<option value="${v.size}">${v.size}</option>`).join('');
+    taillesDispo.map(v => `<option value="${echapper(v.size)}">${echapper(v.size)}</option>`).join('');
   selectTaille.disabled = !couleur;
   actualiserBoutonPack();
 }
@@ -2873,10 +2881,10 @@ function vuePanier() {
       <div>
         ${etat.panier.map((ligne, index) => `
           <div class="ligne-panier">
-            ${ligne.photo ? `<img src="${ligne.photo}" alt="${ligne.name}">` : ''}
+            ${urlSure(ligne.photo) ? `<img src="${echapper(urlSure(ligne.photo))}" alt="${echapper(ligne.name)}">` : ''}
             <div class="infos-ligne">
-              <div class="nom">${ligne.name}</div>
-              <div class="variante">${ligne.color} · ${ligne.size}${ligne.packLabel ? ` · <span style="color:var(--dore);">${ligne.packLabel}</span>` : ''}</div>
+              <div class="nom">${echapper(ligne.name)}</div>
+              <div class="variante">${echapper(ligne.color)} · ${echapper(ligne.size)}${ligne.packLabel ? ` · <span style="color:var(--dore);">${echapper(ligne.packLabel)}</span>` : ''}</div>
               <div class="bas-ligne">
                 <div class="qte-panier">
                   <button type="button" onclick="modifierQteLignePanier(${index}, -1)">−</button>
@@ -2960,7 +2968,7 @@ function vueCommande() {
 
         <div class="recap-commande">
           ${lignes.map(l => `
-            <div class="ligne-recap"><span>${l.name} (${l.color}, ${l.size}) ×${l.qty}</span><span>${prixFormat(l.qty * l.price)}</span></div>
+            <div class="ligne-recap"><span>${echapper(l.name)} (${echapper(l.color)}, ${echapper(l.size)}) ×${Number(l.qty) || 0}</span><span>${prixFormat(l.qty * l.price)}</span></div>
           `).join('')}
           <div class="ligne-recap" style="margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
             <span>Sous-total</span><span>${prixFormat(sousTotal)}</span>
@@ -3066,7 +3074,9 @@ function envoyerCommande() {
   boutonValider.textContent = 'Envoi en cours…';
 
   // Construit le document au format exact attendu par les règles Firestore
-  const numeroCommande = 'WEB-' + Date.now();
+  // V2.29 : 3 chiffres au hasard à la fin, pour que deux clientes qui
+  // commandent à la même milliseconde n'aient pas la même référence.
+  const numeroCommande = 'WEB-' + Date.now() + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
   const nouveauColis = {
     ref: numeroCommande,
     courier: '',
@@ -3130,6 +3140,13 @@ function envoyerCommande() {
         return;
       }
       if (reponse.status === 503 || reponse.status === 404 || reponse.status === 405) return envoiDirect();
+      if (reponse.status === 429) {
+        // V2.29 : trop de commandes envoyées en peu de temps depuis la même connexion
+        bandeauErreur.innerHTML = `<div class="bandeau-erreur">Beaucoup de commandes viennent d'être envoyées depuis votre connexion. Merci de patienter une minute puis de réessayer.</div>`;
+        boutonValider.disabled = false;
+        boutonValider.textContent = 'Confirmer la commande';
+        return;
+      }
       echec('Réponse du serveur : ' + reponse.status);
     })
     .catch(echec);
