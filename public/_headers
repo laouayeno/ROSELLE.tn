@@ -19,3 +19,20 @@
   Cache-Control: public, max-age=604800
 /logo-nom.png
   Cache-Control: public, max-age=604800
+
+# V2.34 : protections de sécurité envoyées avec TOUTES les pages et fichiers.
+# Elles ne changent rien à l'affichage du site.
+# - X-Frame-Options + frame-ancestors : un autre site ne peut pas afficher
+#   ce site caché dans un cadre (piège pour faire cliquer sans le savoir).
+# - X-Content-Type-Options : le navigateur ne devine pas le type d'un
+#   fichier (une « image » ne peut pas être exécutée comme du code).
+# - Referrer-Policy : en quittant le site, seul le nom du site est transmis,
+#   pas l'adresse exacte de la page.
+# - Permissions-Policy : le site ne peut jamais demander la caméra, le micro,
+#   la position ou le paiement du navigateur (il n'en a pas besoin).
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
