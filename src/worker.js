@@ -133,8 +133,15 @@ function verifierCommande(c) {
     if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > MAX_QTE_PAR_LIGNE) return null;
     items.push({ productId: it.productId, variantId: it.variantId, qty: it.qty });
   }
-  return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee };
+  // V2.35 : gouvernorat choisi par la cliente (code de la société de livraison Bestway).
+  // Facultatif : une page ouverte avant la mise à jour n'en envoie pas ; un code inconnu est ignoré.
+  const gouvernorat = CODES_GOUVERNORAT.includes(c.gouvernorat) ? c.gouvernorat : '';
+  return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee, gouvernorat };
 }
+
+// Les 24 gouvernorats (mêmes codes que dans le Stock et sur le site).
+const CODES_GOUVERNORAT = ['2080', '9000', '2013', '7000', '6000', '2100', '8100', '3100', '1200', '4200', '2010', '7100',
+  '5100', '4100', '5000', '8000', '3000', '9100', '6100', '4000', '3200', '2200', '1000', '1100'];
 
 /* ---------- Frais de livraison (V2.29) ---------- */
 // Même règle que fraisLivraison() du site : siteSettings/main > shipping.fee
@@ -214,6 +221,7 @@ async function enregistrerAvecTransaction(jeton, commande) {
       deliveryFee: fraisLivraison(reglages),
       date: new Date().toISOString()
     };
+    if (commande.gouvernorat) colis.gouvernorat = commande.gouvernorat; // V2.35
     ecritures.push({
       update: { name: NOM_DOC('shipments/' + idAuto()), fields: versFirestore(colis).mapValue.fields },
       currentDocument: { exists: false }

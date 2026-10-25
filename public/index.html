@@ -755,11 +755,11 @@
   /* ===== Formulaire commande ===== */
   .champ { margin-bottom: 18px; }
   .champ label { display: block; font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 7px; }
-  .champ input, .champ textarea {
+  .champ input, .champ textarea, .champ select {
     width: 100%; padding: 12px 14px; border: 1px solid var(--rose-clair); border-radius: 2px;
     font-family: 'Inter', sans-serif; font-size: 0.92rem; background: var(--blanc); color: var(--texte);
   }
-  .champ input:focus, .champ textarea:focus { outline: none; border-color: var(--rose-fonce); }
+  .champ input:focus, .champ textarea:focus, .champ select:focus { outline: none; border-color: var(--rose-fonce); }
   .champ textarea { resize: vertical; min-height: 70px; }
   .erreur-champ { color: var(--erreur); font-size: 0.78rem; margin-top: 5px; display: none; }
 
@@ -873,7 +873,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.34</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V2.35</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1061,9 +1061,91 @@ const etat = {
   // Ce que la cliente a déjà tapé dans le formulaire de commande : gardé en
   // mémoire (le temps de la visite) pour le retrouver si elle part
   // « Continuer mes achats » puis revient commander.
-  brouillonCommande: { clientName: '', phone: '', address: '', remark: '' },
+  brouillonCommande: { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' },
   reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
+
+/* ============================================================
+   V2.35 : CE QUE LA CLIENTE A CHOISI OU TAPÉ, GARDÉ APRÈS UN RAFRAÎCHISSEMENT
+   La page elle-même est déjà dans l'adresse (#produit/…, #commande).
+   On garde en plus : le formulaire de commande, l'article d'« Acheter
+   maintenant » et la couleur / taille / quantité de la fiche article.
+   sessionStorage : tout disparaît quand la cliente ferme l'onglet, et
+   après l'envoi de la commande. Rien ne part sur Internet.
+   ============================================================ */
+const CLE_SAISIE = 'roselle_saisie';
+let choixProduitEnAttente = null; // choix à remettre sur la fiche article après un rafraîchissement
+
+function memoriserSaisie() {
+  try {
+    sessionStorage.setItem(CLE_SAISIE, JSON.stringify({
+      brouillon: etat.brouillonCommande,
+      achatDirect: etat.achatDirect,
+      produitId: etat.vueActuelle === 'produit' ? etat.parametresVue.produitId : null,
+      choix: etat.produitCourant
+    }));
+  } catch (e) {} // navigateur qui refuse (mode privé) : tant pis, rien n'est gardé
+}
+
+// Relit ce qui avait été gardé (une seule fois, au chargement de la page).
+(function restaurerSaisie() {
+  let m = null;
+  try { m = JSON.parse(sessionStorage.getItem(CLE_SAISIE) || 'null'); } catch (e) {}
+  if (!m || typeof m !== 'object') return;
+  // Formulaire : seulement des textes, et seulement les champs connus.
+  if (m.brouillon && typeof m.brouillon === 'object') {
+    for (const cle of Object.keys(etat.brouillonCommande)) {
+      if (typeof m.brouillon[cle] === 'string') etat.brouillonCommande[cle] = m.brouillon[cle].slice(0, 500);
+    }
+  }
+  if (Array.isArray(m.achatDirect) && m.achatDirect.length) {
+    etat.achatDirect = m.achatDirect.filter(l => l && typeof l === 'object' && typeof l.productId === 'string');
+  }
+  if (typeof m.produitId === 'string' && m.choix && typeof m.choix === 'object') {
+    choixProduitEnAttente = { produitId: m.produitId, choix: m.choix };
+  }
+})();
+
+// Le rafraîchissement (ou l'iPhone qui met l'onglet en veille) déclenche ces événements.
+window.addEventListener('pagehide', memoriserSaisie);
+document.addEventListener('visibilitychange', () => { if (document.hidden) memoriserSaisie(); });
+
+// Remet la couleur, la taille et la quantité choisies avant le rafraîchissement,
+// dès que la fiche de cet article est affichée avec ses données.
+function remettreChoixProduit(produitId) {
+  const attente = choixProduitEnAttente;
+  if (!attente || attente.produitId !== produitId) return;
+  const produit = trouverProduit(produitId);
+  if (!produit) return; // catalogue pas encore chargé : on réessaiera au prochain affichage
+  choixProduitEnAttente = null;
+  const c = attente.choix;
+  // Formules en pack : trop de choix à refaire, la cliente recommence simplement.
+  if (c.formuleChoisie && c.formuleChoisie !== 'unitaire') return;
+  if (c.formuleChoisie === 'unitaire' && document.getElementById('formule-unitaire')) choisirFormule('unitaire', 1);
+  const variantes = produit.variants || [];
+  if (typeof c.couleurChoisie !== 'string' || !variantes.some(v => v.color === c.couleurChoisie)) return;
+  if (!document.querySelector('.swatch-couleur')) return;
+  choisirCouleur(produitId, c.couleurChoisie);
+  const variante = variantes.find(v => v.color === c.couleurChoisie && v.size === c.tailleChoisie);
+  if (!variante || Number(variante.qty) <= 0) return;
+  choisirTaille(produitId, variante.color, variante.size);
+  const qte = Math.round(Number(c.quantiteChoisie)) || 1;
+  if (qte > 1) changerQuantite(qte - 1); // plafonnée au stock comme d'habitude
+}
+
+// V2.35 : les 24 gouvernorats, avec le code demandé par la société de livraison
+// Bestway (le même que dans le Stock). Le colis arrive ainsi prêt à être envoyé.
+const GOUVERNORATS = [
+  ['Ariana', '2080'], ['Béja', '9000'], ['Ben Arous', '2013'], ['Bizerte', '7000'], ['Gabès', '6000'],
+  ['Gafsa', '2100'], ['Jendouba', '8100'], ['Kairouan', '3100'], ['Kasserine', '1200'], ['Kébili', '4200'],
+  ['La Manouba', '2010'], ['Le Kef', '7100'], ['Mahdia', '5100'], ['Médenine', '4100'], ['Monastir', '5000'],
+  ['Nabeul', '8000'], ['Sfax', '3000'], ['Sidi Bouzid', '9100'], ['Siliana', '6100'], ['Sousse', '4000'],
+  ['Tataouine', '3200'], ['Tozeur', '2200'], ['Tunis', '1000'], ['Zaghouan', '1100']
+];
+function nomGouvernorat(code) {
+  const g = GOUVERNORATS.find(x => x[1] === code);
+  return g ? g[0] : '';
+}
 
 // Liste des catégories mises en avant, dans l'ordre voulu.
 // La comparaison ignore la casse/les accents pour être robuste aux données réelles.
@@ -2518,8 +2600,10 @@ function tuileFormuleHTML(cle, qte, prixTotal, economie, meilleureOffre) {
 }
 
 function initialiserFicheProduit(produitId) {
-  // Rien à faire ici pour l'instant : les interactions passent par les
-  // fonctions choisirCouleur / choisirTaille / changerQuantite ci-dessous.
+  // Les interactions passent par les fonctions choisirCouleur / choisirTaille /
+  // changerQuantite ci-dessous. V2.35 : après un rafraîchissement, on remet
+  // les choix que la cliente avait faits.
+  remettreChoixProduit(produitId);
 }
 
 function choisirCouleur(produitId, couleur) {
@@ -3038,6 +3122,17 @@ function vueCommande() {
           <input type="tel" id="champ-telephone" name="phone" required inputmode="numeric" maxlength="8" autocomplete="tel-national" placeholder="Ex : 20123456" value="${echapper(brouillon.phone)}">
         </div>
         <div class="champ">
+          <label for="champ-gouvernorat">Gouvernorat</label>
+          <select id="champ-gouvernorat" name="gouvernorat" required>
+            <option value="">— Choisir —</option>
+            ${GOUVERNORATS.map(([nom, code]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="champ">
+          <label for="champ-ville">Ville</label>
+          <input type="text" id="champ-ville" name="ville" required maxlength="80" placeholder="Ex : Ksar Hellal" value="${echapper(brouillon.ville)}">
+        </div>
+        <div class="champ">
           <label for="champ-adresse">Adresse de livraison</label>
           <textarea id="champ-adresse" name="address" required>${echapper(brouillon.address)}</textarea>
         </div>
@@ -3076,7 +3171,7 @@ function initialiserFormulaireCommande() {
   if (!formulaire) return;
   // À chaque lettre tapée, on garde le contenu des champs en mémoire
   // (voir etat.brouillonCommande).
-  formulaire.addEventListener('input', (evenement) => {
+  const garderChamp = (evenement) => {
     const champ = evenement.target;
     // Téléphone : on ne garde que les chiffres, 8 au maximum (V2.22).
     if (champ && champ.id === 'champ-telephone') {
@@ -3085,7 +3180,9 @@ function initialiserFormulaireCommande() {
     if (champ && champ.name && champ.name in etat.brouillonCommande) {
       etat.brouillonCommande[champ.name] = champ.value;
     }
-  });
+  };
+  formulaire.addEventListener('input', garderChamp);
+  formulaire.addEventListener('change', garderChamp); // liste « Gouvernorat » (V2.35)
   formulaire.addEventListener('submit', (evenement) => {
     evenement.preventDefault();
     envoyerCommande();
@@ -3126,14 +3223,22 @@ function envoyerCommande() {
   const phone = document.getElementById('champ-telephone').value.replace(/[^0-9]/g, '');
   const address = document.getElementById('champ-adresse').value.trim();
   const remark = document.getElementById('champ-remarque').value.trim();
+  const gouvernorat = document.getElementById('champ-gouvernorat').value;
+  const ville = document.getElementById('champ-ville').value.trim();
 
-  if (!clientName || !phone || !address) {
+  if (!clientName || !phone || !address || !ville) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de remplir tous les champs obligatoires.</div>`;
     return;
   }
   if (!/^[0-9]{8}$/.test(phone)) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Le numéro de téléphone doit contenir exactement 8 chiffres.</div>`;
     document.getElementById('champ-telephone').focus();
+    return;
+  }
+  // V2.35 : gouvernorat obligatoire (la société de livraison en a besoin).
+  if (!nomGouvernorat(gouvernorat)) {
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de choisir votre gouvernorat.</div>`;
+    document.getElementById('champ-gouvernorat').focus();
     return;
   }
   const lignes = lignesACommander();
@@ -3162,7 +3267,8 @@ function envoyerCommande() {
     courier: '',
     clientName: clientName,
     phone: phone,
-    address: address,
+    // V2.35 : la ville est écrite au début de l'adresse (Bestway n'a pas de champ « ville »).
+    address: (ville + ', ' + address).slice(0, 500),
     remark: remark,
     status: 'transit',
     confirmed: false,
@@ -3178,7 +3284,7 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
-    etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '' };
+    etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
     etat.achatDirect = null;
     etat.panier = [];
@@ -3193,7 +3299,11 @@ function envoyerCommande() {
     boutonValider.textContent = 'Confirmer la commande';
   };
   // Ancienne méthode : écriture directe dans Firestore (sans vérification du stock côté serveur).
-  const envoiDirect = () => db.collection('shipments').add(nouveauColis).then(reussite).catch(echec);
+  // Les règles Firestore n'acceptent pas de champ « gouvernorat » : on écrit alors son nom au
+  // début de l'adresse (ex. « Sfax — Rue … »), et le Stock le retrouve tout seul (V2.35).
+  const envoiDirect = () => db.collection('shipments')
+    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + nouveauColis.address).slice(0, 500) })
+    .then(reussite).catch(echec);
 
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
   // vérifie le stock et crée le colis en une seule opération, 24 h/24.
@@ -3203,7 +3313,7 @@ function envoyerCommande() {
   fetch('/api/commande', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(nouveauColis)
+    body: JSON.stringify({ ...nouveauColis, gouvernorat }) // V2.35 : le Worker l'ajoute au colis
   })
     .then(async (reponse) => {
       const donnees = await reponse.json().catch(() => ({}));
