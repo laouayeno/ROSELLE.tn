@@ -1061,7 +1061,7 @@ const etat = {
   // Ce que la cliente a déjà tapé dans le formulaire de commande : gardé en
   // mémoire (le temps de la visite) pour le retrouver si elle part
   // « Continuer mes achats » puis revient commander.
-  brouillonCommande: { clientName: '', phone: '', address: '', remark: '', gouvernorat: '' },
+  brouillonCommande: { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' },
   reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
 
@@ -3129,6 +3129,10 @@ function vueCommande() {
           </select>
         </div>
         <div class="champ">
+          <label for="champ-ville">Ville</label>
+          <input type="text" id="champ-ville" name="ville" required maxlength="80" placeholder="Ex : Ksar Hellal" value="${echapper(brouillon.ville)}">
+        </div>
+        <div class="champ">
           <label for="champ-adresse">Adresse de livraison</label>
           <textarea id="champ-adresse" name="address" required>${echapper(brouillon.address)}</textarea>
         </div>
@@ -3220,8 +3224,9 @@ function envoyerCommande() {
   const address = document.getElementById('champ-adresse').value.trim();
   const remark = document.getElementById('champ-remarque').value.trim();
   const gouvernorat = document.getElementById('champ-gouvernorat').value;
+  const ville = document.getElementById('champ-ville').value.trim();
 
-  if (!clientName || !phone || !address) {
+  if (!clientName || !phone || !address || !ville) {
     bandeauErreur.innerHTML = `<div class="bandeau-erreur">Merci de remplir tous les champs obligatoires.</div>`;
     return;
   }
@@ -3262,7 +3267,8 @@ function envoyerCommande() {
     courier: '',
     clientName: clientName,
     phone: phone,
-    address: address,
+    // V2.35 : la ville est écrite au début de l'adresse (Bestway n'a pas de champ « ville »).
+    address: (ville + ', ' + address).slice(0, 500),
     remark: remark,
     status: 'transit',
     confirmed: false,
@@ -3278,7 +3284,7 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
-    etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '' };
+    etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
     etat.achatDirect = null;
     etat.panier = [];
@@ -3296,7 +3302,7 @@ function envoyerCommande() {
   // Les règles Firestore n'acceptent pas de champ « gouvernorat » : on écrit alors son nom au
   // début de l'adresse (ex. « Sfax — Rue … »), et le Stock le retrouve tout seul (V2.35).
   const envoiDirect = () => db.collection('shipments')
-    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + address).slice(0, 500) })
+    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + nouveauColis.address).slice(0, 500) })
     .then(reussite).catch(echec);
 
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
