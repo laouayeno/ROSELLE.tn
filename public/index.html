@@ -873,7 +873,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1207,12 +1207,25 @@ function urlSure(url, secours) {
        pour garder la finesse des photos professionnelles.
    La photo d'origine reste intacte chez Cloudinary.
    Seules les adresses Cloudinary « simples » sont modifiées : les autres
-   (ou celles qui ont déjà des réglages) sont gardées telles quelles. */
-const REGLAGE_PHOTO = 'f_auto,q_auto:best,c_limit,w_';
+   (ou celles qui ont déjà des réglages) sont gardées telles quelles.
+   V5.6 (choix d'Oussama) :
+     - sur PC : rien ne change (qualité « best ») ;
+     - sur téléphone : qualité « good » et au maximum 2 pixels par point
+       (un 3e pixel ne se voit presque pas, mais double presque le poids),
+       sauf pour les cartes en arche de l'accueil ;
+       économise le quota gratuit de Cloudinary pendant le lancement ;
+     - cartes en arche de l'accueil : la photo est découpée chez Cloudinary
+       à la forme exacte de la carte (voir photoOptimisee), donc nette. */
+const REGLAGE_PHOTO = 'f_auto,q_auto:';
+// Écran plus étroit que ça = téléphone (même seuil que la fiche produit)
+const LARGEUR_TELEPHONE = 780;
 const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
 
 // largeurAffichee = largeur à l'écran en points (ex. 400), ou 'ecran' pour toute la largeur
-function photoOptimisee(url, largeurAffichee) {
+// forme (facultatif, V5.6) = proportions du cadre, ex. '1:2.8' (largeur:hauteur) :
+// la photo est alors découpée au centre à cette forme, comme le fait l'écran
+// (object-fit: cover), au lieu d'être agrandie et floue.
+function photoOptimisee(url, largeurAffichee, forme) {
   // Adresse non Cloudinary (ex. logo.jpg du site) : rendue telle quelle, comme avant
   const u = url === undefined || url === null ? '' : String(url).trim();
   const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/i);
@@ -1220,11 +1233,21 @@ function photoOptimisee(url, largeurAffichee) {
   // Rien n'est affiché plus large que l'écran : on ne demande jamais plus grand
   const ecran = window.innerWidth || 400;
   const points = largeurAffichee === 'ecran' ? ecran : Math.min(largeurAffichee, ecran);
-  // Écrans « Retina » : 2 ou 3 pixels par point (on s'arrête à 3)
-  const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+  // V5.6 : téléphone = qualité « good » et 2 pixels par point au maximum ; PC inchangé
+  const telephone = ecran < LARGEUR_TELEPHONE;
+  const qualite = telephone ? 'good' : 'best';
+  // Écrans « Retina » : 2 ou 3 pixels par point (on s'arrête à 3, ou à 2 sur téléphone).
+  // Exception : les cadres découpés (cartes en arche de l'accueil) gardent 3 pixels
+  // par point, pour que les photos de l'accueil soient bien nettes sur iPhone.
+  const maxPixelsParPoint = telephone && !forme ? 2 : 3;
+  const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), maxPixelsParPoint);
   // Arrondi au-dessus par paliers de 200 px (moins de copies différentes), maximum 2400 px
   const largeur = Math.min(2400, Math.ceil(pixels / 200) * 200);
-  return m[1] + REGLAGE_PHOTO + largeur + '/' + m[2];
+  // Découpe à la forme du cadre (c_lfill : jamais agrandie au-delà de l'original)
+  const decoupe = forme && /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(forme)
+    ? 'c_lfill,ar_' + forme + ',g_center'
+    : 'c_limit';
+  return m[1] + REGLAGE_PHOTO + qualite + ',' + decoupe + ',w_' + largeur + '/' + m[2];
 }
 
 function videoOptimisee(url) {
@@ -1249,7 +1272,7 @@ document.addEventListener('error', (e) => {
   if (!el || !el.getAttribute) return;
   const src = el.getAttribute('src') || '';
   if (src.indexOf('/upload/' + REGLAGE_PHOTO) !== -1) {
-    el.setAttribute('src', src.replace(/\/upload\/f_auto,q_auto:best,c_limit,w_\d+\//, '/upload/'));
+    el.setAttribute('src', src.replace(/\/upload\/f_auto,q_auto:[^/]+\//, '/upload/'));
   } else if (src.indexOf('/upload/' + REGLAGE_VIDEO + '/') !== -1) {
     el.setAttribute('src', src.replace('/upload/' + REGLAGE_VIDEO + '/', '/upload/'));
     // pour <source>, il faut relancer la vidéo qui la contient
@@ -2478,6 +2501,13 @@ function petalesDecorHTML() {
   `;
 }
 
+// V5.6 : forme du cadre photo des cartes. Accueil = arche haute et étroite
+// (aspect-ratio 1/2.8 dans le CSS .photo-wrap) ; autres pages = rectangle 2/3,
+// déjà la forme des photos : pas de découpe.
+function formeCartes() {
+  return document.body.classList.contains('sur-accueil') ? '1:2.8' : '';
+}
+
 function carteProduitHTML(produit) {
   const photo = photoParDefaut(produit);
   const disponible = stockTotalDisponible(produit) > 0;
@@ -2485,7 +2515,7 @@ function carteProduitHTML(produit) {
   return `
     <div class="carte-produit" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap">
-        ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2)))}" alt="${echapper(produit.name)}">` : ''}
+        ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2), formeCartes()))}" alt="${echapper(produit.name)}" loading="lazy" decoding="async">` : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
