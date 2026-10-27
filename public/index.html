@@ -872,7 +872,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3399,13 +3399,26 @@ function envoyerCommande() {
   };
   const echec = (erreur) => {
     console.error('Erreur lors de la création de la commande :', erreur);
-    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.</div>`;
+    // V5.8 : petit code à la fin du message (ex. « code 503 ») pour savoir
+    // d'où vient le problème quand une cliente envoie une capture.
+    const code = (erreur && erreur.codeServeur) ? ` (code ${Number(erreur.codeServeur)})` : '';
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.${code}</div>`;
     boutonValider.disabled = false;
     boutonValider.textContent = 'Confirmer la commande';
   };
+  // V5.8 : SECOURS remis en place. Si le Worker ne peut pas enregistrer la
+  // commande (clé Firebase absente ou refusée : 503 ; adresse inconnue :
+  // 404/405 ; panne : 500), la page enregistre le colis elle-même, comme
+  // avant la V5.7, pour ne jamais bloquer les ventes. À retirer seulement
+  // quand le Worker aura enregistré de vraies commandes sans erreur.
+  const envoiDirect = (codeServeur) => db.collection('shipments')
+    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + nouveauColis.address).slice(0, 500) })
+    .then(reussite)
+    .catch((e) => echec({ codeServeur, cause: e }));
+
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
   // vérifie le stock et crée le colis en une seule opération, 24 h/24.
-  // V5.7 : c'est le SEUL chemin (le site n'écrit plus dans Firestore), et
+  // V5.7 : chemin principal (V5.8 : secours direct si le Worker échoue), et
   // il est protégé par Turnstile (jeton joint à la commande).
   obtenirJetonTurnstile()
     .then((jetonTurnstile) => {
@@ -3448,7 +3461,11 @@ function envoyerCommande() {
         boutonValider.textContent = 'Confirmer la commande';
         return;
       }
-      echec('Réponse du serveur : ' + reponse.status);
+      if ([503, 404, 405, 500].includes(reponse.status)) {
+        console.warn('Worker indisponible (' + reponse.status + ', ' + (donnees.erreur || '?') + ') : envoi direct.');
+        return envoiDirect(reponse.status);
+      }
+      echec({ codeServeur: reponse.status });
     })
     .catch(echec);
 }
