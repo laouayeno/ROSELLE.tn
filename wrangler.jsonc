@@ -23,8 +23,12 @@
   // - par numéro de téléphone : 3 commandes par minute.
   "ratelimits": [
     { "name": "LIMITE_COMMANDES", "namespace_id": "2901", "simple": { "limit": 20, "period": 60 } },
-    { "name": "LIMITE_TELEPHONE", "namespace_id": "2902", "simple": { "limit": 3, "period": 60 } }
+    { "name": "LIMITE_TELEPHONE", "namespace_id": "2902", "simple": { "limit": 3, "period": 60 } },
+    // V5.7 : statistiques de visite, 300 événements par minute et par connexion
+    // (large : beaucoup de clientes partagent la même adresse chez l'opérateur).
+    { "name": "LIMITE_STATS", "namespace_id": "2903", "simple": { "limit": 300, "period": 60 } }
   ]
-  // Clé secrète FIREBASE_SA : ajoutée à la main dans Cloudflare
-  // (Workers > rosellestore > Paramètres > Variables et secrets), jamais ici.
+  // Clés secrètes FIREBASE_SA, TURNSTILE_SECRET et TURNSTILE_SITE_KEY : ajoutées
+  // à la main dans Cloudflare (Workers > rosellestore > Paramètres > Variables
+  // et secrets), jamais ici.
 }

@@ -14,10 +14,16 @@
    ce code : Cloudflare les sert directement depuis le dossier public/
    (voir "run_worker_first" dans wrangler.jsonc).
 
-   Clé secrète : la « clé de service » Firebase (fichier JSON) est rangée
-   dans Cloudflare sous le nom FIREBASE_SA. Elle n'est JAMAIS dans ce code.
-   Sans elle, le Worker répond 503 et le site enregistre la commande
-   comme avant (directement dans Firestore).
+   V5.7 : le site n'utilise plus reCAPTCHA. Il lit toujours le stock en
+   direct dans Firestore (lecture publique), mais il n'y ÉCRIT plus rien :
+   commandes (/api/commande, protégées par Turnstile) et statistiques
+   (/api/stats) passent toutes par ce Worker. /api/config donne la clé
+   publique Turnstile.
+
+   Clés secrètes, rangées dans Cloudflare (jamais dans ce code) :
+     - FIREBASE_SA      : « clé de service » Firebase (fichier JSON) ;
+     - TURNSTILE_SECRET : clé secrète Turnstile (sans elle, pas de contrôle) ;
+     - TURNSTILE_SITE_KEY : clé publique Turnstile (donnée à la page).
    ============================================================ */
 
 const PROJET = 'roselle-stock';
@@ -38,6 +44,15 @@ export default {
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env);
+    }
+    // V5.7 : statistiques de visite (le site n'écrit plus directement dans Firestore).
+    if (url.pathname === '/api/stats') {
+      if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
+      return traiterStats(requete, env);
+    }
+    // V5.7 : réglages publics utiles au site (clé PUBLIQUE Turnstile).
+    if (url.pathname === '/api/config') {
+      return json({ ok: true, turnstile: env.TURNSTILE_SITE_KEY || null });
     }
     // Toute autre adresse : le site lui-même (sécurité si la config change).
     if (env.ASSETS) return env.ASSETS.fetch(requete);
@@ -72,6 +87,13 @@ async function traiterCommande(requete, env) {
   if (env.LIMITE_TELEPHONE) {
     const { success } = await env.LIMITE_TELEPHONE.limit({ key: 'tel:' + commande.phone });
     if (!success) return json({ ok: false, erreur: 'trop-de-commandes' }, 429);
+  }
+
+  // V5.7 : Turnstile (anti-robot gratuit de Cloudflare). Tant que la clé
+  // secrète TURNSTILE_SECRET n'est pas installée, on ne vérifie pas.
+  if (env.TURNSTILE_SECRET) {
+    const humain = await verifierTurnstile(corps.turnstile, env.TURNSTILE_SECRET, requete.headers.get('CF-Connecting-IP'));
+    if (!humain) return json({ ok: false, erreur: 'turnstile' }, 403);
   }
 
   let compte;
@@ -151,6 +173,98 @@ function fraisLivraison(reglages) {
   const livraison = depuisFirestore(champs.shipping || null);
   const n = livraison && livraison.fee !== undefined && livraison.fee !== null && livraison.fee !== '' ? Number(livraison.fee) : NaN;
   return Number.isFinite(n) && n >= 0 ? n : FRAIS_PAR_DEFAUT;
+}
+
+/* ---------- Turnstile (V5.7) ---------- */
+// Demande à Cloudflare si le jeton envoyé par la page est valable
+// (une vraie personne, pas un robot). Chaque jeton ne sert qu'une fois.
+async function verifierTurnstile(jetonPage, secret, ip) {
+  if (typeof jetonPage !== 'string' || !jetonPage || jetonPage.length > 2048) return false;
+  try {
+    const corps = new FormData();
+    corps.append('secret', secret);
+    corps.append('response', jetonPage);
+    if (ip) corps.append('remoteip', ip);
+    const reponse = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: corps });
+    const resultat = await reponse.json();
+    return resultat && resultat.success === true;
+  } catch (e) {
+    console.error('Turnstile injoignable :', e && e.message);
+    return false;
+  }
+}
+
+/* ---------- Statistiques de visite (V5.7) ----------
+   Avant, chaque visiteuse écrivait elle-même ses compteurs dans
+   siteStats (il fallait donc App Check / reCAPTCHA). Maintenant la page
+   envoie un petit « événement » ici, et c'est le Worker qui ajoute +1
+   dans le bon tiroir du jour (même format qu'avant : le tableau de bord
+   du Stock ne change pas). Les compteurs ne peuvent qu'augmenter de 1. */
+const SOURCES = ['instagram', 'facebook', 'tiktok', 'google', 'whatsapp', 'direct', 'autre'];
+const NB_TIROIRS = 50;
+
+async function traiterStats(requete, env) {
+  if (!env.FIREBASE_SA) return json({ ok: false, erreur: 'non-configure' }, 503);
+  if (env.LIMITE_STATS) {
+    const ip = requete.headers.get('CF-Connecting-IP') || 'inconnue';
+    const { success } = await env.LIMITE_STATS.limit({ key: 'stats:' + ip });
+    if (!success) return json({ ok: false, erreur: 'trop' }, 429);
+  }
+  let corps;
+  try {
+    corps = JSON.parse(await requete.text());
+  } catch (e) {
+    return json({ ok: false, erreur: 'invalide' }, 400);
+  }
+  const champs = champsStats(corps);
+  if (!champs) return json({ ok: false, erreur: 'invalide' }, 400);
+  const tiroir = Number.isInteger(corps.tiroir) && corps.tiroir >= 0 && corps.tiroir < NB_TIROIRS ? corps.tiroir : 0;
+  const docId = jourTunisie() + '_' + String(tiroir).padStart(2, '0');
+  try {
+    const jeton = await jetonGoogle(JSON.parse(env.FIREBASE_SA));
+    await appelFirestore(jeton, ':commit', {
+      writes: [{
+        update: { name: NOM_DOC('siteStats/' + docId), fields: {} },
+        updateMask: { fieldPaths: [] },
+        updateTransforms: champs.map(chemin => ({ fieldPath: chemin, increment: { integerValue: '1' } }))
+      }]
+    });
+    return json({ ok: true });
+  } catch (e) {
+    console.error('Erreur stats :', e && e.message);
+    return json({ ok: false, erreur: 'serveur' }, 500);
+  }
+}
+
+// Transforme un événement envoyé par la page en liste de compteurs à
+// augmenter. Tout ce qui ne correspond pas exactement est refusé (null).
+function champsStats(ev) {
+  if (!ev || typeof ev !== 'object') return null;
+  const idValide = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id);
+  const cle = id => '`' + id + '`'; // nom de champ « libre » (chiffres, tirets…)
+  switch (ev.e) {
+    case 'visite': {
+      if (typeof ev.heure !== 'string' || !/^([01][0-9]|2[0-3])$/.test(ev.heure)) return null;
+      const champs = ['sessions', 'hours.' + cle(ev.heure)];
+      if (ev.nouveauJour === true) {
+        champs.push('visitors');
+        if (ev.nouvelleVisiteuse === true) champs.push('newVisitors');
+        champs.push(ev.appareil === 'mobile' ? 'mobile' : 'desktop');
+        champs.push('src.' + cle(SOURCES.includes(ev.source) ? ev.source : 'autre'));
+      }
+      return champs;
+    }
+    case 'vue': return idValide(ev.id) ? ['productViews.' + cle(ev.id)] : null;
+    case 'panier': return idValide(ev.id) ? ['cartAdds.' + cle(ev.id)] : null;
+    case 'panierSession': return ['cartSessions'];
+    case 'commande': return ['checkouts'];
+    default: return null;
+  }
+}
+
+// Date du jour en Tunisie (AAAA-MM-JJ), comme le faisait le site.
+function jourTunisie() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tunis', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 /* ---------- Transaction Firestore ---------- */
