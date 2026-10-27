@@ -3,15 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elle روز — Prêt-à-porter féminin</title>
+<title>Elle روز (Roselle) — Vêtements femme en Tunisie</title>
 
-<!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte -->
+<!-- V5.9 : description affichée par Google sous le titre (français + anglais) -->
+<meta name="description" content="Elle روز (Roselle) : vêtements femme en Tunisie, paiement à la livraison. Women's clothing in Tunisia, cash on delivery. Boutique en ligne roselle site : rosellesite.com">
+
+<!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte.
+     V5.9 : chargées SANS bloquer l'affichage. La feuille est d'abord demandée
+     pour « print » (le navigateur ne l'attend pas), puis passe à « all » dès
+     qu'elle est arrivée. En attendant, le texte s'affiche avec la police du
+     téléphone, puis prend la bonne police (display=swap). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;800&family=Jost:wght@300;400&display=swap"></noscript>
 
-<!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<!-- SDK Firebase (version "compat", simple à utiliser sans outil de build).
+     V5.9 : on le TÉLÉCHARGE dès maintenant (en parallèle du reste), mais il
+     n'est EXÉCUTÉ qu'en bas de la page, juste avant le script principal :
+     la barre du haut et le message « Chargement… » s'affichent sans l'attendre. -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js">
+<link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js">
 
 <style>
   /* ===== Jetons de design (couleurs / typo) ===== */
@@ -799,7 +812,9 @@
   footer .signature-logo { display: block; height: 84px; width: auto; margin: 0 auto 14px; }
 
   /* ===== Chargement / erreurs globales ===== */
-  .chargement-page { text-align: center; padding: 100px 20px; color: var(--texte-doux); }
+  /* V5.9 : le message de chargement occupe toute la hauteur de l'écran, pour que
+     le pied de page reste en dessous et ne « saute » pas quand la boutique arrive */
+  .chargement-page { text-align: center; padding: 100px 20px; color: var(--texte-doux); min-height: 100vh; }
   .bandeau-erreur {
     background: #F4DEDA; color: var(--erreur); padding: 12px 16px; border-radius: 3px;
     font-size: 0.85rem; margin-bottom: 20px;
@@ -824,7 +839,7 @@
 
   <!-- Centre : logo complet « Elle (rose) روز » avec ses ramages (une seule image) -->
   <div class="logo-zone" onclick="naviguerVers('accueil')">
-    <img src="logo-nom.png" alt="Elle روز" id="logo-entete" class="logo-nom">
+    <img src="logo-nom.png" width="750" height="358" alt="Elle روز" id="logo-entete" class="logo-nom">
   </div>
 
   <!-- Droite : recherche + panier -->
@@ -866,16 +881,21 @@
 
 <footer>
   <!-- Même logo dessiné qu'en haut de page -->
-  <img src="logo-nom.png" alt="Elle روز" id="signature-pied" class="signature-logo">
+  <img src="logo-nom.png" width="750" height="358" alt="Elle روز" id="signature-pied" class="signature-logo">
   <!-- Rempli par mettreAJourEnteteEtPied() : réseaux sociaux saisis dans le dashboard + lien Contact -->
   <div class="liens-sociaux" id="liens-sociaux-pied">
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
+
+<!-- SDK Firebase (déjà téléchargé grâce aux « preload » du haut de page).
+     Doit rester AVANT le script principal, qui l'utilise tout de suite. -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
 <script>
 /* ============================================================
@@ -1859,7 +1879,10 @@ function mettreAJourEnteteEtPied() {
   document.getElementById('logo-entete').setAttribute('alt', nom);
   document.getElementById('signature-pied').setAttribute('alt', nom);
   document.getElementById('marque-copyright').textContent = nom;
-  document.title = nom + ' — Prêt-à-porter féminin';
+  // V5.9 : titre de l'onglet et de Google, avec « Roselle » pour être trouvé
+  // aussi par ce nom (sauf si le nom de la marque le contient déjà)
+  const nomRecherche = /roselle/i.test(nom) ? nom : nom + ' (Roselle)';
+  document.title = nomRecherche + ' — Vêtements femme en Tunisie';
 
   // Réseaux sociaux : uniquement ceux réellement renseignés (plus de faux liens)
   const contact = etat.reglages.contact || {};
@@ -2077,7 +2100,7 @@ function domeAccueilHTML(nom) {
         ${branche}
         ${feuilles.join('')}
       </svg>
-      <img src="logo-nom.png" alt="${echapper(nom)}" onclick="naviguerVers('accueil')">
+      <img src="logo-nom.png" width="750" height="358" alt="${echapper(nom)}" onclick="naviguerVers('accueil')">
     </div>`;
 }
 
