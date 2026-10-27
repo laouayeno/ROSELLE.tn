@@ -12,7 +12,6 @@
 <!-- SDK Firebase (version "compat", simple à utiliser sans outil de build) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 
 <style>
   /* ===== Jetons de design (couleurs / typo) ===== */
@@ -873,7 +872,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V5.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -897,32 +896,24 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 /* ============================================================
-   APP CHECK — protection anti-robot (reCAPTCHA Enterprise)
-   Doit être activé avant tout appel à Firestore. Fonctionne
-   pour l'instant en mode "surveillance" côté Firebase (pas
-   encore d'exécution stricte tant que les deux sites n'envoient
-   pas leurs jetons) — voir Firebase Console → App Check.
-
-   Clé reCAPTCHA : on utilise ici l'ANCIENNE clé (déjà en
-   "Protection active" en production), et non la clé créée
-   spécialement pour Cloudflare — celle-ci provoquait une erreur
-   persistante "appCheck/recaptcha-error" malgré une config
-   correcte. L'ancienne clé a été étendue côté Google Cloud pour
-   couvrir aussi les domaines Cloudflare (rosellestock.roselle-tn.workers.dev
-   et rosellestore.roselle-tn.workers.dev), en plus des anciens
-   domaines Netlify — rien à changer côté Google Cloud pour ce site.
+   V5.7 : PLUS DE reCAPTCHA (APP CHECK) SUR LE SITE DE VENTE
+   Le site LIT seulement le catalogue et l'apparence en direct
+   (lecture publique autorisée par les règles Firestore), sans
+   vérification reCAPTCHA payante à chaque visiteuse.
+   Il n'ÉCRIT plus rien dans Firestore : commandes et statistiques
+   passent par le Worker Cloudflare (/api/commande, /api/stats),
+   qui seul a la clé d'écriture. Les commandes sont protégées par
+   Turnstile (anti-robot gratuit de Cloudflare) et des limites.
+   App Check reste utilisé par ROSELLE Stock.
    ============================================================ */
-const appCheck = firebase.appCheck();
-appCheck.activate(
-  new firebase.appCheck.ReCaptchaEnterpriseProvider('6LdkY8QtAAAAAJeA4rEReOk2V4owY1yUrqa-W6XE'),
-  true // rafraîchissement automatique du jeton
-);
-
 const db = firebase.firestore();
 
 /* ============================================================
    STATISTIQUES DE VISITE (anonymes) — collection Firestore siteStats
    ------------------------------------------------------------
+   V5.7 : la page n'écrit plus elle-même dans Firestore. Elle envoie
+   un petit « événement » au Worker (/api/stats), qui ajoute +1 dans
+   le bon tiroir. Le format des documents ne change pas.
    Chaque jour est découpé en 50 petits documents « tiroirs »
    (ex. siteStats/2026-10-11_07). Chaque visiteuse écrit toujours
    dans le même tiroir, tiré au hasard à son arrivée : ainsi, pendant
@@ -940,7 +931,6 @@ const db = firebase.firestore();
    avec ?nostats=1 à la fin de l'adresse (?nostats=0 pour annuler).
    ============================================================ */
 const suivi = (() => {
-  const inc = () => firebase.firestore.FieldValue.increment(1);
   const lire = (stockage, cle) => { try { return stockage.getItem(cle); } catch (e) { return null; } };
   const ecrire = (stockage, cle, valeur) => { try { stockage.setItem(cle, valeur); } catch (e) {} };
 
@@ -974,9 +964,18 @@ const suivi = (() => {
     return String(n).padStart(2, '0');
   }
 
-  function envoyer(donnees) {
+  // V5.7 : envoi d'un événement au Worker. « keepalive » : l'envoi
+  // continue même si la cliente change de page ou ferme l'onglet.
+  function envoyer(evenement) {
     if (!actif) return;
-    try { db.collection('siteStats').doc(jour() + '_' + tiroir()).set(donnees, { merge: true }).catch(() => {}); } catch (e) {}
+    try {
+      fetch('/api/stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ ...evenement, tiroir: parseInt(tiroir(), 10) }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   // Provenance : paramètre utm_source, sinon site précédent, sinon navigateur intégré d'une appli
@@ -1002,16 +1001,16 @@ const suivi = (() => {
     if (lire(sessionStorage, 'roselle_session')) return;
     ecrire(sessionStorage, 'roselle_session', '1');
     const aujourdhui = jour();
-    const donnees = { sessions: inc(), hours: { [heure()]: inc() } };
+    const evenement = { e: 'visite', heure: heure() };
     if (lire(localStorage, 'roselle_dernier_jour') !== aujourdhui) {
-      donnees.visitors = inc();
-      if (!lire(localStorage, 'roselle_deja_venue')) donnees.newVisitors = inc();
-      donnees[/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? 'mobile' : 'desktop'] = inc();
-      donnees.src = { [provenance()]: inc() };
+      evenement.nouveauJour = true;
+      evenement.nouvelleVisiteuse = !lire(localStorage, 'roselle_deja_venue');
+      evenement.appareil = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? 'mobile' : 'desktop';
+      evenement.source = provenance();
       ecrire(localStorage, 'roselle_dernier_jour', aujourdhui);
       ecrire(localStorage, 'roselle_deja_venue', '1');
     }
-    envoyer(donnees);
+    envoyer(evenement);
   }
 
   // Une seule fois par session et par clé (évite de compter 10 fois la même fiche)
@@ -1028,13 +1027,13 @@ const suivi = (() => {
 
   return {
     visite: compterVisite,
-    vueArticle(id) { if (idValide(id) && premiereFois('v:' + id)) envoyer({ productViews: { [id]: inc() } }); },
+    vueArticle(id) { if (idValide(id) && premiereFois('v:' + id)) envoyer({ e: 'vue', id }); },
     ajoutPanier(id) {
       if (!idValide(id)) return;
-      if (premiereFois('p:' + id)) envoyer({ cartAdds: { [id]: inc() } });
-      if (premiereFois('panier')) envoyer({ cartSessions: inc() });
+      if (premiereFois('p:' + id)) envoyer({ e: 'panier', id });
+      if (premiereFois('panier')) envoyer({ e: 'panierSession' });
     },
-    passageCommande() { if (premiereFois('commande')) envoyer({ checkouts: inc() }); }
+    passageCommande() { if (premiereFois('commande')) envoyer({ e: 'commande' }); }
   };
 })();
 
@@ -3186,6 +3185,8 @@ function vueCommande() {
           </div>
         </div>
 
+        <!-- V5.7 : vérification anti-robot Turnstile (invisible, sauf si Cloudflare a un doute) -->
+        <div id="zone-turnstile" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
         <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
         <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
         <!-- Ouvre le panier pour retirer ou changer un article avant de commander
@@ -3217,6 +3218,80 @@ function initialiserFormulaireCommande() {
     evenement.preventDefault();
     envoyerCommande();
   });
+  preparerTurnstile(); // V5.7
+}
+
+/* ============================================================
+   V5.7 : TURNSTILE — ANTI-ROBOT GRATUIT DE CLOUDFLARE
+   Remplace reCAPTCHA pour les commandes. Invisible pour la cliente
+   (une case à cocher n'apparaît que si Cloudflare a un doute).
+   La clé PUBLIQUE est donnée par le Worker (/api/config) : tant
+   qu'elle n'est pas installée dans Cloudflare, rien n'est affiché
+   et la commande part sans jeton (le Worker ne vérifie pas non plus).
+   Chaque jeton ne sert qu'une seule fois.
+   ============================================================ */
+const turnstileEtat = { cle: undefined, script: null, widget: null, jeton: '', enAttente: [] };
+
+function chargerCleTurnstile() {
+  if (turnstileEtat.cle !== undefined) return Promise.resolve(turnstileEtat.cle);
+  return fetch('/api/config')
+    .then(r => r.json())
+    .then(d => { turnstileEtat.cle = d && typeof d.turnstile === 'string' && d.turnstile ? d.turnstile : null; return turnstileEtat.cle; })
+    .catch(() => null); // réseau coupé : on réessaiera à la prochaine ouverture du formulaire
+}
+
+function chargerScriptTurnstile() {
+  if (!turnstileEtat.script) {
+    turnstileEtat.script = new Promise((ok, ko) => {
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.onload = () => ok();
+      s.onerror = () => { turnstileEtat.script = null; ko(new Error('Turnstile indisponible')); };
+      document.head.appendChild(s);
+    });
+  }
+  return turnstileEtat.script;
+}
+
+function preparerTurnstile() {
+  chargerCleTurnstile().then(cle => {
+    if (!cle) return;
+    return chargerScriptTurnstile().then(() => {
+      const zone = document.getElementById('zone-turnstile');
+      if (!zone || !window.turnstile || zone.childElementCount) return;
+      turnstileEtat.jeton = '';
+      turnstileEtat.widget = window.turnstile.render(zone, {
+        sitekey: cle,
+        appearance: 'interaction-only',
+        callback: (jeton) => {
+          turnstileEtat.jeton = jeton;
+          turnstileEtat.enAttente.splice(0).forEach(f => f(jeton));
+        },
+        'expired-callback': () => { turnstileEtat.jeton = ''; },
+        'error-callback': () => { turnstileEtat.jeton = ''; }
+      });
+    });
+  }).catch(e => console.warn(e && e.message));
+}
+
+// Renvoie (promesse) le jeton à joindre à la commande : '' si Turnstile
+// n'est pas installé ; null si la vérification n'a pas abouti à temps.
+function obtenirJetonTurnstile() {
+  return chargerCleTurnstile().then(cle => {
+    if (!cle) return '';
+    if (turnstileEtat.jeton) return turnstileEtat.jeton;
+    return new Promise(ok => {
+      turnstileEtat.enAttente.push(ok);
+      setTimeout(() => ok(turnstileEtat.jeton || null), 20000);
+    });
+  });
+}
+
+// Après un envoi (réussi ou non), le jeton est usé : on en redemande un.
+function relancerTurnstile() {
+  turnstileEtat.jeton = '';
+  try { if (window.turnstile && turnstileEtat.widget !== null) window.turnstile.reset(turnstileEtat.widget); } catch (e) {}
 }
 
 // Compare les quantités demandées (regroupées par article + variante)
@@ -3328,24 +3403,24 @@ function envoyerCommande() {
     boutonValider.disabled = false;
     boutonValider.textContent = 'Confirmer la commande';
   };
-  // Ancienne méthode : écriture directe dans Firestore (sans vérification du stock côté serveur).
-  // Les règles Firestore n'acceptent pas de champ « gouvernorat » : on écrit alors son nom au
-  // début de l'adresse (ex. « Sfax — Rue … »), et le Stock le retrouve tout seul (V2.35).
-  const envoiDirect = () => db.collection('shipments')
-    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + nouveauColis.address).slice(0, 500) })
-    .then(reussite).catch(echec);
-
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
   // vérifie le stock et crée le colis en une seule opération, 24 h/24.
-  // Si le Worker n'est pas encore installé (pas de clé : réponse 503, ou
-  // adresse inconnue : 404/405), on garde l'ancienne méthode pour ne
-  // jamais bloquer les ventes.
-  fetch('/api/commande', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...nouveauColis, gouvernorat }) // V2.35 : le Worker l'ajoute au colis
-  })
+  // V5.7 : c'est le SEUL chemin (le site n'écrit plus dans Firestore), et
+  // il est protégé par Turnstile (jeton joint à la commande).
+  obtenirJetonTurnstile()
+    .then((jetonTurnstile) => {
+      if (jetonTurnstile === null) {
+        relancerTurnstile();
+        throw new Error('turnstile-delai');
+      }
+      return fetch('/api/commande', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...nouveauColis, gouvernorat, turnstile: jetonTurnstile }) // V2.35 : le Worker ajoute le gouvernorat au colis
+      });
+    })
     .then(async (reponse) => {
+      relancerTurnstile(); // jeton usé
       const donnees = await reponse.json().catch(() => ({}));
       if (reponse.ok && donnees.ok) return reussite();
       if (reponse.status === 409 && Array.isArray(donnees.manquants)) {
@@ -3359,7 +3434,13 @@ function envoyerCommande() {
         }));
         return;
       }
-      if (reponse.status === 503 || reponse.status === 404 || reponse.status === 405) return envoiDirect();
+      if (reponse.status === 403 && donnees.erreur === 'turnstile') {
+        // V5.7 : la vérification anti-robot n'a pas abouti
+        bandeauErreur.innerHTML = `<div class="bandeau-erreur">La vérification de sécurité n'a pas abouti. Merci de réessayer.</div>`;
+        boutonValider.disabled = false;
+        boutonValider.textContent = 'Confirmer la commande';
+        return;
+      }
       if (reponse.status === 429) {
         // V2.29 : trop de commandes envoyées en peu de temps depuis la même connexion
         bandeauErreur.innerHTML = `<div class="bandeau-erreur">Beaucoup de commandes viennent d'être envoyées depuis votre connexion. Merci de patienter une minute puis de réessayer.</div>`;
