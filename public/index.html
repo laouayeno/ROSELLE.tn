@@ -887,7 +887,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1241,6 +1241,8 @@ function urlSure(url, secours) {
      - cartes en arche de l'accueil : la photo est découpée chez Cloudinary
        à la forme exacte de la carte (voir photoOptimisee), donc nette. */
 const REGLAGE_PHOTO = 'f_auto,q_auto:';
+// V6.3 : compte Cloudinary dont les photos passent par le relais /img/ du Worker
+const CLOUD_PHOTOS = 'vmmsu4z6';
 // Écran plus étroit que ça = téléphone (même seuil que la fiche produit)
 const LARGEUR_TELEPHONE = 780;
 const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
@@ -1257,13 +1259,11 @@ function photoOptimisee(url, largeurAffichee, forme) {
   // Rien n'est affiché plus large que l'écran : on ne demande jamais plus grand
   const ecran = window.innerWidth || 400;
   const points = largeurAffichee === 'ecran' ? ecran : Math.min(largeurAffichee, ecran);
-  // V5.6 : téléphone = qualité « good » et 2 pixels par point au maximum ; PC inchangé
-  const telephone = ecran < LARGEUR_TELEPHONE;
-  const qualite = telephone ? 'good' : 'best';
-  // Écrans « Retina » : 2 ou 3 pixels par point (on s'arrête à 3, ou à 2 sur téléphone).
-  // Exception : les cadres découpés (cartes en arche de l'accueil) gardent 3 pixels
-  // par point, pour que les photos de l'accueil soient bien nettes sur iPhone.
-  const maxPixelsParPoint = telephone && !forme ? 2 : 3;
+  // V6.3 : qualité maximale partout (téléphone et PC), jusqu'à 3 pixels par point
+  // sur les écrans « Retina ». Le trafic ne coûte plus rien chez Cloudinary :
+  // les photos passent par la mémoire de Cloudflare (voir /img/ ci-dessous).
+  const qualite = 'best';
+  const maxPixelsParPoint = 3;
   const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), maxPixelsParPoint);
   // Arrondi au-dessus par paliers de 200 px (moins de copies différentes), maximum 2400 px
   const largeur = Math.min(2400, Math.ceil(pixels / 200) * 200);
@@ -1271,7 +1271,13 @@ function photoOptimisee(url, largeurAffichee, forme) {
   const decoupe = forme && /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(forme)
     ? 'c_lfill,ar_' + forme + ',g_center'
     : 'c_limit';
-  return m[1] + REGLAGE_PHOTO + qualite + ',' + decoupe + ',w_' + largeur + '/' + m[2];
+  const reglage = REGLAGE_PHOTO + qualite + ',' + decoupe + ',w_' + largeur;
+  // V6.3 : photos de notre compte Cloudinary servies par notre Worker (/img/...),
+  // qui les garde en mémoire chez Cloudflare. Autre compte : adresse directe.
+  if (m[1].toLowerCase() === 'https://res.cloudinary.com/' + CLOUD_PHOTOS + '/image/upload/') {
+    return '/img/' + reglage + '/' + m[2];
+  }
+  return m[1] + reglage + '/' + m[2];
 }
 
 function videoOptimisee(url) {
@@ -1295,7 +1301,10 @@ document.addEventListener('error', (e) => {
   const el = e.target;
   if (!el || !el.getAttribute) return;
   const src = el.getAttribute('src') || '';
-  if (src.indexOf('/upload/' + REGLAGE_PHOTO) !== -1) {
+  if (src.indexOf('/img/') === 0) {
+    // V6.3 : relais Cloudflare en panne -> même photo demandée directement à Cloudinary
+    el.setAttribute('src', 'https://res.cloudinary.com/' + CLOUD_PHOTOS + '/image/upload/' + src.slice('/img/'.length));
+  } else if (src.indexOf('/upload/' + REGLAGE_PHOTO) !== -1) {
     el.setAttribute('src', src.replace(/\/upload\/f_auto,q_auto:[^/]+\//, '/upload/'));
   } else if (src.indexOf('/upload/' + REGLAGE_VIDEO + '/') !== -1) {
     el.setAttribute('src', src.replace('/upload/' + REGLAGE_VIDEO + '/', '/upload/'));

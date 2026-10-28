@@ -39,8 +39,10 @@ const ESSAIS_TRANSACTION = 5;
 const FRAIS_PAR_DEFAUT = 8;
 
 export default {
-  async fetch(requete, env) {
+  async fetch(requete, env, ctx) {
     const url = new URL(requete.url);
+    // V6.3 : photos des articles, servies depuis la mémoire de Cloudflare
+    if (url.pathname.startsWith('/img/')) return servirPhoto(requete, url, ctx);
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env);
@@ -472,4 +474,65 @@ function json(objet, statut = 200) {
     status: statut,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
   });
+}
+
+/* ---------- V6.3 : relais des photos Cloudinary ----------
+   Le site demande ses photos à /img/<réglage>/<fichier> au lieu de
+   res.cloudinary.com. Ce Worker :
+     1. vérifie que le réglage fait partie de ceux du site (personne ne peut
+        s'en servir pour fabriquer des milliers de copies chez Cloudinary) ;
+     2. cherche la photo dans la mémoire (cache) de Cloudflare ;
+     3. sinon la demande UNE fois à Cloudinary et la garde 1 an.
+   Résultat : Cloudinary n'envoie chaque photo qu'une fois par centre
+   Cloudflare, au lieu d'une fois par visiteuse (trafic Cloudinary ≈ 0). */
+const CLOUD_PHOTOS = 'vmmsu4z6';
+// Exactement les réglages fabriqués par photoOptimisee() dans public/index.html
+const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_1:2\.8,g_center),w_(\d{3,4})$/;
+// Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
+const FICHIER_PHOTO_PERMIS = /^(v\d+\/)?[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*(\.(jpe?g|png|webp|gif|avif|heic))?$/i;
+
+async function servirPhoto(requete, url, ctx) {
+  if (requete.method !== 'GET' && requete.method !== 'HEAD') {
+    return new Response('Méthode refusée', { status: 405 });
+  }
+  const reste = url.pathname.slice('/img/'.length);
+  const coupure = reste.indexOf('/');
+  const reglage = coupure > 0 ? reste.slice(0, coupure) : '';
+  const fichier = coupure > 0 ? reste.slice(coupure + 1) : '';
+  const verif = reglage.match(REGLAGE_PHOTO_PERMIS);
+  const largeur = verif ? Number(verif[3]) : 0;
+  // Largeurs du site : paliers de 200 px, de 200 à 2400
+  if (!verif || largeur < 200 || largeur > 2400 || largeur % 200 !== 0 || !FICHIER_PHOTO_PERMIS.test(fichier)) {
+    return new Response('Photo introuvable', { status: 404 });
+  }
+
+  // Format choisi selon le navigateur (comme f_auto) : AVIF, sinon WebP, sinon JPEG.
+  // Le format fait partie de l'adresse gardée en mémoire : un vieux téléphone
+  // ne reçoit jamais une photo AVIF qu'il ne sait pas lire.
+  const accepte = requete.headers.get('Accept') || '';
+  const format = accepte.includes('image/avif') ? 'f_avif' : accepte.includes('image/webp') ? 'f_webp' : 'f_jpg';
+  const reglageFinal = reglage.replace('f_auto', format);
+  const cle = new Request(`${url.origin}/img/${reglageFinal}/${fichier}`, { method: 'GET' });
+
+  const cache = caches.default;
+  const enMemoire = await cache.match(cle);
+  if (enMemoire) return enMemoire;
+
+  const origine = await fetch(`https://res.cloudinary.com/${CLOUD_PHOTOS}/image/upload/${reglageFinal}/${fichier}`);
+  if (!origine.ok) {
+    // Erreur Cloudinary : rien n'est gardé, le site rechargera la photo directement
+    return new Response('Photo indisponible', { status: origine.status === 404 ? 404 : 502, headers: { 'Cache-Control': 'no-store' } });
+  }
+  const reponse = new Response(origine.body, {
+    status: 200,
+    headers: {
+      'Content-Type': origine.headers.get('Content-Type') || 'image/jpeg',
+      // Une adresse Cloudinary ne change jamais de contenu : 1 an dans le téléphone aussi
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Vary': 'Accept',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+  ctx.waitUntil(cache.put(cle, reponse.clone()));
+  return reponse;
 }
