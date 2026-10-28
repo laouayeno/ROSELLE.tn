@@ -1183,7 +1183,11 @@ const REGLAGES_PAR_DEFAUT = {
   brand: { name: 'Elle روز', logoUrl: 'logo.jpg' },
   hero: {
     type: 'video',
-    mediaUrl: 'hero.mp4',
+    // V5.9 : 2 vidéos d'accueil. mediaUrl = en hauteur (téléphone),
+    // mediaUrlPc = en largeur (PC, tablette couchée). Fichiers dans public/, servis
+    // par Cloudflare (trafic gratuit). TEST TEMPORAIRE avec une vidéo d'exemple.
+    mediaUrl: 'hero-test-telephone.mp4',
+    mediaUrlPc: 'hero-test-pc.mp4',
     posterUrl: 'logo.jpg',
     text: 'Une collection pensée avec féminité, élégance et confiance.',
     buttonLabel: 'Découvrir la collection',
@@ -2007,7 +2011,9 @@ function heroAccueil() {
   const brut = etat.reglages.hero || {};
   const mediaPerso = urlSure(brut.mediaUrl, '');
   const type = mediaPerso ? (brut.type === 'image' ? 'image' : 'video') : 'video';
-  const media = mediaPerso || REGLAGES_PAR_DEFAUT.hero.mediaUrl;
+  // V5.9 : sans vidéo choisie dans Apparence, écran plus large que haut (PC) = vidéo en largeur
+  const ecranLarge = (window.innerWidth || 0) > (window.innerHeight || 0);
+  const media = mediaPerso || (ecranLarge ? REGLAGES_PAR_DEFAUT.hero.mediaUrlPc : REGLAGES_PAR_DEFAUT.hero.mediaUrl);
   const affiche = urlSure(brut.posterUrl, '') || reglageUrl('brand', 'logoUrl');
   const nom = reglageTexte('brand', 'name');
   const texte = reglageTexte('hero', 'text');
