@@ -703,10 +703,15 @@
     color: var(--texte-doux);
   }
   .swatch-couleur .rond-couleur {
-    display: block; width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+    display: block; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; padding: 2px;
     border: 2px solid transparent;
   }
-  .swatch-couleur img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .swatch-couleur img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  /* Couleur unie : un fin cercle gris pour que le blanc / crème reste visible */
+  .swatch-couleur .fond-couleur {
+    display: block; width: 100%; height: 100%; border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
   /* Nom de la couleur : petit, centré, peut passer sur 2 lignes (ex. « vert bouteille ») */
   .swatch-couleur .nom-pastille {
     font-size: 0.72rem; line-height: 1.2; text-align: center;
@@ -1778,6 +1783,84 @@ function photoParDefaut(produit) {
 // Retourne la liste des photos d'une variante : utilise le nouveau champ
 // "photos" (tableau) s'il existe, sinon replie sur l'ancien champ "photo" (unique)
 // pour rester compatible avec les produits déjà existants.
+/* ============================================================
+   V6.4 : COULEUR UNIE DES PASTILLES, D'APRÈS LE NOM DE LA COULEUR
+   ------------------------------------------------------------
+   La pastille montre un rond de couleur unie (comme les autres
+   boutiques) au lieu de la photo. La couleur est devinée à partir
+   du nom écrit dans le Stock (ex. « Vert bouteille » → vert foncé).
+   Si le nom n'est pas dans la liste, on garde la photo comme avant.
+   Les codes viennent UNIQUEMENT de cette liste (jamais du texte
+   saisi), donc rien de dangereux ne peut être inséré dans la page.
+   Les noms de plusieurs mots sont testés AVANT les mots simples
+   (« vert bouteille » avant « vert »).
+   ============================================================ */
+const COULEURS_PASTILLES = [
+  // --- Noms de plusieurs mots (à tester en premier) ---
+  ['vert bouteille', '#1F4A3A'], ['vert sapin', '#1E4D3B'], ['vert emeraude', '#1C7A55'],
+  ['vert olive', '#6B6B2E'], ['vert kaki', '#7A7346'], ['vert menthe', '#A8DCC5'],
+  ['vert pistache', '#B5CF8A'], ['vert eau', '#B8E0D2'], ['vert d\'eau', '#B8E0D2'],
+  ['vert clair', '#9ACD8A'], ['vert fonce', '#2E5A3A'], ['vert pomme', '#8CC63F'],
+  ['bleu ciel', '#87BEDC'], ['bleu marine', '#1F2A4A'], ['bleu nuit', '#1B2440'],
+  ['bleu roi', '#2747A8'], ['bleu canard', '#1F6E78'], ['bleu petrole', '#1E5260'],
+  ['bleu jean', '#4A6A8C'], ['bleu clair', '#A9CBE6'], ['bleu fonce', '#1F3A66'],
+  ['bleu pastel', '#B9D3EE'], ['bleu gris', '#7D8FA3'], ['bleu turquoise', '#30B5B0'],
+  ['rose poudre', '#E8C4C4'], ['rose pale', '#F2D3D8'], ['rose clair', '#F4C6D2'],
+  ['rose fonce', '#C2477A'], ['rose fushia', '#D1287A'], ['rose fuchsia', '#D1287A'],
+  ['rose bonbon', '#F49AC1'], ['vieux rose', '#C48A93'], ['rose nude', '#E2B8A8'],
+  ['gris clair', '#C9C9C9'], ['gris fonce', '#555555'], ['gris perle', '#D3D3D0'],
+  ['gris anthracite', '#3B3E42'], ['gris chine', '#A6A6A6'],
+  ['beige clair', '#EDE3D1'], ['beige fonce', '#C2A982'],
+  ['marron clair', '#A87B55'], ['marron fonce', '#3F2416'], ['marron glace', '#8A6A55'],
+  ['jaune moutarde', '#C99A1E'], ['jaune pale', '#F6E7A1'], ['jaune clair', '#F7E58A'],
+  ['rouge brique', '#A8452F'], ['rouge bordeaux', '#6D1A2A'], ['rouge vif', '#D2232A'],
+  ['blanc casse', '#F3EEE3'], ['off white', '#F3EEE3'], ['bois de rose', '#B5737A'],
+  ['lie de vin', '#6B2A3A'], ['coquille d\'oeuf', '#F1E9D8'], ['vert militaire', '#4B5320'],
+  // --- Mots simples ---
+  ['noir', '#111111'], ['black', '#111111'], ['blanc', '#FFFFFF'], ['white', '#FFFFFF'],
+  ['ecru', '#EFE6D2'], ['creme', '#F2EAD8'], ['ivoire', '#F6F0E1'], ['beige', '#D9C7A7'],
+  ['grege', '#CFC5B4'], ['sable', '#D8C3A0'], ['nude', '#E3C0A8'], ['taupe', '#8B7D72'],
+  ['camel', '#C19A6B'], ['caramel', '#B5773A'], ['cognac', '#9A4E22'], ['chocolat', '#4A2A1A'],
+  ['marron', '#5A3220'], ['brun', '#5A3825'], ['brown', '#5A3220'], ['moka', '#6F4E37'],
+  ['gris', '#8E8E8E'], ['grey', '#8E8E8E'], ['gray', '#8E8E8E'], ['anthracite', '#3B3E42'],
+  ['argent', '#C0C0C0'], ['silver', '#C0C0C0'], ['dore', '#C9A64B'], ['or', '#C9A64B'], ['gold', '#C9A64B'],
+  ['rouge', '#C8202B'], ['red', '#C8202B'], ['bordeaux', '#6D1A2A'], ['grenat', '#7B1E2B'],
+  ['framboise', '#B3264F'], ['cerise', '#B0182F'], ['corail', '#F07A63'], ['saumon', '#F2A08A'],
+  ['peche', '#F6C1A3'], ['orange', '#E8782A'], ['brique', '#A8452F'], ['rouille', '#A2502A'],
+  ['terracotta', '#C0603E'], ['jaune', '#F2CC2E'], ['yellow', '#F2CC2E'], ['moutarde', '#C99A1E'],
+  ['vert', '#3E8A4F'], ['green', '#3E8A4F'], ['kaki', '#7A7346'], ['khaki', '#7A7346'],
+  ['olive', '#6B6B2E'], ['menthe', '#A8DCC5'], ['emeraude', '#1C7A55'], ['sauge', '#9CAF94'],
+  ['pistache', '#B5CF8A'], ['turquoise', '#30B5B0'], ['bleu', '#2F5FA8'], ['blue', '#2F5FA8'],
+  ['marine', '#1F2A4A'], ['navy', '#1F2A4A'], ['ciel', '#87BEDC'], ['indigo', '#33326B'],
+  ['jean', '#4A6A8C'], ['denim', '#4A6A8C'], ['petrole', '#1E5260'], ['canard', '#1F6E78'],
+  ['rose', '#E58FAE'], ['pink', '#E58FAE'], ['fushia', '#D1287A'], ['fuchsia', '#D1287A'],
+  ['magenta', '#C2187A'], ['poudre', '#E8C4C4'], ['mauve', '#B784A7'], ['lilas', '#C8A2C8'],
+  ['lavande', '#B4A7D6'], ['violet', '#6A3D8F'], ['prune', '#5E2750'], ['aubergine', '#4A2340'],
+  ['parme', '#C7A3C9']
+];
+
+// Retourne le code couleur (#RRGGBB) correspondant au nom, ou null si inconnu.
+// On compare sans majuscules ni accents, mot entier (« or » ne doit pas
+// être trouvé dans « orange »).
+function couleurPastille(nom) {
+  const texte = ' ' + (nom || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[-_/]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  for (const [mot, code] of COULEURS_PASTILLES) {
+    // « s » final accepté (ex. « noirs »)
+    if (texte.includes(' ' + mot + ' ') || texte.includes(' ' + mot + 's ')) return code;
+  }
+  return null;
+}
+
+// Contenu du rond de la pastille : couleur unie si le nom est connu,
+// sinon la photo de la variante (comme avant V6.4).
+function contenuRondCouleur(nomCouleur, photo) {
+  const code = couleurPastille(nomCouleur);
+  if (code) return `<span class="fond-couleur" style="background:${code};"></span>`;
+  return photo ? `<img src="${echapper(photoOptimisee(photo, 100))}" alt="">` : '';
+}
+
 function photosVariante(variant) {
   if (!variant) return [];
   // V2.29 : on ne garde que les vraies adresses https:// (sécurité)
@@ -2627,7 +2710,7 @@ function vueProduit(produitId) {
                 const photoSwatch = photosVariante(v)[0];
                 return `
                   <button type="button" class="swatch-couleur" data-couleur="${echapper(couleur)}" title="${echapper(couleur)}" onclick="choisirCouleur(${enJs(produitId)}, ${enJs(couleur)})">
-                    <span class="rond-couleur">${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="">` : ''}</span>
+                    <span class="rond-couleur">${contenuRondCouleur(couleur, photoSwatch)}</span>
                     <span class="nom-pastille">${echapper(couleur)}</span>
                   </button>`;
               }).join('')}
@@ -2998,7 +3081,7 @@ function choisirFormule(cle, qte) {
           const photoSwatch = photosVariante(v)[0];
           return `
             <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})">
-              <span class="rond-couleur">${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="">` : ''}</span>
+              <span class="rond-couleur">${contenuRondCouleur(c, photoSwatch)}</span>
                     <span class="nom-pastille">${echapper(c)}</span>
             </button>`;
         }).join('')}
