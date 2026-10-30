@@ -2733,15 +2733,11 @@ function choisirTaille(produitId, couleur, taille) {
   const produit = trouverProduit(produitId);
   const variante = (produit.variants || []).find(v => v.color === couleur && v.size === taille);
   const infoStock = document.getElementById('stock-info');
-  if (variante) {
-    const dispo = dispoParCommande(variante); // V6.3 : jamais plus que le stock réel
-    if (dispo <= 3) {
-      infoStock.textContent = `Plus que ${dispo} en stock`;
-      infoStock.classList.add('faible');
-    } else {
-      infoStock.textContent = `En stock`;
-      infoStock.classList.remove('faible');
-    }
+  // V6.3 (choix d'Oussama) : plus de message « Plus que X en stock » ni
+  // « En stock » sous la taille. Le compteur de quantité suffit.
+  if (infoStock) {
+    infoStock.textContent = '';
+    infoStock.classList.remove('faible');
   }
   actualiserBoutonAjouter(produitId);
 }
