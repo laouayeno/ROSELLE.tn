@@ -696,7 +696,7 @@
     font-family: 'Inter', sans-serif; font-size: 0.85rem; background: var(--blanc); color: var(--texte);
   }
   .options-couleur { display: flex; gap: 12px 6px; flex-wrap: wrap; align-items: flex-start; }
-  /* V6.4 : chaque pastille = un rond (photo de la couleur) + son nom écrit dessous */
+  /* V6.5 : chaque pastille = un rond (photo de la couleur) + son nom écrit dessous */
   .swatch-couleur {
     display: flex; flex-direction: column; align-items: center; gap: 5px;
     width: 60px; padding: 0; border: none; background: none; cursor: pointer;
@@ -904,7 +904,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.4</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1784,7 +1784,7 @@ function photoParDefaut(produit) {
 // "photos" (tableau) s'il existe, sinon replie sur l'ancien champ "photo" (unique)
 // pour rester compatible avec les produits déjà existants.
 /* ============================================================
-   V6.4 : COULEUR UNIE DES PASTILLES, D'APRÈS LE NOM DE LA COULEUR
+   V6.5 : COULEUR UNIE DES PASTILLES, D'APRÈS LE NOM DE LA COULEUR
    ------------------------------------------------------------
    La pastille montre un rond de couleur unie (comme les autres
    boutiques) au lieu de la photo. La couleur est devinée à partir
@@ -1854,7 +1854,7 @@ function couleurPastille(nom) {
 }
 
 // Contenu du rond de la pastille : couleur unie si le nom est connu,
-// sinon la photo de la variante (comme avant V6.4).
+// sinon la photo de la variante (comme avant V6.5).
 function contenuRondCouleur(nomCouleur, photo) {
   const code = couleurPastille(nomCouleur);
   if (code) return `<span class="fond-couleur" style="background:${code};"></span>`;
