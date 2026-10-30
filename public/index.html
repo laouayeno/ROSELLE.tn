@@ -695,13 +695,25 @@
     flex: 1; padding: 10px; border: 1px solid var(--rose-clair); border-radius: 2px;
     font-family: 'Inter', sans-serif; font-size: 0.85rem; background: var(--blanc); color: var(--texte);
   }
-  .options-couleur { display: flex; gap: 10px; flex-wrap: wrap; }
+  .options-couleur { display: flex; gap: 12px 6px; flex-wrap: wrap; align-items: flex-start; }
+  /* V6.4 : chaque pastille = un rond (photo de la couleur) + son nom écrit dessous */
   .swatch-couleur {
-    width: 46px; height: 46px; border-radius: 50%; overflow: hidden; cursor: pointer;
-    border: 2px solid transparent; padding: 0; background: none;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    width: 60px; padding: 0; border: none; background: none; cursor: pointer;
+    color: var(--texte-doux);
   }
-  .swatch-couleur img { width: 100%; height: 100%; object-fit: cover; }
-  .swatch-couleur.selectionne { border-color: var(--rose-fonce); }
+  .swatch-couleur .rond-couleur {
+    display: block; width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+    border: 2px solid transparent;
+  }
+  .swatch-couleur img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* Nom de la couleur : petit, centré, peut passer sur 2 lignes (ex. « vert bouteille ») */
+  .swatch-couleur .nom-pastille {
+    font-size: 0.72rem; line-height: 1.2; text-align: center;
+    overflow-wrap: anywhere; max-width: 100%;
+  }
+  .swatch-couleur.selectionne .rond-couleur { border-color: var(--rose-fonce); }
+  .swatch-couleur.selectionne .nom-pastille { color: var(--texte); font-weight: 600; }
 
   .options-taille { display: flex; gap: 8px; flex-wrap: wrap; }
   .bouton-taille {
@@ -2615,7 +2627,8 @@ function vueProduit(produitId) {
                 const photoSwatch = photosVariante(v)[0];
                 return `
                   <button type="button" class="swatch-couleur" data-couleur="${echapper(couleur)}" title="${echapper(couleur)}" onclick="choisirCouleur(${enJs(produitId)}, ${enJs(couleur)})">
-                    ${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="${echapper(couleur)}">` : ''}
+                    <span class="rond-couleur">${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="">` : ''}</span>
+                    <span class="nom-pastille">${echapper(couleur)}</span>
                   </button>`;
               }).join('')}
             </div>
@@ -2985,7 +2998,8 @@ function choisirFormule(cle, qte) {
           const photoSwatch = photosVariante(v)[0];
           return `
             <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})">
-              ${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="${echapper(c)}">` : ''}
+              <span class="rond-couleur">${photoSwatch ? `<img src="${echapper(photoOptimisee(photoSwatch, 100))}" alt="">` : ''}</span>
+                    <span class="nom-pastille">${echapper(c)}</span>
             </button>`;
         }).join('')}
       </div>
