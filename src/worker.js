@@ -302,9 +302,14 @@ async function enregistrerAvecTransaction(jeton, commande) {
       const variantes = fiche ? depuisFirestore({ arrayValue: (fiche.fields.variants || {}).arrayValue || {} }) : [];
       for (const [variantId, qte] of demandes) {
         const v = variantes.find(x => x && x.id === variantId);
-        const reste = v ? Math.max(0, Number(v.qty) || 0) : 0;
+        // V6.3 : « dispo » = disponible du site (avec la marge −1) ;
+        // « reste » = ce qu'UNE commande peut prendre, jamais plus que le
+        // stock réel (maxCommande, envoyé par le Stock V5.6).
+        const dispo = v ? Math.max(0, Number(v.qty) || 0) : 0;
+        const max = v ? Number(v.maxCommande) : NaN;
+        const reste = Number.isFinite(max) ? Math.min(dispo, Math.max(0, max)) : dispo;
         if (qte > reste) manquants.push({ productId, variantId, reste });
-        else v.qty = reste - qte;
+        else v.qty = dispo - qte;
       }
       if (fiche) {
         ecritures.push({

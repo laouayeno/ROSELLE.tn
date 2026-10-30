@@ -887,7 +887,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2734,8 +2734,9 @@ function choisirTaille(produitId, couleur, taille) {
   const variante = (produit.variants || []).find(v => v.color === couleur && v.size === taille);
   const infoStock = document.getElementById('stock-info');
   if (variante) {
-    if (variante.qty <= 3) {
-      infoStock.textContent = `Plus que ${variante.qty} en stock`;
+    const dispo = dispoParCommande(variante); // V6.3 : jamais plus que le stock réel
+    if (dispo <= 3) {
+      infoStock.textContent = `Plus que ${dispo} en stock`;
       infoStock.classList.add('faible');
     } else {
       infoStock.textContent = `En stock`;
@@ -2752,10 +2753,24 @@ function plafond(stock) {
   return Math.min(Math.max(0, Number(stock) || 0), MAX_PAR_ARTICLE);
 }
 
+// V6.3 : combien UNE cliente peut commander de cette variante.
+// - qty : disponible pour le site (stock réel − réservations + marge −1) ;
+// - maxCommande : stock réel, envoyé par le Stock (V5.6).
+// La marge −1 sert entre plusieurs clientes (une cliente peut ne pas
+// confirmer), mais une seule commande ne dépasse jamais le stock réel.
+// Ex. L / blanc = 2 en stock : 2 au maximum, même si le site affiche 3.
+// Fiche publiée avant V5.6 (sans maxCommande) : on garde qty.
+function dispoParCommande(variante) {
+  if (!variante) return 0;
+  const dispo = Math.max(0, Number(variante.qty) || 0);
+  const max = Number(variante.maxCommande);
+  return Number.isFinite(max) ? Math.min(dispo, Math.max(0, max)) : dispo;
+}
+
 function changerQuantite(delta) {
   const produit = trouverProduit(etat.parametresVue.produitId);
   const variante = varianteChoisie(produit);
-  const max = variante ? plafond(variante.qty) : 1;
+  const max = variante ? plafond(dispoParCommande(variante)) : 1;
   let nouvelle = etat.produitCourant.quantiteChoisie + delta;
   if (variante && delta > 0 && nouvelle > MAX_PAR_ARTICLE) afficherToast('Maximum 20 pièces par article et par commande');
   nouvelle = Math.max(1, Math.min(nouvelle, max || 1));
@@ -2807,7 +2822,7 @@ function placerArticleDans(lignes, produitId) {
   const quantiteDemandee = etat.produitCourant.quantiteChoisie;
 
   if (ligneExistante) {
-    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, plafond(variante.qty));
+    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, plafond(dispoParCommande(variante)));
   } else {
     lignes.push({
       productId: produitId,
@@ -2819,7 +2834,7 @@ function placerArticleDans(lignes, produitId) {
       color: variante.color,
       photo: photosVariante(variante)[0] || photoParDefaut(produit),
       qty: quantiteDemandee,
-      stockDispo: plafond(variante.qty)
+      stockDispo: plafond(dispoParCommande(variante))
     });
   }
   return true;
@@ -3047,7 +3062,7 @@ function placerPackDans(lignes, produitId) {
 
     const ligneExistante = lignes.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
     if (ligneExistante) {
-      ligneExistante.qty = Math.min(ligneExistante.qty + 1, plafond(variante.qty));
+      ligneExistante.qty = Math.min(ligneExistante.qty + 1, plafond(dispoParCommande(variante)));
     } else {
       lignes.push({
         productId: produitId,
@@ -3059,7 +3074,7 @@ function placerPackDans(lignes, produitId) {
         color: variante.color,
         photo: photosVariante(variante)[0] || photoParDefaut(produit),
         qty: 1,
-        stockDispo: plafond(variante.qty),
+        stockDispo: plafond(dispoParCommande(variante)),
         packId: idPack,
         packLabel: `Pack ${palier.qte} articles`
       });
@@ -3339,7 +3354,7 @@ function articlesEpuises(lignes) {
   for (const { ligne, qty } of demandes.values()) {
     const produit = trouverProduit(ligne.productId);
     const variante = produit ? (produit.variants || []).find(v => v.id === ligne.variantId) : null;
-    const reste = variante ? Math.max(0, Number(variante.qty) || 0) : 0;
+    const reste = dispoParCommande(variante); // V6.3 : plafonné au stock réel
     if (qty > reste) {
       const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
       manquants.push({ libelle: (ligne.name || 'Article') + (details ? ` (${details})` : ''), reste });
