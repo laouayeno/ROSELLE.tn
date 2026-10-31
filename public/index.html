@@ -3594,7 +3594,10 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
+<<<<<<< HEAD
     etat.commandeEnCours = null; // V6.8 : la prochaine commande aura une nouvelle référence
+=======
+>>>>>>> origin/main
     noterCommandeAppareil(numeroCommande); // V6.7 : mémoire des commandes de cet appareil
     etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
