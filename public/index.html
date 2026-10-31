@@ -904,7 +904,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2861,56 +2861,50 @@ function plafond(stock) {
 // confirmer), mais une seule cliente ne dépasse jamais le stock réel.
 // Ex. L / blanc = 2 en stock : 2 au maximum, même si le site affiche 3.
 // Fiche publiée avant V5.6 (sans maxCommande) : on garde qty.
-// V6.6 : on retire aussi ce que CET appareil a déjà commandé (voir
-// dejaCommandeSurAppareil) : la même cliente qui revient ne peut pas
-// reprendre la pièce « en plus » de la marge.
+// V6.7 : ce que la même cliente a déjà commandé est contrôlé par le
+// serveur à la validation (numéro de téléphone + commandes de cet appareil),
+// car lui seul sait si une commande a été annulée entre-temps.
 function dispoParCommande(variante, produitId) {
   if (!variante) return 0;
   const dispo = Math.max(0, Number(variante.qty) || 0);
   const max = Number(variante.maxCommande);
-  if (!Number.isFinite(max)) return dispo;
-  const deja = produitId ? dejaCommandeSurAppareil(produitId, variante.id) : 0;
-  return Math.min(dispo, Math.max(0, max - deja));
+  return Number.isFinite(max) ? Math.min(dispo, Math.max(0, max)) : dispo;
 }
 
 /* ------------------------------------------------------------
-   V6.6 : MÉMOIRE DES COMMANDES DE CET APPAREIL
-   Après une commande réussie, on note dans le téléphone ou le PC
-   les pièces commandées (article + variante), pendant 3 jours
-   (le temps que la commande soit confirmée par téléphone).
-   Le serveur fait de son côté le même contrôle avec le numéro
-   de téléphone : cette mémoire sert à prévenir la cliente plus tôt.
+   V6.7 : MÉMOIRE DES COMMANDES DE CET APPAREIL
+   Après une commande réussie, on garde sa référence (WEB-…) dans le
+   téléphone ou le PC pendant 7 jours. À la commande suivante, ces
+   références sont envoyées au serveur : il retrouve ces colis et compte
+   les pièces encore en cours (pas les annulées), même si la cliente a
+   tapé un autre numéro. La page ne bloque rien elle-même.
    ------------------------------------------------------------ */
 const CLE_COMMANDES_APPAREIL = 'roselle_commandes_appareil';
-const DUREE_MEMOIRE_COMMANDES = 3 * 24 * 60 * 60 * 1000; // 3 jours
+const DUREE_MEMOIRE_COMMANDES = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-// Liste [{ productId, variantId, qty, date }] des 3 derniers jours.
-function lireCommandesAppareil() {
+// Références [« WEB-… »] des commandes de cet appareil (7 derniers jours, 10 au plus).
+function refsCommandesAppareil() {
   try {
     const liste = JSON.parse(localStorage.getItem(CLE_COMMANDES_APPAREIL) || '[]');
     const limite = Date.now() - DUREE_MEMOIRE_COMMANDES;
-    return Array.isArray(liste) ? liste.filter(c => c && Number(c.date) > limite) : [];
+    return (Array.isArray(liste) ? liste : [])
+      .filter(c => c && typeof c.ref === 'string' && Number(c.date) > limite)
+      .map(c => c.ref)
+      .slice(-10);
   } catch (e) {
-    return []; // mémoire indisponible (navigation privée…) : le serveur contrôle quand même
+    return []; // mémoire indisponible (navigation privée…) : le numéro de téléphone est contrôlé quand même
   }
 }
 
-// Ajoute les pièces d'une commande réussie à la mémoire de l'appareil.
-function noterCommandeAppareil(lignes) {
+// Ajoute la référence d'une commande réussie à la mémoire de l'appareil.
+function noterCommandeAppareil(ref) {
   try {
-    const liste = lireCommandesAppareil();
-    for (const l of lignes) {
-      liste.push({ productId: l.productId, variantId: l.variantId, qty: Math.round(Number(l.qty)) || 1, date: Date.now() });
-    }
-    localStorage.setItem(CLE_COMMANDES_APPAREIL, JSON.stringify(liste));
+    const limite = Date.now() - DUREE_MEMOIRE_COMMANDES;
+    const liste = JSON.parse(localStorage.getItem(CLE_COMMANDES_APPAREIL) || '[]');
+    const gardees = (Array.isArray(liste) ? liste : []).filter(c => c && typeof c.ref === 'string' && Number(c.date) > limite);
+    gardees.push({ ref, date: Date.now() });
+    localStorage.setItem(CLE_COMMANDES_APPAREIL, JSON.stringify(gardees.slice(-10)));
   } catch (e) {}
-}
-
-// Nombre de pièces de cette variante déjà commandées sur cet appareil.
-function dejaCommandeSurAppareil(produitId, variantId) {
-  return lireCommandesAppareil()
-    .filter(c => c.productId === produitId && c.variantId === variantId)
-    .reduce((somme, c) => somme + (Number(c.qty) || 0), 0);
 }
 
 function changerQuantite(delta) {
@@ -2946,7 +2940,6 @@ function actualiserBoutonAjouter(produitId) {
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
-  // V6.6 : aussi « épuisé » si cet appareil a déjà commandé tout le stock réel
   if (dispoParCommande(variante, produitId) <= 0) {
     bouton.disabled = true; bouton.textContent = 'Épuisé dans cette taille';
     if (boutonAchat) boutonAchat.disabled = true;
@@ -3502,7 +3495,7 @@ function articlesEpuises(lignes) {
   for (const { ligne, qty } of demandes.values()) {
     const produit = trouverProduit(ligne.productId);
     const variante = produit ? (produit.variants || []).find(v => v.id === ligne.variantId) : null;
-    const reste = dispoParCommande(variante, ligne.productId); // V6.3 / V6.6 : stock réel moins ce que l'appareil a déjà commandé
+    const reste = dispoParCommande(variante, ligne.productId); // V6.3 : plafonné au stock réel
     if (qty > reste) {
       const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
       manquants.push({ libelle: (ligne.name || 'Article') + (details ? ` (${details})` : ''), reste });
@@ -3582,7 +3575,7 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
-    noterCommandeAppareil(lignes); // V6.6 : mémoire des commandes de cet appareil
+    noterCommandeAppareil(numeroCommande); // V6.7 : mémoire des commandes de cet appareil
     etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
     etat.achatDirect = null;
@@ -3623,7 +3616,7 @@ function envoyerCommande() {
       return fetch('/api/commande', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...nouveauColis, gouvernorat, turnstile: jetonTurnstile }) // V2.35 : le Worker ajoute le gouvernorat au colis
+        body: JSON.stringify({ ...nouveauColis, gouvernorat, turnstile: jetonTurnstile, refsAppareil: refsCommandesAppareil() }) // V2.35 : le Worker ajoute le gouvernorat au colis
       });
     })
     .then(async (reponse) => {
