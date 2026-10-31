@@ -160,7 +160,12 @@ function verifierCommande(c) {
   // V2.35 : gouvernorat choisi par la cliente (code de la société de livraison Bestway).
   // Facultatif : une page ouverte avant la mise à jour n'en envoie pas ; un code inconnu est ignoré.
   const gouvernorat = CODES_GOUVERNORAT.includes(c.gouvernorat) ? c.gouvernorat : '';
-  return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee, gouvernorat };
+  // V6.7 : références des commandes déjà passées depuis CET appareil (gardées
+  // dans le téléphone ou le PC). Facultatif ; une valeur mal formée est ignorée.
+  const refsAppareil = (Array.isArray(c.refsAppareil) ? c.refsAppareil : [])
+    .filter(r => typeof r === 'string' && /^WEB-[0-9]{6,20}$/.test(r))
+    .slice(0, 10);
+  return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee, gouvernorat, refsAppareil };
 }
 
 // Les 24 gouvernorats (mêmes codes que dans le Stock et sur le site).
@@ -269,24 +274,36 @@ function jourTunisie() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tunis', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-/* ---------- V6.6 : commandes en cours d'un numéro de téléphone ----------
-   Renvoie une Map « productId|variantId » -> pièces déjà commandées par ce
-   numéro, dans les colis pas encore confirmés et pas annulés / retournés /
-   en dépôt (mêmes règles que les réservations du Stock). Lu dans la
-   transaction, pour que deux envois au même instant soient bien comptés. */
-async function dejaCommandeParTelephone(jeton, transaction, telephone) {
-  const resultat = new Map();
-  if (!telephone) return resultat;
-  const reponses = await appelFirestore(jeton, ':runQuery', {
+/* ---------- V6.6 / V6.7 : commandes en cours de la même cliente ----------
+   La cliente est reconnue de deux façons :
+     - son numéro de téléphone (V6.6) ;
+     - les références des commandes passées depuis le même téléphone ou PC
+       (V6.7, envoyées par la page), même si elle a tapé un autre numéro.
+   Renvoie une Map « productId|variantId » -> pièces déjà commandées, en
+   comptant seulement les colis pas encore confirmés et pas annulés /
+   retournés / en dépôt (mêmes règles que les réservations du Stock).
+   Une commande annulée ne bloque donc plus rien.
+   Lu dans la transaction, pour que deux envois au même instant soient comptés. */
+async function dejaCommandeParCliente(jeton, transaction, telephone, refsAppareil) {
+  const requete = (champ, op, valeur) => appelFirestore(jeton, ':runQuery', {
     structuredQuery: {
       from: [{ collectionId: 'shipments' }],
-      where: { fieldFilter: { field: { fieldPath: 'phone' }, op: 'EQUAL', value: { stringValue: telephone } } },
+      where: { fieldFilter: { field: { fieldPath: champ }, op, value: valeur } },
       limit: 100
     },
     transaction
   });
-  for (const r of (Array.isArray(reponses) ? reponses : [])) {
-    if (!r.document) continue;
+  const reponses = [];
+  if (telephone) reponses.push(...await requete('phone', 'EQUAL', { stringValue: telephone }));
+  if (refsAppareil && refsAppareil.length) {
+    reponses.push(...await requete('ref', 'IN', { arrayValue: { values: refsAppareil.map(r => ({ stringValue: r })) } }));
+  }
+
+  const resultat = new Map();
+  const dejaVus = new Set(); // un colis trouvé par les deux moyens n'est compté qu'une fois
+  for (const r of reponses) {
+    if (!r || !r.document || dejaVus.has(r.document.name)) continue;
+    dejaVus.add(r.document.name);
     const colis = depuisFirestore({ mapValue: { fields: r.document.fields || {} } }) || {};
     if (colis.confirmed) continue;
     if (colis.status === 'returned' || colis.status === 'depot' || colis.status === 'cancelled') continue;
@@ -326,10 +343,11 @@ async function enregistrerAvecTransaction(jeton, commande) {
       else fiches.set(r.found.name.split('/').pop(), r.found);
     }
 
-    // 1 bis (V6.6). Ce que CE numéro de téléphone a déjà commandé et qui
-    //    n'est pas encore confirmé (ni annulé, retourné ou en dépôt) : la
-    //    même cliente ne peut pas dépasser le stock réel en plusieurs fois.
-    const dejaCommande = await dejaCommandeParTelephone(jeton, transaction, commande.phone);
+    // 1 bis (V6.6 / V6.7). Ce que la même cliente (même numéro ou même
+    //    appareil) a déjà commandé et qui n'est pas encore confirmé (ni
+    //    annulé, retourné ou en dépôt) : elle ne peut pas dépasser le stock
+    //    réel en plusieurs fois.
+    const dejaCommande = await dejaCommandeParCliente(jeton, transaction, commande.phone, commande.refsAppareil);
 
     // 2. Vérifier qu'il en reste assez, et préparer les nouvelles quantités.
     const manquants = [];
