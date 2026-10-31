@@ -269,6 +269,36 @@ function jourTunisie() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tunis', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
+/* ---------- V6.6 : commandes en cours d'un numéro de téléphone ----------
+   Renvoie une Map « productId|variantId » -> pièces déjà commandées par ce
+   numéro, dans les colis pas encore confirmés et pas annulés / retournés /
+   en dépôt (mêmes règles que les réservations du Stock). Lu dans la
+   transaction, pour que deux envois au même instant soient bien comptés. */
+async function dejaCommandeParTelephone(jeton, transaction, telephone) {
+  const resultat = new Map();
+  if (!telephone) return resultat;
+  const reponses = await appelFirestore(jeton, ':runQuery', {
+    structuredQuery: {
+      from: [{ collectionId: 'shipments' }],
+      where: { fieldFilter: { field: { fieldPath: 'phone' }, op: 'EQUAL', value: { stringValue: telephone } } },
+      limit: 100
+    },
+    transaction
+  });
+  for (const r of (Array.isArray(reponses) ? reponses : [])) {
+    if (!r.document) continue;
+    const colis = depuisFirestore({ mapValue: { fields: r.document.fields || {} } }) || {};
+    if (colis.confirmed) continue;
+    if (colis.status === 'returned' || colis.status === 'depot' || colis.status === 'cancelled') continue;
+    for (const it of (Array.isArray(colis.items) ? colis.items : [])) {
+      if (!it) continue;
+      const cle = it.productId + '|' + it.variantId;
+      resultat.set(cle, (resultat.get(cle) || 0) + (Number(it.qty) || 0));
+    }
+  }
+  return resultat;
+}
+
 /* ---------- Transaction Firestore ---------- */
 async function enregistrerAvecTransaction(jeton, commande) {
   // Quantités demandées, regroupées par article puis par variante.
@@ -296,6 +326,11 @@ async function enregistrerAvecTransaction(jeton, commande) {
       else fiches.set(r.found.name.split('/').pop(), r.found);
     }
 
+    // 1 bis (V6.6). Ce que CE numéro de téléphone a déjà commandé et qui
+    //    n'est pas encore confirmé (ni annulé, retourné ou en dépôt) : la
+    //    même cliente ne peut pas dépasser le stock réel en plusieurs fois.
+    const dejaCommande = await dejaCommandeParTelephone(jeton, transaction, commande.phone);
+
     // 2. Vérifier qu'il en reste assez, et préparer les nouvelles quantités.
     const manquants = [];
     const ecritures = [];
@@ -309,7 +344,8 @@ async function enregistrerAvecTransaction(jeton, commande) {
         // stock réel (maxCommande, envoyé par le Stock V5.6).
         const dispo = v ? Math.max(0, Number(v.qty) || 0) : 0;
         const max = v ? Number(v.maxCommande) : NaN;
-        const reste = Number.isFinite(max) ? Math.min(dispo, Math.max(0, max)) : dispo;
+        const deja = dejaCommande.get(productId + '|' + variantId) || 0; // V6.6
+        const reste = Number.isFinite(max) ? Math.min(dispo, Math.max(0, max - deja)) : dispo;
         if (qte > reste) manquants.push({ productId, variantId, reste });
         else v.qty = dispo - qte;
       }
