@@ -904,7 +904,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2858,20 +2858,65 @@ function plafond(stock) {
 // - qty : disponible pour le site (stock réel − réservations + marge −1) ;
 // - maxCommande : stock réel, envoyé par le Stock (V5.6).
 // La marge −1 sert entre plusieurs clientes (une cliente peut ne pas
-// confirmer), mais une seule commande ne dépasse jamais le stock réel.
+// confirmer), mais une seule cliente ne dépasse jamais le stock réel.
 // Ex. L / blanc = 2 en stock : 2 au maximum, même si le site affiche 3.
 // Fiche publiée avant V5.6 (sans maxCommande) : on garde qty.
-function dispoParCommande(variante) {
+// V6.6 : on retire aussi ce que CET appareil a déjà commandé (voir
+// dejaCommandeSurAppareil) : la même cliente qui revient ne peut pas
+// reprendre la pièce « en plus » de la marge.
+function dispoParCommande(variante, produitId) {
   if (!variante) return 0;
   const dispo = Math.max(0, Number(variante.qty) || 0);
   const max = Number(variante.maxCommande);
-  return Number.isFinite(max) ? Math.min(dispo, Math.max(0, max)) : dispo;
+  if (!Number.isFinite(max)) return dispo;
+  const deja = produitId ? dejaCommandeSurAppareil(produitId, variante.id) : 0;
+  return Math.min(dispo, Math.max(0, max - deja));
+}
+
+/* ------------------------------------------------------------
+   V6.6 : MÉMOIRE DES COMMANDES DE CET APPAREIL
+   Après une commande réussie, on note dans le téléphone ou le PC
+   les pièces commandées (article + variante), pendant 3 jours
+   (le temps que la commande soit confirmée par téléphone).
+   Le serveur fait de son côté le même contrôle avec le numéro
+   de téléphone : cette mémoire sert à prévenir la cliente plus tôt.
+   ------------------------------------------------------------ */
+const CLE_COMMANDES_APPAREIL = 'roselle_commandes_appareil';
+const DUREE_MEMOIRE_COMMANDES = 3 * 24 * 60 * 60 * 1000; // 3 jours
+
+// Liste [{ productId, variantId, qty, date }] des 3 derniers jours.
+function lireCommandesAppareil() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(CLE_COMMANDES_APPAREIL) || '[]');
+    const limite = Date.now() - DUREE_MEMOIRE_COMMANDES;
+    return Array.isArray(liste) ? liste.filter(c => c && Number(c.date) > limite) : [];
+  } catch (e) {
+    return []; // mémoire indisponible (navigation privée…) : le serveur contrôle quand même
+  }
+}
+
+// Ajoute les pièces d'une commande réussie à la mémoire de l'appareil.
+function noterCommandeAppareil(lignes) {
+  try {
+    const liste = lireCommandesAppareil();
+    for (const l of lignes) {
+      liste.push({ productId: l.productId, variantId: l.variantId, qty: Math.round(Number(l.qty)) || 1, date: Date.now() });
+    }
+    localStorage.setItem(CLE_COMMANDES_APPAREIL, JSON.stringify(liste));
+  } catch (e) {}
+}
+
+// Nombre de pièces de cette variante déjà commandées sur cet appareil.
+function dejaCommandeSurAppareil(produitId, variantId) {
+  return lireCommandesAppareil()
+    .filter(c => c.productId === produitId && c.variantId === variantId)
+    .reduce((somme, c) => somme + (Number(c.qty) || 0), 0);
 }
 
 function changerQuantite(delta) {
   const produit = trouverProduit(etat.parametresVue.produitId);
   const variante = varianteChoisie(produit);
-  const max = variante ? plafond(dispoParCommande(variante)) : 1;
+  const max = variante ? plafond(dispoParCommande(variante, produit.id)) : 1;
   let nouvelle = etat.produitCourant.quantiteChoisie + delta;
   if (variante && delta > 0 && nouvelle > MAX_PAR_ARTICLE) afficherToast('Maximum 20 pièces par article et par commande');
   nouvelle = Math.max(1, Math.min(nouvelle, max || 1));
@@ -2901,7 +2946,8 @@ function actualiserBoutonAjouter(produitId) {
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
-  if (Number(variante.qty) <= 0) {
+  // V6.6 : aussi « épuisé » si cet appareil a déjà commandé tout le stock réel
+  if (dispoParCommande(variante, produitId) <= 0) {
     bouton.disabled = true; bouton.textContent = 'Épuisé dans cette taille';
     if (boutonAchat) boutonAchat.disabled = true;
     return;
@@ -2923,7 +2969,7 @@ function placerArticleDans(lignes, produitId) {
   const quantiteDemandee = etat.produitCourant.quantiteChoisie;
 
   if (ligneExistante) {
-    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, plafond(dispoParCommande(variante)));
+    ligneExistante.qty = Math.min(ligneExistante.qty + quantiteDemandee, plafond(dispoParCommande(variante, produitId)));
   } else {
     lignes.push({
       productId: produitId,
@@ -2935,7 +2981,7 @@ function placerArticleDans(lignes, produitId) {
       color: variante.color,
       photo: photosVariante(variante)[0] || photoParDefaut(produit),
       qty: quantiteDemandee,
-      stockDispo: plafond(dispoParCommande(variante))
+      stockDispo: plafond(dispoParCommande(variante, produitId))
     });
   }
   return true;
@@ -3164,7 +3210,7 @@ function placerPackDans(lignes, produitId) {
 
     const ligneExistante = lignes.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId);
     if (ligneExistante) {
-      ligneExistante.qty = Math.min(ligneExistante.qty + 1, plafond(dispoParCommande(variante)));
+      ligneExistante.qty = Math.min(ligneExistante.qty + 1, plafond(dispoParCommande(variante, produitId)));
     } else {
       lignes.push({
         productId: produitId,
@@ -3176,7 +3222,7 @@ function placerPackDans(lignes, produitId) {
         color: variante.color,
         photo: photosVariante(variante)[0] || photoParDefaut(produit),
         qty: 1,
-        stockDispo: plafond(dispoParCommande(variante)),
+        stockDispo: plafond(dispoParCommande(variante, produitId)),
         packId: idPack,
         packLabel: `Pack ${palier.qte} articles`
       });
@@ -3456,7 +3502,7 @@ function articlesEpuises(lignes) {
   for (const { ligne, qty } of demandes.values()) {
     const produit = trouverProduit(ligne.productId);
     const variante = produit ? (produit.variants || []).find(v => v.id === ligne.variantId) : null;
-    const reste = dispoParCommande(variante); // V6.3 : plafonné au stock réel
+    const reste = dispoParCommande(variante, ligne.productId); // V6.3 / V6.6 : stock réel moins ce que l'appareil a déjà commandé
     if (qty > reste) {
       const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
       manquants.push({ libelle: (ligne.name || 'Article') + (details ? ` (${details})` : ''), reste });
@@ -3536,6 +3582,7 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
+    noterCommandeAppareil(lignes); // V6.6 : mémoire des commandes de cet appareil
     etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
     etat.achatDirect = null;
