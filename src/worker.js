@@ -34,7 +34,9 @@ const NOM_DOC = (chemin) => `projects/${PROJET}/databases/(default)/documents/${
 const MAX_LIGNES = 30;
 const MAX_QTE_PAR_LIGNE = 20;
 const MAX_TEXTE = 500;
-const ESSAIS_TRANSACTION = 5;
+// V6.8 : 8 essais au lieu de 5, pour tenir le pic quand beaucoup de
+// clientes commandent le même article à la même seconde.
+const ESSAIS_TRANSACTION = 8;
 // V2.29 : frais de livraison si la page Apparence n'en indique pas (comme le site).
 const FRAIS_PAR_DEFAUT = 8;
 
@@ -86,9 +88,13 @@ async function traiterCommande(requete, env) {
   if (!commande) return json({ ok: false, erreur: 'invalide' }, 400);
 
   // V2.29 : même numéro de téléphone = au plus quelques commandes par minute.
+  // V6.8 : 1 par minute (wrangler.jsonc). On ne refuse pas tout de suite :
+  // si c'est la MÊME commande renvoyée (réseau coupé chez la cliente après
+  // l'enregistrement), on lui répond « c'est bon » plus bas, sans doublon.
+  let telephoneTropRapide = false;
   if (env.LIMITE_TELEPHONE) {
     const { success } = await env.LIMITE_TELEPHONE.limit({ key: 'tel:' + commande.phone });
-    if (!success) return json({ ok: false, erreur: 'trop-de-commandes' }, 429);
+    if (!success) telephoneTropRapide = true;
   }
 
   // V5.7 : Turnstile (anti-robot gratuit de Cloudflare). Tant que la clé
@@ -115,6 +121,15 @@ async function traiterCommande(requete, env) {
   } catch (e) {
     console.error('Clé Google refusée :', e && e.message);
     return json({ ok: false, erreur: 'non-configure' }, 503);
+  }
+
+  // V6.8 : limite du téléphone dépassée. Si cette commande (même référence)
+  // est déjà enregistrée, c'est un renvoi : on répond « c'est bon ».
+  // Sinon, on demande d'attendre une minute.
+  if (telephoneTropRapide) {
+    const deja = await colisExiste(jeton, commande.ref).catch(() => false);
+    if (deja) return json({ ok: true, ref: commande.ref, dejaEnregistree: true });
+    return json({ ok: false, erreur: 'trop-de-commandes-telephone' }, 429);
   }
   try {
     const resultat = await enregistrerAvecTransaction(jeton, commande);
@@ -326,21 +341,39 @@ async function enregistrerAvecTransaction(jeton, commande) {
     variantes.set(it.variantId, (variantes.get(it.variantId) || 0) + it.qty);
   }
 
+  // V6.8 : les réglages du site (frais de livraison) sont lus AVANT la
+  // transaction : ils ne sont plus « bloqués » pendant chaque commande, et
+  // une modification dans Stock > Apparence ne gêne plus les commandes.
+  let reglages = null;
+  const lectureReglages = await appelFirestore(jeton, ':batchGet', { documents: [NOM_DOC('siteSettings/main')] });
+  for (const r of lectureReglages) if (r.found) reglages = r.found;
+
+  // V6.8 : le colis porte la référence de la commande comme nom de document
+  // (ex. shipments/WEB-1761900000000123). Une même commande envoyée deux fois
+  // ne peut donc pas créer deux colis.
+  const nomColis = NOM_DOC('shipments/' + commande.ref);
+
   for (let essai = 1; essai <= ESSAIS_TRANSACTION; essai++) {
     const { transaction } = await appelFirestore(jeton, ':beginTransaction', {});
 
     // 1. Relire le stock affiché de chaque article, dans la transaction,
     //    ainsi que les réglages du site (frais de livraison, V2.29).
     const lecture = await appelFirestore(jeton, ':batchGet', {
-      documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)).concat(NOM_DOC('siteSettings/main')),
+      documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)).concat(nomColis),
       transaction
     });
     const fiches = new Map();
-    let reglages = null;
+    let colisDejaLa = false;
     for (const r of lecture) {
       if (!r.found) continue;
-      if (r.found.name === NOM_DOC('siteSettings/main')) reglages = r.found;
+      if (r.found.name === nomColis) colisDejaLa = true;
       else fiches.set(r.found.name.split('/').pop(), r.found);
+    }
+    // V6.8 : cette commande est déjà enregistrée (renvoi après une coupure
+    // réseau) : on ne retire pas le stock une 2e fois, on répond « c'est bon ».
+    if (colisDejaLa) {
+      await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+      return { ok: true, dejaEnregistree: true };
     }
 
     // 1 bis (V6.6 / V6.7). Ce que la même cliente (même numéro ou même
@@ -398,7 +431,7 @@ async function enregistrerAvecTransaction(jeton, commande) {
     };
     if (commande.gouvernorat) colis.gouvernorat = commande.gouvernorat; // V2.35
     ecritures.push({
-      update: { name: NOM_DOC('shipments/' + idAuto()), fields: versFirestore(colis).mapValue.fields },
+      update: { name: nomColis, fields: versFirestore(colis).mapValue.fields }, // V6.8 : nom = référence
       currentDocument: { exists: false }
     });
 
@@ -408,13 +441,21 @@ async function enregistrerAvecTransaction(jeton, commande) {
     } catch (e) {
       // ABORTED = quelqu'un a modifié le même article au même moment : on recommence.
       if (e.code === 409 || e.code === 'ABORTED') {
-        await attendre(50 * essai + Math.random() * 100);
+        // V6.8 : attente un peu plus longue à chaque essai (0,1 s, 0,2 s…),
+        // avec une part de hasard pour que les commandes ne repartent pas ensemble.
+        await attendre(100 * essai + Math.random() * 200);
         continue;
       }
       throw e;
     }
   }
   throw new Error('Transaction impossible après plusieurs essais');
+}
+
+/* ---------- V6.8 : ce colis existe-t-il déjà ? ---------- */
+async function colisExiste(jeton, ref) {
+  const lecture = await appelFirestore(jeton, ':batchGet', { documents: [NOM_DOC('shipments/' + ref)] });
+  return lecture.some(r => r && r.found);
 }
 
 async function appelFirestore(jeton, action, corps) {
@@ -518,11 +559,7 @@ function base64url(donnee) {
 }
 
 /* ---------- Petits outils ---------- */
-function idAuto() {
-  const lettres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const octets = crypto.getRandomValues(new Uint8Array(20));
-  return Array.from(octets, o => lettres[o % lettres.length]).join('');
-}
+// V6.8 : idAuto() retiré : le colis porte maintenant la référence de la commande.
 
 function attendre(ms) {
   return new Promise(r => setTimeout(r, ms));

@@ -836,6 +836,12 @@
     background: #F4DEDA; color: var(--erreur); padding: 12px 16px; border-radius: 3px;
     font-size: 0.85rem; margin-bottom: 20px;
   }
+  /* V6.8 : bouton WhatsApp proposé dans le message d'erreur de commande */
+  .bouton-whatsapp-secours {
+    display: block; margin-top: 12px; padding: 12px 16px; border-radius: 3px;
+    background: #1F7A4D; color: #fff; text-align: center; text-decoration: none;
+    font-weight: 600; font-size: 0.9rem;
+  }
   .toast-panier {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--texte); color: var(--blanc); padding: 12px 22px; border-radius: 3px;
@@ -904,7 +910,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3549,10 +3555,20 @@ function envoyerCommande() {
   boutonValider.disabled = true;
   boutonValider.textContent = 'Envoi en cours…';
 
-  // Construit le document au format exact attendu par les règles Firestore
   // V2.29 : 3 chiffres au hasard à la fin, pour que deux clientes qui
   // commandent à la même milliseconde n'aient pas la même référence.
-  const numeroCommande = 'WEB-' + Date.now() + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+  // V6.8 : ANTI-DOUBLON. La référence est gardée tant que le panier ne
+  // change pas et que la commande n'a pas réussi. Si le réseau coupe après
+  // l'enregistrement et que la cliente réessaie, le serveur reconnaît la
+  // même référence et ne crée pas un 2e colis.
+  const signaturePanier = JSON.stringify(lignes.map(l => [l.productId, l.variantId, l.packId || '', Number(l.qty)]));
+  if (!etat.commandeEnCours || etat.commandeEnCours.signature !== signaturePanier) {
+    etat.commandeEnCours = {
+      signature: signaturePanier,
+      ref: 'WEB-' + Date.now() + String(Math.floor(Math.random() * 1000)).padStart(3, '0')
+    };
+  }
+  const numeroCommande = etat.commandeEnCours.ref;
   const nouveauColis = {
     ref: numeroCommande,
     courier: '',
@@ -3575,6 +3591,7 @@ function envoyerCommande() {
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
     etat.dernierNumeroCommande = numeroCommande;
+    etat.commandeEnCours = null; // V6.8 : la prochaine commande aura une nouvelle référence
     noterCommandeAppareil(numeroCommande); // V6.7 : mémoire des commandes de cet appareil
     etat.brouillonCommande = { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' };
     // Tout a été commandé (panier + éventuel achat direct) : on vide les deux
@@ -3584,29 +3601,27 @@ function envoyerCommande() {
     mettreAJourCompteurPanier();
     naviguerVers('confirmation');
   };
+  // V6.8 : en cas de panne, plus de « secours direct » (refusé par les
+  // règles Firestore depuis la V5.7). On propose à la place de réessayer
+  // ou d'envoyer la commande sur WhatsApp, avec le panier déjà écrit.
   const echec = (erreur) => {
     console.error('Erreur lors de la création de la commande :', erreur);
     // V5.8 : petit code à la fin du message (ex. « code 503 ») pour savoir
     // d'où vient le problème quand une cliente envoie une capture.
     const code = (erreur && erreur.codeServeur) ? ` (code ${Number(erreur.codeServeur)})` : '';
-    bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer.${code}</div>`;
+    const lienWhatsapp = lienCommandeWhatsapp({ lignes, clientName, phone, ville, address, gouvernorat, remark, ref: numeroCommande });
+    bandeauErreur.innerHTML = `<div class="bandeau-erreur">
+      Une erreur est survenue lors de l'envoi de votre commande. Merci de réessayer dans un instant.${code}
+      ${lienWhatsapp ? `<br>Si le problème continue, vous pouvez aussi nous envoyer votre commande sur WhatsApp :
+        <a class="bouton-whatsapp-secours" href="${echapper(lienWhatsapp)}" target="_blank" rel="noopener">Commander sur WhatsApp</a>` : ''}
+    </div>`;
     boutonValider.disabled = false;
     boutonValider.textContent = 'Confirmer la commande';
   };
-  // V5.8 : SECOURS remis en place. Si le Worker ne peut pas enregistrer la
-  // commande (clé Firebase absente ou refusée : 503 ; adresse inconnue :
-  // 404/405 ; panne : 500), la page enregistre le colis elle-même, comme
-  // avant la V5.7, pour ne jamais bloquer les ventes. À retirer seulement
-  // quand le Worker aura enregistré de vraies commandes sans erreur.
-  const envoiDirect = (codeServeur) => db.collection('shipments')
-    .add({ ...nouveauColis, address: (nomGouvernorat(gouvernorat) + ' — ' + nouveauColis.address).slice(0, 500) })
-    .then(reussite)
-    .catch((e) => echec({ codeServeur, cause: e }));
 
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
   // vérifie le stock et crée le colis en une seule opération, 24 h/24.
-  // V5.7 : chemin principal (V5.8 : secours direct si le Worker échoue), et
-  // il est protégé par Turnstile (jeton joint à la commande).
+  // V5.7 : protégé par Turnstile (jeton joint à la commande).
   obtenirJetonTurnstile()
     .then((jetonTurnstile) => {
       if (jetonTurnstile === null) {
@@ -3641,6 +3656,13 @@ function envoyerCommande() {
         boutonValider.textContent = 'Confirmer la commande';
         return;
       }
+      if (reponse.status === 429 && donnees.erreur === 'trop-de-commandes-telephone') {
+        // V6.8 : une commande vient déjà d'être envoyée avec ce numéro (1 par minute)
+        bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une commande vient d'être envoyée avec ce numéro. Merci d'attendre une minute avant une nouvelle commande.</div>`;
+        boutonValider.disabled = false;
+        boutonValider.textContent = 'Confirmer la commande';
+        return;
+      }
       if (reponse.status === 429) {
         // V2.29 : trop de commandes envoyées en peu de temps depuis la même connexion
         bandeauErreur.innerHTML = `<div class="bandeau-erreur">Beaucoup de commandes viennent d'être envoyées depuis votre connexion. Merci de patienter une minute puis de réessayer.</div>`;
@@ -3648,13 +3670,34 @@ function envoyerCommande() {
         boutonValider.textContent = 'Confirmer la commande';
         return;
       }
-      if ([503, 404, 405, 500].includes(reponse.status)) {
-        console.warn('Worker indisponible (' + reponse.status + ', ' + (donnees.erreur || '?') + ') : envoi direct.');
-        return envoiDirect(reponse.status);
-      }
+      // Toute autre réponse (panne 500/503, adresse inconnue 404/405…) :
+      // message d'erreur avec le bouton WhatsApp (V6.8).
       echec({ codeServeur: reponse.status });
     })
     .catch(echec);
+}
+
+/* V6.8 : lien WhatsApp avec la commande déjà écrite (numéro pris dans
+   Stock > Apparence > Contact). Renvoie '' si aucun numéro WhatsApp n'est réglé. */
+function lienCommandeWhatsapp(infos) {
+  const contact = (etat.reglages && etat.reglages.contact) || {};
+  const numero = String(contact.whatsapp || '').replace(/[^0-9]/g, '');
+  if (!numero) return '';
+  const lignesTexte = (infos.lignes || []).map(l => {
+    const details = [l.color, l.size].filter(Boolean).join(', ');
+    return `- ${l.name || 'Article'}${details ? ` (${details})` : ''} x ${Number(l.qty) || 1}`;
+  });
+  const texte = [
+    'Bonjour, je voudrais commander :',
+    ...lignesTexte,
+    '',
+    `Nom : ${infos.clientName}`,
+    `Téléphone : ${infos.phone}`,
+    `Adresse : ${nomGouvernorat(infos.gouvernorat)}, ${infos.ville}, ${infos.address}`,
+    ...(infos.remark ? [`Remarque : ${infos.remark}`] : []),
+    `Référence : ${infos.ref}`
+  ].join('\n');
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texte)}`;
 }
 
 // Message rouge « le stock vient de changer » (V2.23, réutilisé en V2.24).
