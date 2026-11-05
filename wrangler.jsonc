@@ -12,6 +12,10 @@
   // (pages, images, vidéo) reste servi directement, sans compter dans
   // les 100 000 requêtes gratuites par jour.
   "main": "src/worker.js",
+  // V6.9 : journaux du Worker (erreurs, commandes) gardés par Cloudflare,
+  // lisibles dans le tableau de bord (Workers > rosellestore > Journaux) et par Claude.
+  // Inclus dans l'offre payante 5 $ (20 millions de lignes par mois).
+  "observability": { "enabled": true },
   // Site statique : tous les fichiers du dossier public/ sont servis tels quels
   "assets": {
     "directory": "./public",
