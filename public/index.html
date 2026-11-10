@@ -851,6 +851,68 @@
     font-size: 0.85rem; opacity: 0; transition: all 0.3s ease; z-index: 100; pointer-events: none;
   }
   .toast-panier.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* ============================================================
+     V7.0 : PETITES ANIMATIONS (choix d'Oussama : les 4 idées)
+     ------------------------------------------------------------
+     1. Les articles apparaissent en douceur quand on descend.
+     2. La photo vole jusqu'au panier quand on ajoute un article.
+     3. Les boutons réagissent (enfoncés au doigt, soulevés à la souris).
+     4. Chaque nouvelle page s'ouvre en fondu.
+     Toutes courtes et légères (opacité / déplacement seulement).
+     Si la cliente a coupé les animations sur son téléphone
+     (réglage « Réduire les animations »), rien ne bouge : tout
+     s'affiche directement (voir le bloc prefers-reduced-motion).
+     ============================================================ */
+
+  /* 1. Carte pas encore vue : invisible et un peu plus bas */
+  .carte-produit.anim-attente { opacity: 0; transform: translateY(22px); }
+  /* Carte qui arrive à l'écran : elle remonte en fondu */
+  .carte-produit.anim-visible {
+    opacity: 1; transform: none;
+    transition: opacity 0.6s ease, transform 0.6s ease, box-shadow 0.2s ease;
+  }
+
+  /* 2. Petite photo ronde qui vole jusqu'au panier */
+  .photo-volante {
+    position: fixed; z-index: 200; pointer-events: none;
+    border-radius: 50%; object-fit: cover;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    transition: left 0.7s cubic-bezier(.5,-0.2,.7,1), top 0.7s cubic-bezier(.5,-0.2,.7,1),
+                width 0.7s ease, height 0.7s ease, opacity 0.7s ease;
+  }
+  /* Le chiffre du panier fait un petit rebond à l'arrivée */
+  @keyframes rebond-panier {
+    0% { transform: scale(1); } 35% { transform: scale(1.5); }
+    65% { transform: scale(0.9); } 100% { transform: scale(1); }
+  }
+  .compteur-panier.rebond { animation: rebond-panier 0.5s ease; }
+
+  /* 3. Boutons : enfoncés sous le doigt (iPhone et PC) */
+  .bouton-ajouter, .bouton-achat-direct, .bouton-taille, .swatch-couleur {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+  }
+  .bouton-ajouter:not(:disabled):active, .bouton-achat-direct:not(:disabled):active,
+  .bouton-taille:not(:disabled):active, .swatch-couleur:active { transform: scale(0.95); }
+  /* Soulevés au passage de la souris : seulement sur ordinateur
+     (sur iPhone, l'effet « survol » resterait collé après le toucher) */
+  @media (hover: hover) {
+    .bouton-ajouter:not(:disabled):hover, .bouton-achat-direct:not(:disabled):hover {
+      transform: translateY(-2px); box-shadow: 0 8px 18px rgba(17,17,17,0.18);
+    }
+  }
+
+  /* 4. Nouvelle page : fondu doux (opacité seulement, pour ne rien
+     décaler dans la page ; la vidéo d'accueil n'est pas relancée) */
+  @keyframes entree-page { from { opacity: 0; } to { opacity: 1; } }
+  #contenu-principal.anim-page { animation: entree-page 0.4s ease; }
+
+  /* Animations coupées sur le téléphone de la cliente : rien ne bouge */
+  @media (prefers-reduced-motion: reduce) {
+    .carte-produit.anim-attente, .carte-produit.anim-visible { opacity: 1; transform: none; transition: none; }
+    .photo-volante { display: none; }
+    .compteur-panier.rebond, #contenu-principal.anim-page { animation: none; }
+    .bouton-ajouter, .bouton-achat-direct, .bouton-taille, .swatch-couleur { transition: none; transform: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -913,7 +975,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V6.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1593,7 +1655,9 @@ function appliquerNavigation(vue, parametres) {
   basculerRecherche(false);
   fermerBande();
   window.scrollTo({ top: 0, behavior: 'instant' });
+  animations.nouvellePage(); // V7.0 : les cartes de cette page pourront apparaître en douceur
   rendre();
+  animations.fonduPage();    // V7.0 : la nouvelle page s'ouvre en fondu
   if (vue === 'produit') suivi.vueArticle(parametres.produitId);
   if (vue === 'commande') suivi.passageCommande();
 }
@@ -2031,6 +2095,112 @@ function mettreAJourCompteurPanier() {
   else { badge.style.display = 'none'; }
 }
 
+/* ============================================================
+   V7.0 : PETITES ANIMATIONS (le style est dans le CSS « V7.0 »)
+   ------------------------------------------------------------
+   Pendant le pic, le catalogue change à chaque commande et la
+   grille est redessinée. Pour que les articles ne « clignotent »
+   pas à chaque fois, on retient ceux déjà apparus sur la page
+   (cartesVues) : redessinés, ils restent affichés tout de suite.
+   La liste est vidée seulement quand la cliente change de page.
+   Toute erreur ici est ignorée : une animation ne doit jamais
+   empêcher d'acheter.
+   ============================================================ */
+const animations = (() => {
+  const cartesVues = new Set();
+  // Animations coupées sur le téléphone ? (réglage d'accessibilité)
+  const sansMouvement = () => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+
+  // Observe les cartes : quand une carte entre à l'écran, elle apparaît
+  let observateur = null;
+  try {
+    if ('IntersectionObserver' in window) {
+      observateur = new IntersectionObserver((entrees) => {
+        entrees.forEach(entree => {
+          if (!entree.isIntersecting) return;
+          const carte = entree.target;
+          cartesVues.add(carte.dataset.id);
+          carte.classList.add('anim-visible');
+          observateur.unobserve(carte);
+        });
+      }, { threshold: 0.12 });
+    }
+  } catch (e) { observateur = null; }
+
+  // 1. Prépare les cartes qui viennent d'être affichées
+  function cartes() {
+    try {
+      if (!observateur || sansMouvement()) return;
+      const liste = document.querySelectorAll('#contenu-principal .carte-produit[data-id]');
+      let rang = 0;
+      liste.forEach(carte => {
+        if (cartesVues.has(carte.dataset.id)) return; // déjà apparue : reste affichée
+        carte.classList.add('anim-attente');
+        // Petit décalage entre cartes voisines (effet « une par une »)
+        carte.style.transitionDelay = (rang++ % 4) * 80 + 'ms';
+        observateur.observe(carte);
+      });
+    } catch (e) {}
+  }
+
+  // Changement de page : on oublie les cartes vues sur la page d'avant
+  function nouvellePage() {
+    try { cartesVues.clear(); if (observateur) observateur.disconnect(); } catch (e) {}
+  }
+
+  // 4. Fondu de la nouvelle page
+  function fonduPage() {
+    try {
+      if (sansMouvement()) return;
+      const conteneur = document.getElementById('contenu-principal');
+      conteneur.classList.remove('anim-page');
+      void conteneur.offsetWidth; // relance l'animation même si la classe était déjà là
+      conteneur.classList.add('anim-page');
+    } catch (e) {}
+  }
+
+  // 2. La photo de l'article vole jusqu'au panier, puis le chiffre rebondit.
+  // L'article est DÉJÀ dans le panier : l'animation n'est qu'une décoration.
+  function volVersPanier() {
+    try {
+      const badge = document.getElementById('compteur-panier');
+      const rebond = () => { badge.classList.remove('rebond'); void badge.offsetWidth; badge.classList.add('rebond'); };
+      if (sansMouvement()) return;
+      const photo = document.getElementById('photo-produit-principale');
+      const panier = document.querySelector('.bouton-panier');
+      if (!photo || !panier || !photo.src) { rebond(); return; }
+      // Départ : la photo si elle est à l'écran, sinon le bouton touché
+      let depart = photo.getBoundingClientRect();
+      if (depart.bottom < 80 || depart.top > window.innerHeight - 80) {
+        const bouton = document.getElementById('bouton-ajouter');
+        if (bouton) depart = bouton.getBoundingClientRect();
+      }
+      const arrivee = panier.getBoundingClientRect();
+      const taille = Math.min(depart.width, 110);
+      const volante = document.createElement('img');
+      volante.className = 'photo-volante';
+      volante.alt = '';
+      volante.src = photo.currentSrc || photo.src; // même photo, déjà chargée
+      volante.style.left = (depart.left + depart.width / 2 - taille / 2) + 'px';
+      volante.style.top = Math.max(10, depart.top + depart.height / 2 - taille / 2) + 'px';
+      volante.style.width = volante.style.height = taille + 'px';
+      document.body.appendChild(volante);
+      // Deux images plus tard : on lance le vol vers le sac
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        volante.style.left = (arrivee.left + arrivee.width / 2 - 12) + 'px';
+        volante.style.top = (arrivee.top + arrivee.height / 2 - 12) + 'px';
+        volante.style.width = volante.style.height = '24px';
+        volante.style.opacity = '0.6';
+      }));
+      setTimeout(() => { volante.remove(); rebond(); }, 720);
+    } catch (e) {}
+  }
+
+  return { cartes, nouvellePage, fonduPage, volVersPanier };
+})();
+
 function afficherToast(message) {
   const toast = document.getElementById('toast-panier');
   toast.textContent = message;
@@ -2086,6 +2256,9 @@ function rendre() {
     default: rendreAccueil(conteneur); // 'accueil' et toute vue inconnue
   }
   conteneur.dataset.vueRendue = etat.vueActuelle;
+
+  // V7.0 : apparition douce des nouvelles cartes (voir animations.cartes)
+  animations.cartes();
 
   // Ré-attache les écouteurs spécifiques à la vue produit / formulaire après insertion du HTML
   if (etat.vueActuelle === 'produit') initialiserFicheProduit(etat.parametresVue.produitId);
@@ -2655,7 +2828,7 @@ function carteProduitHTML(produit) {
   const disponible = stockTotalDisponible(produit) > 0;
   const { actuel, ancien } = prixUnitaireEffectif(produit);
   return `
-    <div class="carte-produit" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
+    <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap">
         ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2), formeCartes()))}" alt="${echapper(produit.name)}" loading="lazy" decoding="async">` : ''}
       </div>
@@ -2996,6 +3169,7 @@ function ajouterAuPanier(produitId) {
   sauvegarderPanier();
   suivi.ajoutPanier(produitId);
   afficherToast('Article ajouté au panier');
+  animations.volVersPanier(); // V7.0
 }
 
 /* ============================================================
@@ -3240,6 +3414,7 @@ function ajouterPackAuPanier(produitId) {
   sauvegarderPanier();
   suivi.ajoutPanier(produitId);
   afficherToast('Pack ajouté au panier');
+  animations.volVersPanier(); // V7.0
 }
 
 /* ============================================================
