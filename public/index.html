@@ -321,7 +321,9 @@
   /* ===== Héros vidéo plein écran (accueil) ===== */
   .hero-video-section {
     position: relative; height: 78vh; max-height: 720px;
-    overflow: hidden; background: var(--texte);
+    /* V7.4 : fond rose-beige doux (plus noir) le temps que l'image ou la vidéo arrive ;
+       assez foncé en bas pour que le texte blanc reste lisible */
+    overflow: hidden; background: linear-gradient(180deg, #D9CBC6 0%, #A88F89 100%);
     /* Casse la largeur limitée du conteneur "main" (max-width + padding)
        pour que la vidéo touche vraiment les deux bords de l'écran. */
     width: 100vw;
@@ -337,6 +339,11 @@
   .hero-video-section img.media-hero {
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   }
+  /* V7.4 : vidéo cachée tant qu'elle ne joue pas : on voit l'image d'attente posée
+     derrière (plus d'écran noir sur iPhone), puis la vidéo apparaît en fondu */
+  .hero-video-section video.video-hero { opacity: 0; transition: opacity 0.4s ease; }
+  .hero-video-section video.video-hero.en-lecture { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .hero-video-section video.video-hero { transition: none; } }
   .hero-video-texte {
     position: absolute; left: 20px; right: 20px; bottom: 28px; z-index: 2;
     color: var(--blanc);
@@ -478,7 +485,7 @@
   /* Grande bannière : photo carrée sur mobile, large sur ordinateur, texte en bas */
   .bloc-banniere {
     position: relative; display: block; margin-top: 48px; border-radius: 6px;
-    overflow: hidden; background: var(--rose-clair); cursor: pointer;
+    overflow: hidden; background: linear-gradient(180deg, #D9CBC6 0%, #A88F89 100%); cursor: pointer;
   }
   .bloc-banniere img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
   @media (min-width: 780px) { .bloc-banniere img { aspect-ratio: 16/7; } }
@@ -990,7 +997,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.4</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1390,6 +1397,17 @@ function videoOptimisee(url) {
   if (!m || !adresseSansReglage(m[2])) return u;
   // Vidéo limitée à 1920 px (Full HD) : une vidéo 4K devient bien plus légère
   return m[1] + REGLAGE_VIDEO + '/' + m[2];
+}
+
+// V7.4 : 1re image d'une vidéo Cloudinary (so_0 = début de la vidéo), en JPEG
+// (lu par tous les téléphones), pas plus large que l'écran. Vidéo hors Cloudinary : ''.
+function premiereImageVideo(url) {
+  const u = url === undefined || url === null ? '' : String(url).trim();
+  const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.+)\.(mp4|mov|webm|m4v)$/i);
+  if (!m || !adresseSansReglage(m[2])) return '';
+  const pixels = (window.innerWidth || 400) * Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+  const largeur = Math.min(1920, Math.ceil(pixels / 200) * 200);
+  return m[1] + 'so_0,f_jpg,q_auto:good,c_limit,w_' + largeur + '/' + m[2] + '.jpg';
 }
 
 // Vrai si l'adresse commence par le numéro de version (v123…/) ou directement
@@ -2356,8 +2374,9 @@ function heroAccueil() {
   // V7.1 : image montrée pendant le chargement de la vidéo.
   // - image choisie dans Apparence (posterUrl) si elle existe ;
   // - sinon, avec la vidéo par défaut : sa 1re image (hero-debut.jpg), pour un passage invisible ;
-  // - sinon (vidéo perso sans image) : aucune image, fond uni (plus jamais l'ancien logo).
-  const affiche = urlSure(brut.posterUrl, '') || (mediaPerso ? '' : REGLAGES_PAR_DEFAUT.hero.posterUrl);
+  // - sinon (vidéo perso sans image) : V7.4 : 1re image de cette vidéo, fabriquée par
+  //   Cloudinary (avant : aucune image, l'accueil restait noir pendant le chargement).
+  const affiche = urlSure(brut.posterUrl, '') || (mediaPerso ? premiereImageVideo(mediaPerso) : REGLAGES_PAR_DEFAUT.hero.posterUrl);
   const nom = reglageTexte('brand', 'name');
   const texte = reglageTexte('hero', 'text');
   const libelleBouton = reglageTexte('hero', 'buttonLabel');
@@ -2365,7 +2384,12 @@ function heroAccueil() {
 
   const mediaHTML = type === 'image'
     ? `<img class="media-hero" src="${echapper(photoOptimisee(media, 'ecran'))}" alt="${echapper(nom)}">`
-    : `<video autoplay muted loop playsinline${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
+    // V7.4 : l'image d'attente est AUSSI posée en vraie photo derrière la vidéo, et la
+    // vidéo reste invisible jusqu'à ce qu'elle joue vraiment (onplaying). Sur iPhone,
+    // la vidéo affichait un écran noir entre l'image d'attente et la 1re image jouée,
+    // ou tout le temps si la lecture automatique est bloquée (mode économie d'énergie).
+    : `${affiche ? `<img class="media-hero" src="${echapper(photoOptimisee(affiche, 'ecran'))}" alt="" aria-hidden="true">` : ''}
+       <video class="video-hero" autoplay muted loop playsinline onplaying="this.classList.add('en-lecture')"${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
          <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
        </video>`;
 
