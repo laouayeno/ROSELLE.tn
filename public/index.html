@@ -975,7 +975,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1277,7 +1277,8 @@ const REGLAGES_PAR_DEFAUT = {
     // remise pour les deux en attendant la vidéo HD en largeur pour le PC.
     mediaUrl: 'hero.mp4',
     mediaUrlPc: 'hero.mp4',
-    posterUrl: 'logo.jpg',
+    // V7.1 : image d'attente = 1re image de la vidéo d'accueil (avant : grand logo rond logo.jpg)
+    posterUrl: 'hero-debut.jpg',
     text: 'Une collection pensée avec féminité, élégance et confiance.',
     buttonLabel: 'Découvrir la collection',
     buttonLink: { type: 'catalog' }
@@ -2301,7 +2302,11 @@ function heroAccueil() {
   // V6.0 : sans vidéo choisie dans Apparence, écran plus large que haut (PC) = vidéo en largeur
   const ecranLarge = (window.innerWidth || 0) > (window.innerHeight || 0);
   const media = mediaPerso || (ecranLarge ? REGLAGES_PAR_DEFAUT.hero.mediaUrlPc : REGLAGES_PAR_DEFAUT.hero.mediaUrl);
-  const affiche = urlSure(brut.posterUrl, '') || reglageUrl('brand', 'logoUrl');
+  // V7.1 : image montrée pendant le chargement de la vidéo.
+  // - image choisie dans Apparence (posterUrl) si elle existe ;
+  // - sinon, avec la vidéo par défaut : sa 1re image (hero-debut.jpg), pour un passage invisible ;
+  // - sinon (vidéo perso sans image) : aucune image, fond uni (plus jamais l'ancien logo).
+  const affiche = urlSure(brut.posterUrl, '') || (mediaPerso ? '' : REGLAGES_PAR_DEFAUT.hero.posterUrl);
   const nom = reglageTexte('brand', 'name');
   const texte = reglageTexte('hero', 'text');
   const libelleBouton = reglageTexte('hero', 'buttonLabel');
@@ -2309,7 +2314,7 @@ function heroAccueil() {
 
   const mediaHTML = type === 'image'
     ? `<img class="media-hero" src="${echapper(photoOptimisee(media, 'ecran'))}" alt="${echapper(nom)}">`
-    : `<video autoplay muted loop playsinline poster="${echapper(photoOptimisee(affiche, 'ecran'))}">
+    : `<video autoplay muted loop playsinline${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
          <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
        </video>`;
 
