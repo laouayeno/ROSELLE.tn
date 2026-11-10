@@ -865,9 +865,11 @@
      ============================================================ */
 
   /* 1. Carte pas encore vue : invisible et un peu plus bas */
-  .carte-produit.anim-attente { opacity: 0; transform: translateY(22px); }
-  /* Carte qui arrive à l'écran : elle remonte en fondu */
-  .carte-produit.anim-visible {
+  /* V7.3 : même effet pour les tuiles du catalogue (catégories) et les
+     blocs ajoutés dans Stock > Apparence (bannière, texte, image, titres) */
+  .anim-attente { opacity: 0; transform: translateY(22px); }
+  /* Élément qui arrive à l'écran : il remonte en fondu */
+  .anim-visible {
     opacity: 1; transform: none;
     transition: opacity 0.6s ease, transform 0.6s ease, box-shadow 0.2s ease;
   }
@@ -908,7 +910,7 @@
 
   /* Animations coupées sur le téléphone de la cliente : rien ne bouge */
   @media (prefers-reduced-motion: reduce) {
-    .carte-produit.anim-attente, .carte-produit.anim-visible { opacity: 1; transform: none; transition: none; }
+    .anim-attente, .anim-visible { opacity: 1; transform: none; transition: none; }
     .photo-volante { display: none; }
     .compteur-panier.rebond, #contenu-principal.anim-page { animation: none; }
     .bouton-ajouter, .bouton-achat-direct, .bouton-taille, .swatch-couleur { transition: none; transform: none !important; }
@@ -988,7 +990,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2130,6 +2132,7 @@ function mettreAJourCompteurPanier() {
 }, true));
 
 const animations = (() => {
+  // Éléments déjà apparus sur la page (repérés par une clé : article, catégorie ou bloc)
   const cartesVues = new Set();
   // Animations coupées sur le téléphone ? (réglage d'accessibilité)
   const sansMouvement = () => {
@@ -2144,7 +2147,7 @@ const animations = (() => {
         entrees.forEach(entree => {
           if (!entree.isIntersecting) return;
           const carte = entree.target;
-          cartesVues.add(carte.dataset.id);
+          cartesVues.add(carte.dataset.animCle);
           carte.classList.add('anim-visible');
           observateur.unobserve(carte);
         });
@@ -2152,14 +2155,40 @@ const animations = (() => {
     }
   } catch (e) { observateur = null; }
 
-  // 1. Prépare les cartes qui viennent d'être affichées
+  // Liste des éléments animés, chacun avec une clé qui reste la même quand
+  // la page est redessinée (mise à jour du stock pendant le pic).
+  function elementsAnimes() {
+    const liste = [];
+    const ajouter = (el, cle) => { el.dataset.animCle = cle; liste.push(el); };
+    // Cartes d'articles (accueil, catalogue, collections, recherche)
+    document.querySelectorAll('#contenu-principal .carte-produit[data-id]').forEach(el => ajouter(el, 'article:' + el.dataset.id));
+    // V7.3 : tuiles des catégories (carrousel « catalogue » de l'accueil)
+    document.querySelectorAll('#contenu-principal .tuile-categorie[data-cat]').forEach(el => ajouter(el, 'categorie:' + el.dataset.cat));
+    // V7.3 : blocs ajoutés dans Apparence. Clé = place du bloc dans la page.
+    // Pour un bloc d'articles ou de catégories, seul le titre est animé
+    // (ses cartes / tuiles le sont déjà une par une).
+    const zone = document.getElementById('zone-accueil-blocs');
+    if (zone) {
+      [...zone.children].forEach((bloc, i) => {
+        if (bloc.classList.contains('bloc-section')) {
+          const titre = bloc.querySelector(':scope > .entete-section');
+          if (titre) ajouter(titre, 'bloc:' + i + ':titre');
+        } else {
+          ajouter(bloc, 'bloc:' + i);
+        }
+      });
+    }
+    return liste;
+  }
+
+  // 1. Prépare les éléments qui viennent d'être affichés
   function cartes() {
     try {
       if (!observateur || sansMouvement()) return;
-      const liste = document.querySelectorAll('#contenu-principal .carte-produit[data-id]');
+      const liste = elementsAnimes();
       let rang = 0;
       liste.forEach(carte => {
-        if (cartesVues.has(carte.dataset.id)) return; // déjà apparue : reste affichée
+        if (cartesVues.has(carte.dataset.animCle)) return; // déjà apparu : reste affiché
         carte.classList.add('anim-attente');
         // Petit décalage entre cartes voisines (effet « une par une »)
         carte.style.transitionDelay = (rang++ % 4) * 80 + 'ms';
