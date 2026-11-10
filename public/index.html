@@ -988,7 +988,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.2</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2847,7 +2847,9 @@ function petalesDecorHTML() {
 // (aspect-ratio 1/2.8 dans le CSS .photo-wrap) ; autres pages = rectangle 2/3,
 // déjà la forme des photos : pas de découpe.
 function formeCartes() {
-  return document.body.classList.contains('sur-accueil') ? '1:2.8' : '';
+  // V7.2 : '5:14' (= 1/2.8) et plus '1:2.8' : Cloudinary refuse un nombre à virgule
+  // dans les proportions (« Invalid aspect ratio ») et certaines photos ne s'affichaient pas.
+  return document.body.classList.contains('sur-accueil') ? '5:14' : '';
 }
 
 function carteProduitHTML(produit) {
