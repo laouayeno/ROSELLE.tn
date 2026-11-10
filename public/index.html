@@ -913,6 +913,19 @@
     .compteur-panier.rebond, #contenu-principal.anim-page { animation: none; }
     .bouton-ajouter, .bouton-achat-direct, .bouton-taille, .swatch-couleur { transition: none; transform: none !important; }
   }
+  /* V7.1 : reflet lumineux sur une photo pas encore chargée (cartes
+     articles et tuiles catégories). Le cadre a la classe en-chargement
+     tant que sa photo n'est pas arrivée ; le reflet s'arrête ensuite.
+     Le reflet glisse (transform), sans redessiner la page. */
+  .photo-wrap.en-chargement::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.55) 50%, transparent 80%);
+    transform: translateX(-100%);
+    animation: reflet-photo 1.4s ease-in-out infinite;
+  }
+  .photo-wrap img { position: relative; } /* la photo passe devant le reflet */
+  @keyframes reflet-photo { to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { .photo-wrap.en-chargement::before { animation: none; display: none; } }
 </style>
 </head>
 <body>
@@ -2107,6 +2120,15 @@ function mettreAJourCompteurPanier() {
    Toute erreur ici est ignorée : une animation ne doit jamais
    empêcher d'acheter.
    ============================================================ */
+// V7.1 : une photo d'article ou de catégorie est arrivée (ou a échoué) :
+// on enlève le reflet de chargement de son cadre.
+['load', 'error'].forEach(type => document.addEventListener(type, (e) => {
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && img.parentElement && img.parentElement.classList.contains('en-chargement')) {
+    img.parentElement.classList.remove('en-chargement');
+  }
+}, true));
+
 const animations = (() => {
   const cartesVues = new Set();
   // Animations coupées sur le téléphone ? (réglage d'accessibilité)
@@ -2475,7 +2497,7 @@ function blocCategoriesHTML(titre) {
           const photo = cat.imageUrl || (produitsCat.length ? photoParDefaut(produitsCat[0]) : '');
           return `
             <a class="tuile-categorie" href="#" data-cat="${echapper(cat.id)}" onclick="ouvrirCategorie(this); return false;">
-              <div class="photo-wrap">
+              <div class="photo-wrap${photo ? ' en-chargement' : ''}">
                 ${photo ? `<img src="${echapper(photoOptimisee(photo, 600))}" alt="${echapper(cat.label)}" loading="lazy">` : ''}
               </div>
               <span>${echapper(cat.label)}</span>
@@ -2834,7 +2856,7 @@ function carteProduitHTML(produit) {
   const { actuel, ancien } = prixUnitaireEffectif(produit);
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
-      <div class="photo-wrap">
+      <div class="photo-wrap${photo ? ' en-chargement' : ''}">
         ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2), formeCartes()))}" alt="${echapper(produit.name)}" loading="lazy" decoding="async">` : ''}
       </div>
       <div class="infos">
