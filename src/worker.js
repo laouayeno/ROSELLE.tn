@@ -583,7 +583,9 @@ function json(objet, statut = 200) {
    Cloudflare, au lieu d'une fois par visiteuse (trafic Cloudinary ≈ 0). */
 const CLOUD_PHOTOS = 'vmmsu4z6';
 // Exactement les réglages fabriqués par photoOptimisee() dans public/index.html
-const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_1:2\.8,g_center),w_(\d{3,4})$/;
+// V7.2 : ar_5:14 (= 1/2.8, accepté par Cloudinary). ar_1:2.8 reste permis pour les
+// pages déjà ouvertes avant la mise à jour (Cloudinary le refuse pour certaines photos).
+const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_(?:1:2\.8|5:14),g_center),w_(\d{3,4})$/;
 // Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
 const FICHIER_PHOTO_PERMIS = /^(v\d+\/)?[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*(\.(jpe?g|png|webp|gif|avif|heic))?$/i;
 
