@@ -507,6 +507,19 @@
     background: var(--texte); margin-top: 14px;
   }
   .bloc-texte p { color: var(--texte); font-size: 1.06rem; line-height: 1.75; margin: 0 0 16px; }
+  /* V7.6 : couleur de fond choisie pour un bloc dans Stock > Apparence.
+     Le bloc est entouré d'un cadre « fond-bloc » ; la couleur (--fond) va
+     d'un bord à l'autre de l'écran grâce à l'ombre très large, coupée en
+     haut et en bas par clip-path. Aucune image : presque aucun poids. */
+  .fond-bloc {
+    background: var(--fond); box-shadow: 0 0 0 100vmax var(--fond);
+    clip-path: inset(0 -100vmax);
+    margin-top: 56px; padding: 44px 0 48px;
+  }
+  .fond-bloc + .fond-bloc { margin-top: 0; }          /* deux blocs colorés qui se suivent : pas de trou blanc */
+  .fond-bloc > * { margin-top: 0 !important; }        /* l'espace du haut est donné par le cadre */
+  .fond-bloc .separateur-dore::after { background: var(--fond); }
+
   /* V7.5 : bouton facultatif sous le texte du bloc, un peu détaché des paragraphes */
   .bloc-texte .texte-bloc .bouton-principal { margin-top: 8px; }
   @media (min-width: 780px) {
@@ -999,7 +1012,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1588,6 +1601,7 @@ db.collection('siteSettings').doc('main').onSnapshot(
   (doc) => {
     etat.reglages = doc.exists ? (doc.data() || {}) : {};
     etat.reglagesCharges = true;
+    appliquerFondSite(); // V7.6
     rafraichirApresDonnees();
   },
   (erreur) => {
@@ -2189,7 +2203,10 @@ const animations = (() => {
     // (ses cartes / tuiles le sont déjà une par une).
     const zone = document.getElementById('zone-accueil-blocs');
     if (zone) {
-      [...zone.children].forEach((bloc, i) => {
+      [...zone.children].forEach((cadre, i) => {
+        // V7.6 : un bloc avec fond est dans un cadre « fond-bloc » : on anime le bloc lui-même
+        const bloc = cadre.classList.contains('fond-bloc') ? cadre.firstElementChild : cadre;
+        if (!bloc) return;
         if (bloc.classList.contains('bloc-section')) {
           const titre = bloc.querySelector(':scope > .entete-section');
           if (titre) ajouter(titre, 'bloc:' + i + ':titre');
@@ -2488,18 +2505,46 @@ function blocsAccueil() {
   return [{ type: 'categories' }, { type: 'nouveautes' }];
 }
 
+// V7.6 : couleurs de fond proposées dans Stock > Apparence (mêmes noms des
+// deux côtés). Seuls ces noms sont acceptés : une valeur inconnue est
+// ignorée, on ne met jamais dans la page une couleur écrite à la main.
+const COULEURS_FOND = {
+  blanc: '#FFFFFF',
+  creme: '#F5F3EF',
+  rose:  '#F6ECEA',
+  sable: '#EFE8DF',
+  perle: '#F2F2F0',
+};
+
+// Fond général du site (Apparence > Couleur de fond, rangé dans brand.background).
+// Sans choix valide : blanc, comme avant.
+function appliquerFondSite() {
+  const brand = (etat.reglages && etat.reglages.brand) || {};
+  const couleur = COULEURS_FOND[brand.background] || COULEURS_FOND.blanc;
+  document.documentElement.style.setProperty('--ivoire-clair', couleur);
+}
+
 function blocsAccueilHTML() {
   return blocsAccueil().map(bloc => {
-    switch (bloc.type) {
-      case 'banner': return blocBanniereHTML(bloc);
-      case 'products': return blocProduitsHTML(bloc.title, (Array.isArray(bloc.productIds) ? bloc.productIds : []).slice(0, 12).map(trouverProduit).filter(Boolean));
-      case 'categories': return blocCategoriesHTML(bloc.title);
-      case 'text': return blocTexteHTML(bloc);
-      case 'image': return blocImageHTML(bloc);
-      case 'nouveautes': return blocProduitsHTML('Nouveautés', etat.produits.slice(0, 8)); // bloc interne par défaut
-      default: return ''; // type inconnu : ignoré, sans casser la page
-    }
+    const html = blocSeulHTML(bloc);
+    // V7.6 : fond propre au bloc. Sans choix (ou choix inconnu), le bloc garde le fond du site.
+    const fond = COULEURS_FOND[bloc.background];
+    if (!html || !fond) return html;
+    return `<div class="fond-bloc" style="--fond:${fond}">${html}</div>`;
   }).join('');
+}
+
+// HTML d'un seul bloc, selon son type
+function blocSeulHTML(bloc) {
+  switch (bloc.type) {
+    case 'banner': return blocBanniereHTML(bloc);
+    case 'products': return blocProduitsHTML(bloc.title, (Array.isArray(bloc.productIds) ? bloc.productIds : []).slice(0, 12).map(trouverProduit).filter(Boolean));
+    case 'categories': return blocCategoriesHTML(bloc.title);
+    case 'text': return blocTexteHTML(bloc);
+    case 'image': return blocImageHTML(bloc);
+    case 'nouveautes': return blocProduitsHTML('Nouveautés', etat.produits.slice(0, 8)); // bloc interne par défaut
+    default: return ''; // type inconnu : ignoré, sans casser la page
+  }
 }
 
 // Grande bannière : photo + titre + sous-titre + bouton
