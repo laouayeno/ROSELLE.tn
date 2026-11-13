@@ -507,6 +507,8 @@
     background: var(--texte); margin-top: 14px;
   }
   .bloc-texte p { color: var(--texte); font-size: 1.06rem; line-height: 1.75; margin: 0 0 16px; }
+  /* V7.5 : bouton facultatif sous le texte du bloc, un peu détaché des paragraphes */
+  .bloc-texte .texte-bloc .bouton-principal { margin-top: 8px; }
   @media (min-width: 780px) {
     .bloc-texte h2 { font-size: 2.2rem; }
     .bloc-texte p { font-size: 1.12rem; }
@@ -997,7 +999,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.4</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2661,12 +2663,13 @@ document.addEventListener('dragstart', (e) => {
 // - le média prend toute la largeur de l'écran (voir le CSS .media-bloc)
 function blocTexteHTML(bloc) {
   const media = urlSure(bloc.mediaUrl, '');
-  if (!bloc.title && !bloc.body && !media) return '';
+  if (!bloc.title && !bloc.body && !media && !bloc.buttonLabel) return '';
 
   const texte = `
       <div class="texte-bloc">
         ${bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : ''}
         ${paragraphesHTML(bloc.body)}
+        ${bloc.buttonLabel ? `<button class="bouton-principal" ${lienAttributs(bloc.link)}>${echapper(bloc.buttonLabel)}</button>` : ''}
       </div>`;
   if (!media) return `<div class="bloc-texte">${texte}</div>`;
 
