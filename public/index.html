@@ -519,6 +519,13 @@
   .fond-bloc + .fond-bloc { margin-top: 0; }          /* deux blocs colorés qui se suivent : pas de trou blanc */
   .fond-bloc > * { margin-top: 0 !important; }        /* l'espace du haut est donné par le cadre */
   .fond-bloc .separateur-dore::after { background: var(--fond); }
+  /* Fond foncé : titres et textes en blanc, bouton inversé (blanc, texte noir).
+     Les cartes d'articles gardent leur fond blanc et leur texte noir. */
+  .fond-fonce .entete-section h2, .fond-fonce .bloc-texte h2, .fond-fonce .bloc-texte p,
+  .fond-fonce .tuile-categorie span { color: #FFFFFF; }
+  .fond-fonce .bloc-texte h2::after { background: #FFFFFF; }
+  .fond-fonce .bloc-texte .bouton-principal { background: #FFFFFF; color: #111111; }
+  .fond-fonce .fleche-carrousel { color: #FFFFFF; }
 
   /* V7.5 : bouton facultatif sous le texte du bloc, un peu détaché des paragraphes */
   .bloc-texte .texte-bloc .bouton-principal { margin-top: 8px; }
@@ -2514,13 +2521,26 @@ const COULEURS_FOND = {
   rose:  '#F6ECEA',
   sable: '#EFE8DF',
   perle: '#F2F2F0',
+  // Couleurs plus marquées (claires : le texte reste noir)
+  vieuxrose:  '#EBD3CD',
+  sauge:      '#DCE2D3',
+  terracotta: '#EED8C8',
+  brume:      '#DDE4E9',
+  // Couleurs foncées : seulement pour un bloc, le texte passe en blanc
+  bordeaux: '#5B1F2E',
+  noir:     '#141414',
+  olive:    '#3E4733',
+  chocolat: '#4B3428',
 };
+const FONDS_FONCES = ['bordeaux', 'noir', 'olive', 'chocolat'];
 
 // Fond général du site (Apparence > Couleur de fond, rangé dans brand.background).
 // Sans choix valide : blanc, comme avant.
 function appliquerFondSite() {
   const brand = (etat.reglages && etat.reglages.brand) || {};
-  const couleur = COULEURS_FOND[brand.background] || COULEURS_FOND.blanc;
+  // Les couleurs foncées sont refusées pour le site entier (formulaires, panier… resteraient illisibles)
+  const fond = FONDS_FONCES.includes(brand.background) ? 'blanc' : brand.background;
+  const couleur = COULEURS_FOND[fond] || COULEURS_FOND.blanc;
   document.documentElement.style.setProperty('--ivoire-clair', couleur);
 }
 
@@ -2530,7 +2550,8 @@ function blocsAccueilHTML() {
     // V7.6 : fond propre au bloc. Sans choix (ou choix inconnu), le bloc garde le fond du site.
     const fond = COULEURS_FOND[bloc.background];
     if (!html || !fond) return html;
-    return `<div class="fond-bloc" style="--fond:${fond}">${html}</div>`;
+    const fonce = FONDS_FONCES.includes(bloc.background) ? ' fond-fonce' : '';
+    return `<div class="fond-bloc${fonce}" style="--fond:${fond}">${html}</div>`;
   }).join('');
 }
 
