@@ -726,6 +726,15 @@
   .unite-pack { border: 1px solid var(--rose-clair); border-radius: 4px; padding: 14px; }
   .unite-pack .titre-unite { font-size: 0.82rem; color: var(--texte-doux); margin-bottom: 10px; }
   .unite-pack .options-couleur { margin-bottom: 10px; }
+  /* V7.9 : choix dans l'ordre (demande d'Oussama) : l'article 2 reste grisé
+     tant que l'article 1 n'a pas sa couleur ET sa taille, l'article 3 tant que
+     le 2 n'est pas complet. Une petite phrase explique quoi faire d'abord. */
+  .unite-pack { transition: opacity .25s ease; }
+  .unite-pack.verrouillee { opacity: 0.4; }
+  .unite-pack.verrouillee .options-couleur,
+  .unite-pack.verrouillee select { pointer-events: none; }
+  .unite-pack .indice-verrou { display: none; font-size: 0.75rem; color: var(--texte-doux); margin-left: 6px; }
+  .unite-pack.verrouillee .indice-verrou { display: inline; }
   .unite-pack select {
     flex: 1; padding: 10px; border: 1px solid var(--rose-clair); border-radius: 2px;
     font-family: 'Inter', sans-serif; font-size: 0.85rem; background: var(--blanc); color: var(--texte);
@@ -1047,7 +1056,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3474,14 +3483,14 @@ function choisirFormule(cle, qte) {
   etat.produitCourant.selectionsPack = new Array(qte).fill(null);
 
   zonePack.innerHTML = Array.from({ length: qte }).map((_, i) => `
-    <div class="unite-pack">
-      <div class="titre-unite">Article ${i + 1}</div>
+    <div class="unite-pack ${i > 0 ? 'verrouillee' : ''}" id="unite-pack-${i}">
+      <div class="titre-unite">Article ${i + 1}${i > 0 ? `<span class="indice-verrou">· choisissez d'abord l'article ${i}</span>` : ''}</div>
       <div class="options-couleur" id="options-couleur-pack-${i}">
         ${couleurs.map(c => {
           const v = (produit.variants || []).find(v => v.color === c);
           const photoSwatch = photosVariante(v)[0];
           return `
-            <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})">
+            <button type="button" class="swatch-couleur" data-couleur="${echapper(c)}" title="${echapper(c)}" onclick="choisirCouleurPack(${i}, ${enJs(c)})" ${i > 0 ? 'disabled' : ''}>
               <span class="rond-couleur">${contenuRondCouleur(c, photoSwatch)}</span>
                     <span class="nom-pastille">${echapper(c)}</span>
             </button>`;
@@ -3499,6 +3508,8 @@ function choisirFormule(cle, qte) {
 }
 
 function choisirCouleurPack(index, couleur) {
+  // V7.9 : sécurité : on ne choisit pas un article tant que le précédent n'est pas complet
+  if (!articlesPrecedentsComplets(index)) return;
   const produit = trouverProduit(etat.parametresVue.produitId);
   etat.produitCourant.selectionsPack[index] = { color: couleur, size: null };
 
@@ -3534,14 +3545,44 @@ function choisirCouleurPack(index, couleur) {
 }
 
 function choisirTaillePack(index, taille) {
-  etat.produitCourant.selectionsPack[index].size = taille;
+  const selection = etat.produitCourant.selectionsPack[index];
+  if (!selection || !articlesPrecedentsComplets(index)) return;
+  selection.size = taille;
   actualiserBoutonPack();
+}
+
+// V7.9 : vrai si tous les articles AVANT « index » ont leur couleur et leur taille.
+function articlesPrecedentsComplets(index) {
+  const selections = etat.produitCourant.selectionsPack || [];
+  for (let i = 0; i < index; i++) {
+    const s = selections[i];
+    if (!s || !s.color || !s.size) return false;
+  }
+  return true;
+}
+
+// V7.9 : grise / dégrise chaque article du pack selon l'ordre.
+// On touche seulement des classes et l'attribut disabled (pas de reconstruction
+// de la fiche : les choix déjà faits restent en place, rien ne clignote).
+function actualiserVerrousPack() {
+  const selections = etat.produitCourant.selectionsPack || [];
+  for (let i = 1; i < selections.length; i++) {
+    const bloc = document.getElementById('unite-pack-' + i);
+    if (!bloc) continue;
+    const verrouille = !articlesPrecedentsComplets(i);
+    bloc.classList.toggle('verrouillee', verrouille);
+    bloc.querySelectorAll('.swatch-couleur').forEach(b => { b.disabled = verrouille; });
+    const selectTaille = document.getElementById('select-taille-pack-' + i);
+    // La taille reste fermée tant qu'aucune couleur n'est choisie pour cet article
+    if (selectTaille) selectTaille.disabled = verrouille || !(selections[i] && selections[i].color);
+  }
 }
 
 function actualiserBoutonPack() {
   const bouton = document.getElementById('bouton-ajouter');
   const boutonAchat = document.getElementById('bouton-acheter-maintenant');
   const selections = etat.produitCourant.selectionsPack || [];
+  actualiserVerrousPack(); // V7.9 : articles dans l'ordre
   const complet = selections.length > 0 && selections.every(s => s && s.color && s.size);
   bouton.disabled = !complet;
   bouton.textContent = complet ? 'Ajouter le pack au panier' : 'Choisir chaque article du pack';
