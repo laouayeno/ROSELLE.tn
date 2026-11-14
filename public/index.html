@@ -487,8 +487,10 @@
     position: relative; display: block; margin-top: 48px; border-radius: 6px;
     overflow: hidden; background: linear-gradient(180deg, #D9CBC6 0%, #A88F89 100%); cursor: pointer;
   }
-  .bloc-banniere img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
-  @media (min-width: 780px) { .bloc-banniere img { aspect-ratio: 16/7; } }
+  .bloc-banniere img { width: 100%; height: auto; display: block; }
+  /* V7.8 (choix C d'Oussama) : bannière bord à bord, sur toute la largeur de
+     l'écran, et image entière (rien n'est coupé, la hauteur suit l'image). */
+  .bloc-banniere { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); border-radius: 0; }
   .bloc-banniere .texte-banniere {
     position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 20px;
     color: var(--blanc);
@@ -869,6 +871,28 @@
     background: #F4DEDA; color: var(--erreur); padding: 12px 16px; border-radius: 3px;
     font-size: 0.85rem; margin-bottom: 20px;
   }
+  /* V7.8 : boutons plus modernes (style « Verre » choisi par Oussama) :
+     - tous les boutons : coins arrondis, texte un peu plus gras ;
+     - bouton principal : petite flèche → qui avance au survol ;
+     - sur une photo ou la vidéo (bannière, accueil) : bouton transparent
+       et flouté, texte blanc. Uniquement du CSS : aucun poids en plus à charger. */
+  .bouton-principal, .bouton-secondaire, .bouton-ajouter, .bouton-achat-direct, .bouton-secours {
+    border-radius: 14px; font-weight: 600;
+  }
+  .bouton-principal::after {
+    content: '→'; display: inline-block; margin-left: 10px; transition: transform 0.2s ease;
+  }
+  .bouton-principal:hover::after { transform: translateX(4px); }
+  .bloc-banniere .texte-banniere .bouton-principal, .hero-video-texte .bouton-principal {
+    background: rgba(255, 255, 255, 0.22); color: var(--blanc);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+  .bloc-banniere .texte-banniere .bouton-principal:hover, .hero-video-texte .bouton-principal:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  @media (prefers-reduced-motion: reduce) { .bouton-principal::after { transition: none; } }
+
   /* V6.8 : boutons Instagram / Facebook proposés dans le message d'erreur de commande */
   .boutons-secours { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .bouton-secours {
@@ -1023,7 +1047,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
