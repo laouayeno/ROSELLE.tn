@@ -405,7 +405,8 @@
     grid-column: 1 / -1; grid-row: 1;          /* 1re ligne de la barre, toute la largeur */
     height: var(--hauteur-bande); overflow: hidden;
     margin: -2px -10px 2px;                    /* bord à bord malgré la marge intérieure de la barre */
-    background: #2B2024; color: #FFFFFF;
+    background: #C9848F; color: #FFFFFF;         /* vieux rose choisi par Oussama */
+    font-weight: 500;
     display: flex; align-items: center;
     font-size: 0.78rem; letter-spacing: 0.04em; white-space: nowrap;
   }
@@ -419,7 +420,8 @@
   }
   .bande-livraison .message { padding: 0 22px; }
   .bande-livraison .message[dir="rtl"] { font-size: 0.86rem; letter-spacing: 0; }
-  .bande-livraison .point { opacity: 0.55; }
+  /* Petite fleur blanche entre les phrases (choix d'Oussama) */
+  .bande-livraison .fleur { width: 13px; height: 13px; flex-shrink: 0; align-self: center; }
   @keyframes bande-defile { to { transform: translateX(-50%); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
   @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
@@ -1694,6 +1696,11 @@ function messagesLivraison(frais) {
   ];
 }
 
+// Petite fleur à 5 pétales (dessin SVG de quelques octets, couleur du texte)
+const FLEUR_BANDE = '<svg class="fleur" viewBox="0 0 20 20" aria-hidden="true">' +
+  [0, 72, 144, 216, 288].map(a => `<ellipse cx="10" cy="5.2" rx="3.2" ry="4.6" fill="currentColor" transform="rotate(${a} 10 10)"/>`).join('') +
+  '<circle cx="10" cy="10" r="2.4" fill="#C9848F"/></svg>';
+
 function mettreAJourBandeLivraison() {
   const bande = document.getElementById('bande-livraison');
   const ruban = document.getElementById('ruban-livraison');
@@ -1706,7 +1713,7 @@ function mettreAJourBandeLivraison() {
   // Un groupe = les 3 langues. Chaque moitié du ruban contient 3 groupes,
   // assez pour remplir un grand écran d'ordinateur.
   const groupe = messages.map(m =>
-    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span><span class="point" aria-hidden="true">✦</span>`
+    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${FLEUR_BANDE}`
   ).join('');
   const moitie = groupe + groupe + groupe;
   ruban.innerHTML = moitie + moitie;
