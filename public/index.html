@@ -393,21 +393,24 @@
     .dome-accueil { width: min(18vw, 260px); }
   }
   /* ===== V8.1 : bande défilante « Livraison » (demande d'Oussama) =====
-     Fine bande sombre sous la barre du haut, avec un texte qui passe de
-     droite à gauche en arabe, en français et en anglais. Animation CSS
-     pure (aucun script qui tourne en boucle : très léger). Elle fait
-     partie de la barre du haut, donc elle reste collée en haut avec elle.
-     Le demi-cercle du logo passe PAR-DESSUS la bande (il commence au
-     même endroit qu'avant, juste sous les liens du menu). */
+     Fine bande sombre tout en haut, au-dessus des liens du menu (style 2
+     choisi par Oussama), avec un texte qui passe de droite à gauche en
+     arabe, en français et en anglais. Animation CSS pure (aucun script
+     qui tourne en boucle : très léger). Elle fait partie de la barre du
+     haut, donc elle reste collée en haut avec elle. Le demi-cercle du
+     logo ne change pas : il reste accroché sous la barre. */
   :root { --hauteur-bande: 26px; }
+  header.avec-bande { border-top: 0; }
   .bande-livraison {
-    grid-column: 1 / -1; grid-row: 2;          /* 2e ligne de la barre, toute la largeur */
+    grid-column: 1 / -1; grid-row: 1;          /* 1re ligne de la barre, toute la largeur */
     height: var(--hauteur-bande); overflow: hidden;
-    margin: 2px -10px -2px;                    /* bord à bord malgré la marge intérieure de la barre */
+    margin: -2px -10px 2px;                    /* bord à bord malgré la marge intérieure de la barre */
     background: #2B2024; color: #FFFFFF;
     display: flex; align-items: center;
     font-size: 0.78rem; letter-spacing: 0.04em; white-space: nowrap;
   }
+  /* Le reste de la barre (menu, logo, loupe, panier) passe sur la 2e ligne */
+  header.avec-bande > :not(.bande-livraison):not(#dome-entete):not(.bande-deroulante) { grid-row: 2; }
   /* Le ruban de texte : 2 moitiés identiques. Il glisse d'une moitié
      puis recommence sans à-coup (la 2e moitié remplace la 1re). */
   .bande-livraison .ruban {
@@ -420,16 +423,9 @@
   @keyframes bande-defile { to { transform: translateX(-50%); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
   @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
-  /* Le demi-cercle commence en haut de la bande (et non sous elle) */
-  header.avec-bande { border-bottom: 0; }
-  header.avec-bande .dome-accueil { top: calc(100% - var(--hauteur-bande)); }
   @media (min-width: 860px) {
-    .bande-livraison { margin: 2px -32px -2px; font-size: 0.8rem; }
+    .bande-livraison { margin: -2px -32px 2px; font-size: 0.8rem; }
   }
-  /* Variante « tout en haut » (au-dessus du menu) */
-  header.bande-en-haut .bande-livraison { grid-row: 1; margin-top: -2px; margin-bottom: 2px; }
-  header.bande-en-haut > :not(.bande-livraison):not(#dome-entete):not(.bande-deroulante) { grid-row: 2; }
-  header.bande-en-haut.avec-bande .dome-accueil { top: 100%; }
 
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
@@ -1097,7 +1093,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
