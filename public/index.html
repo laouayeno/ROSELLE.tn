@@ -623,7 +623,10 @@
   @media (min-width: 640px) { .grille-produits { grid-template-columns: repeat(3, 1fr); gap: 26px 20px; } }
   @media (min-width: 960px) { .grille-produits { grid-template-columns: repeat(4, 1fr); } }
 
-  .carte-produit { cursor: pointer; box-shadow: 0 8px 20px rgba(17,17,17,0.1); border-radius: 50% 50% 6px 6px / 14% 14% 6px 6px; }
+  .carte-produit { cursor: pointer; box-shadow: 0 8px 20px rgba(17,17,17,0.1); border-radius: 50% 50% 6px 6px / 14% 14% 6px 6px;
+    /* V7.7 : toutes les cartes d'une même ligne ont la même hauteur : la partie
+       blanche s'allonge quand une voisine a une ligne en plus (« Soldes », nom sur 2 lignes…) */
+    display: flex; flex-direction: column; }
   .carte-produit .photo-wrap {
     position: relative; aspect-ratio: 1/2.8; overflow: hidden; background: var(--rose-clair);
     /* Arche fine proportionnelle à la largeur de la carte (pas un cercle qui mange toute la photo) :
@@ -657,6 +660,7 @@
   .carte-produit .infos {
     background: var(--blanc); padding: 40px 12px 48px; min-height: 150px; text-align: center;
     border-radius: 0 0 6px 6px;
+    flex: 1;   /* V7.7 : remplit le bas de la carte (même hauteur pour toute la ligne) */
   }
   .carte-produit .nom {
     font-family: 'Inter', sans-serif; font-style: normal; font-weight: 800;
@@ -1019,7 +1023,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
