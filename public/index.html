@@ -425,6 +425,7 @@
   @keyframes bande-defile { to { transform: translateX(-50%); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
   @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
+  .bande-livraison[hidden] { display: none; }   /* V8.3 : bande cachée depuis le Stock */
   @media (min-width: 860px) {
     .bande-livraison { margin: -2px -32px 2px; font-size: 0.8rem; }
   }
@@ -1095,7 +1096,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1706,23 +1707,42 @@ const CAMION_BANDE = '<svg class="camion" viewBox="0 0 24 16" aria-hidden="true"
   '<circle cx="18" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' +
   '</svg>';
 
+/* V8.3 : textes libres choisis dans Stock > Apparence > Bande du haut
+   (shipping.banner = { show, ar, fr, en }). Renvoie null si la bande doit
+   être cachée, la liste des textes libres s'il y en a, sinon les textes
+   automatiques de livraison. Chaque texte est coupé à 150 caractères. */
+function messagesBande() {
+  const sh = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {};
+  const b = (sh.banner && typeof sh.banner === 'object') ? sh.banner : null;
+  if (b && b.show === false) return null;
+  const libre = (texte, sens) => (typeof texte === 'string' && texte.trim()) ? { texte: texte.trim().slice(0, 150), sens } : null;
+  const libres = b ? [libre(b.ar, 'rtl'), libre(b.fr, 'ltr'), libre(b.en, 'ltr')].filter(Boolean) : [];
+  return libres.length ? libres : messagesLivraison(fraisLivraison());
+}
+
 function mettreAJourBandeLivraison() {
   const bande = document.getElementById('bande-livraison');
   const ruban = document.getElementById('ruban-livraison');
   if (!bande || !ruban) return;
-  const frais = fraisLivraison();
-  if (ruban.dataset.frais === String(frais)) return; // rien n'a changé : on ne touche à rien
-  ruban.dataset.frais = String(frais);
+  const messages = messagesBande();
+  const cle = JSON.stringify(messages);
+  if (ruban.dataset.cle === cle) return; // rien n'a changé : on ne touche à rien (pas de saut)
+  ruban.dataset.cle = cle;
 
-  const messages = messagesLivraison(frais);
-  // Un groupe = les 3 langues. Chaque moitié du ruban contient 3 groupes,
-  // assez pour remplir un grand écran d'ordinateur.
+  // Bande cachée depuis le Stock : on la retire de la barre du haut
+  const entete = document.querySelector('header');
+  bande.hidden = !messages;
+  entete.classList.toggle('avec-bande', !!messages);
+  if (!messages) { ruban.innerHTML = ''; return; }
+
+  // Un groupe = les textes (1 à 3 langues). Chaque moitié du ruban répète
+  // le groupe jusqu'à 9 textes environ, assez pour un grand écran d'ordinateur.
   const groupe = messages.map(m =>
     `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${CAMION_BANDE}`
   ).join('');
-  const moitie = groupe + groupe + groupe;
+  const moitie = groupe.repeat(Math.ceil(9 / messages.length));
   ruban.innerHTML = moitie + moitie;
-  bande.setAttribute('aria-label', messages[1].texte);
+  bande.setAttribute('aria-label', (messages[1] || messages[0]).texte);
 }
 mettreAJourBandeLivraison(); // affichage immédiat avec 8 DT, avant même les réglages
 
