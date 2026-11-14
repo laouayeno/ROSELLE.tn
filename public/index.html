@@ -392,42 +392,53 @@
     /* V2.20 : demi-cercle et logo plus petits (choix d'Oussama) */
     .dome-accueil { width: min(18vw, 260px); }
   }
-  /* ===== V8.1 : bande défilante « Livraison » (demande d'Oussama) =====
-     Fine bande sombre tout en haut, au-dessus des liens du menu (style 2
-     choisi par Oussama), avec un texte qui passe de droite à gauche en
-     arabe, en français et en anglais. Animation CSS pure (aucun script
-     qui tourne en boucle : très léger). Elle fait partie de la barre du
-     haut, donc elle reste collée en haut avec elle. Le demi-cercle du
-     logo ne change pas : il reste accroché sous la barre. */
+  /* ===== V8.1 : bandes défilantes tout en haut (demande d'Oussama) =====
+     Fines bandes au-dessus des liens du menu (style 2 choisi par Oussama),
+     avec un texte qui passe de droite à gauche. Animation CSS pure (aucun
+     script qui tourne en boucle : très léger). Elles font partie de la
+     barre du haut, donc elles restent collées en haut avec elle. Le
+     demi-cercle du logo ne change pas : il reste accroché sous la barre.
+     - 1re bande « Livraison » (vieux rose, petits camions), toujours là
+       sauf si Oussama la cache dans le Stock ;
+     - V8.3 : 2e bande « Offre spéciale » (framboise, petits cadeaux),
+       facultative, affichée seulement si un texte est rempli dans le Stock. */
   :root { --hauteur-bande: 26px; }
-  header.avec-bande { border-top: 0; }
-  .bande-livraison {
-    grid-column: 1 / -1; grid-row: 1;          /* 1re ligne de la barre, toute la largeur */
+  header.avec-bande, header.avec-offre { border-top: 0; }
+  .bande {
+    grid-column: 1 / -1;                       /* toute la largeur de la barre */
     height: var(--hauteur-bande); overflow: hidden;
-    margin: -2px -10px 2px;                    /* bord à bord malgré la marge intérieure de la barre */
-    background: #C9848F; color: #FFFFFF;         /* vieux rose choisi par Oussama */
-    font-weight: 500;
+    margin: 0 -10px;                           /* bord à bord malgré la marge intérieure de la barre */
+    color: #FFFFFF; font-weight: 500;
     display: flex; align-items: center;
     font-size: 0.78rem; letter-spacing: 0.04em; white-space: nowrap;
   }
-  /* Le reste de la barre (menu, logo, loupe, panier) passe sur la 2e ligne */
-  header.avec-bande > :not(.bande-livraison):not(#dome-entete):not(.bande-deroulante) { grid-row: 2; }
+  .bande[hidden] { display: none; }
+  .bande-livraison { grid-row: 1; background: #C9848F; }   /* vieux rose choisi par Oussama */
+  .bande-offre { grid-row: 2; background: #8E3A55; }       /* framboise foncé : se distingue de la livraison */
+  /* La 1re bande visible remonte sur la marge du haut, la dernière laisse
+     un petit espace avant les liens du menu */
+  header.avec-bande .bande-livraison { margin-top: -2px; }
+  header.avec-offre:not(.avec-bande) .bande-offre { margin-top: -2px; }
+  header.avec-bande:not(.avec-offre) .bande-livraison, header.avec-offre .bande-offre { margin-bottom: 2px; }
+  /* Le reste de la barre (menu, logo, loupe, panier) passe sous les bandes */
+  header > :not(.bande):not(#dome-entete):not(.bande-deroulante) { grid-row: 3; }
   /* Le ruban de texte : 2 moitiés identiques. Il glisse d'une moitié
      puis recommence sans à-coup (la 2e moitié remplace la 1re). */
-  .bande-livraison .ruban {
+  .bande .ruban {
     display: flex; width: max-content;
     animation: bande-defile 38s linear infinite;
   }
-  .bande-livraison .message { padding: 0 22px; }
-  .bande-livraison .message[dir="rtl"] { font-size: 0.86rem; letter-spacing: 0; }
+  .bande-offre .ruban { animation-duration: 32s; }       /* un peu décalée de la 1re bande */
+  .bande .message { padding: 0 22px; }
+  .bande .message[dir="rtl"] { font-size: 0.86rem; letter-spacing: 0; }
   /* Petit camion blanc entre les phrases, tourné vers la gauche (choix d'Oussama) */
-  .bande-livraison .camion { width: 22px; height: 15px; flex-shrink: 0; align-self: center; transform: scaleX(-1); }
+  .bande .camion { width: 22px; height: 15px; flex-shrink: 0; align-self: center; transform: scaleX(-1); }
+  .bande .cadeau { width: 15px; height: 15px; flex-shrink: 0; align-self: center; }
   @keyframes bande-defile { to { transform: translateX(-50%); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
-  @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
-  .bande-livraison[hidden] { display: none; }   /* V8.3 : bande cachée depuis le Stock */
+  @media (prefers-reduced-motion: reduce) { .bande .ruban { animation: none; } }
   @media (min-width: 860px) {
-    .bande-livraison { margin: -2px -32px 2px; font-size: 0.8rem; }
+    .bande { margin-left: -32px; margin-right: -32px; font-size: 0.8rem; }
   }
 
   .separateur-dore {
@@ -1061,7 +1072,9 @@
     </button>
   </div>
   <!-- V8.1 : bande défilante « Livraison » (texte rempli par mettreAJourBandeLivraison) -->
-  <div class="bande-livraison" id="bande-livraison" role="marquee" aria-label="Livraison 8 DT partout en Tunisie"><div class="ruban" id="ruban-livraison" aria-hidden="true"></div></div>
+  <div class="bande bande-livraison" id="bande-livraison" role="marquee" aria-label="Livraison 8 DT partout en Tunisie"><div class="ruban" id="ruban-livraison" aria-hidden="true"></div></div>
+  <!-- V8.3 : bande « Offre spéciale », facultative (texte rempli dans Stock > Apparence) -->
+  <div class="bande bande-offre" id="bande-offre" role="marquee" hidden><div class="ruban" id="ruban-offre" aria-hidden="true"></div></div>
   <!-- Accueil : demi-cercle avec le logo, accroché sous la barre (il descend avec elle) -->
   <div id="dome-entete"></div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
@@ -1707,42 +1720,57 @@ const CAMION_BANDE = '<svg class="camion" viewBox="0 0 24 16" aria-hidden="true"
   '<circle cx="18" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' +
   '</svg>';
 
-/* V8.3 : textes libres choisis dans Stock > Apparence > Bande du haut
-   (shipping.banner = { show, ar, fr, en }). Renvoie null si la bande doit
-   être cachée, la liste des textes libres s'il y en a, sinon les textes
-   automatiques de livraison. Chaque texte est coupé à 150 caractères. */
-function messagesBande() {
-  const sh = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {};
-  const b = (sh.banner && typeof sh.banner === 'object') ? sh.banner : null;
-  if (b && b.show === false) return null;
+// Petit paquet cadeau blanc pour la bande « Offre spéciale » (V8.3)
+const CADEAU_BANDE = '<svg class="cadeau" viewBox="0 0 20 20" aria-hidden="true">' +
+  '<path d="M2 7h16v4H2zM3.5 11h13v7h-13z" fill="currentColor"/>' +                 // boîte et couvercle
+  '<path d="M9 7h2v11H9z" fill="#8E3A55"/>' +                                     // ruban vertical
+  '<path d="M10 7C8 3 4.5 3.5 5 5.5S9 7 10 7zM10 7c2-4 5.5-3.5 5-1.5S11 7 10 7z" fill="currentColor"/>' + // nœud
+  '</svg>';
+
+/* V8.3 : lit les textes d'une bande réglée dans Stock > Apparence.
+   reglage = { show, ar, fr, en } ; renvoie la liste des textes remplis
+   (arabe, français, anglais), coupés à 150 caractères. */
+function textesBande(reglage) {
+  if (!reglage || typeof reglage !== 'object') return [];
   const libre = (texte, sens) => (typeof texte === 'string' && texte.trim()) ? { texte: texte.trim().slice(0, 150), sens } : null;
-  const libres = b ? [libre(b.ar, 'rtl'), libre(b.fr, 'ltr'), libre(b.en, 'ltr')].filter(Boolean) : [];
-  return libres.length ? libres : messagesLivraison(fraisLivraison());
+  return [libre(reglage.ar, 'rtl'), libre(reglage.fr, 'ltr'), libre(reglage.en, 'ltr')].filter(Boolean);
 }
 
-function mettreAJourBandeLivraison() {
-  const bande = document.getElementById('bande-livraison');
-  const ruban = document.getElementById('ruban-livraison');
+// Remplit une bande (ou la cache si messages est vide). Le ruban n'est
+// réécrit que si son contenu change : pas de saut pendant le pic.
+function remplirBandeDefilante(idBande, idRuban, classeEntete, messages, icone) {
+  const bande = document.getElementById(idBande);
+  const ruban = document.getElementById(idRuban);
   if (!bande || !ruban) return;
-  const messages = messagesBande();
   const cle = JSON.stringify(messages);
-  if (ruban.dataset.cle === cle) return; // rien n'a changé : on ne touche à rien (pas de saut)
+  if (ruban.dataset.cle === cle) return;
   ruban.dataset.cle = cle;
-
-  // Bande cachée depuis le Stock : on la retire de la barre du haut
-  const entete = document.querySelector('header');
-  bande.hidden = !messages;
-  entete.classList.toggle('avec-bande', !!messages);
-  if (!messages) { ruban.innerHTML = ''; return; }
-
+  const visible = messages.length > 0;
+  bande.hidden = !visible;
+  document.querySelector('header').classList.toggle(classeEntete, visible);
+  if (!visible) { ruban.innerHTML = ''; return; }
   // Un groupe = les textes (1 à 3 langues). Chaque moitié du ruban répète
   // le groupe jusqu'à 9 textes environ, assez pour un grand écran d'ordinateur.
   const groupe = messages.map(m =>
-    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${CAMION_BANDE}`
+    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${icone}`
   ).join('');
   const moitie = groupe.repeat(Math.ceil(9 / messages.length));
   ruban.innerHTML = moitie + moitie;
   bande.setAttribute('aria-label', (messages[1] || messages[0]).texte);
+}
+
+// Met à jour les 2 bandes d'après les réglages (shipping.banner et shipping.offer).
+function mettreAJourBandeLivraison() {
+  const sh = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {};
+  // Bande Livraison : cachée si show = false ; sinon textes du Stock,
+  // ou à défaut le texte automatique « Livraison X DT partout en Tunisie »
+  const reglageLivraison = (sh.banner && typeof sh.banner === 'object') ? sh.banner : {};
+  const libres = textesBande(reglageLivraison);
+  const livraison = reglageLivraison.show === false ? [] : (libres.length ? libres : messagesLivraison(fraisLivraison()));
+  remplirBandeDefilante('bande-livraison', 'ruban-livraison', 'avec-bande', livraison, CAMION_BANDE);
+  // Bande Offre spéciale : seulement si elle est affichée ET qu'un texte est rempli
+  const reglageOffre = (sh.offer && typeof sh.offer === 'object') ? sh.offer : {};
+  remplirBandeDefilante('bande-offre', 'ruban-offre', 'avec-offre', reglageOffre.show === false ? [] : textesBande(reglageOffre), CADEAU_BANDE);
 }
 mettreAJourBandeLivraison(); // affichage immédiat avec 8 DT, avant même les réglages
 
