@@ -487,8 +487,10 @@
     position: relative; display: block; margin-top: 48px; border-radius: 6px;
     overflow: hidden; background: linear-gradient(180deg, #D9CBC6 0%, #A88F89 100%); cursor: pointer;
   }
-  .bloc-banniere img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
-  @media (min-width: 780px) { .bloc-banniere img { aspect-ratio: 16/7; } }
+  .bloc-banniere img { width: 100%; height: auto; display: block; }
+  /* V7.8 (choix C d'Oussama) : bannière bord à bord, sur toute la largeur de
+     l'écran, et image entière (rien n'est coupé, la hauteur suit l'image). */
+  .bloc-banniere { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); border-radius: 0; }
   .bloc-banniere .texte-banniere {
     position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 20px;
     color: var(--blanc);
