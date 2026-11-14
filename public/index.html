@@ -420,8 +420,8 @@
   }
   .bande-livraison .message { padding: 0 22px; }
   .bande-livraison .message[dir="rtl"] { font-size: 0.86rem; letter-spacing: 0; }
-  /* Petite fleur blanche entre les phrases (choix d'Oussama) */
-  .bande-livraison .fleur { width: 13px; height: 13px; flex-shrink: 0; align-self: center; }
+  /* Petit camion blanc entre les phrases, tourné vers la gauche (choix d'Oussama) */
+  .bande-livraison .camion { width: 22px; height: 15px; flex-shrink: 0; align-self: center; transform: scaleX(-1); }
   @keyframes bande-defile { to { transform: translateX(-50%); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
   @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
@@ -1696,10 +1696,15 @@ function messagesLivraison(frais) {
   ];
 }
 
-// Petite fleur à 5 pétales (dessin SVG de quelques octets, couleur du texte)
-const FLEUR_BANDE = '<svg class="fleur" viewBox="0 0 20 20" aria-hidden="true">' +
-  [0, 72, 144, 216, 288].map(a => `<ellipse cx="10" cy="5.2" rx="3.2" ry="4.6" fill="currentColor" transform="rotate(${a} 10 10)"/>`).join('') +
-  '<circle cx="10" cy="10" r="2.4" fill="#C9848F"/></svg>';
+// Petit camion blanc qui roule vers la gauche, comme le texte (choix
+// d'Oussama). Dessin SVG de quelques octets, couleur du texte.
+const CAMION_BANDE = '<svg class="camion" viewBox="0 0 24 16" aria-hidden="true">' +
+  '<path d="M1 1.5h13v10H1z" fill="currentColor"/>' +                    // caisse
+  '<path d="M14 4.5h4.5l4 4v3H14z" fill="currentColor"/>' +              // cabine
+  '<path d="M16 5.8h2.2l2.3 2.4H16z" fill="#C9848F"/>' +                 // vitre
+  '<circle cx="5.5" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' + // roues
+  '<circle cx="18" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' +
+  '</svg>';
 
 function mettreAJourBandeLivraison() {
   const bande = document.getElementById('bande-livraison');
@@ -1713,7 +1718,7 @@ function mettreAJourBandeLivraison() {
   // Un groupe = les 3 langues. Chaque moitié du ruban contient 3 groupes,
   // assez pour remplir un grand écran d'ordinateur.
   const groupe = messages.map(m =>
-    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${FLEUR_BANDE}`
+    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span>${CAMION_BANDE}`
   ).join('');
   const moitie = groupe + groupe + groupe;
   ruban.innerHTML = moitie + moitie;
