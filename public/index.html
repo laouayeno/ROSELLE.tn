@@ -392,6 +392,45 @@
     /* V2.20 : demi-cercle et logo plus petits (choix d'Oussama) */
     .dome-accueil { width: min(18vw, 260px); }
   }
+  /* ===== V8.1 : bande défilante « Livraison » (demande d'Oussama) =====
+     Fine bande sombre sous la barre du haut, avec un texte qui passe de
+     droite à gauche en arabe, en français et en anglais. Animation CSS
+     pure (aucun script qui tourne en boucle : très léger). Elle fait
+     partie de la barre du haut, donc elle reste collée en haut avec elle.
+     Le demi-cercle du logo passe PAR-DESSUS la bande (il commence au
+     même endroit qu'avant, juste sous les liens du menu). */
+  :root { --hauteur-bande: 26px; }
+  .bande-livraison {
+    grid-column: 1 / -1; grid-row: 2;          /* 2e ligne de la barre, toute la largeur */
+    height: var(--hauteur-bande); overflow: hidden;
+    margin: 2px -10px -2px;                    /* bord à bord malgré la marge intérieure de la barre */
+    background: #2B2024; color: #FFFFFF;
+    display: flex; align-items: center;
+    font-size: 0.78rem; letter-spacing: 0.04em; white-space: nowrap;
+  }
+  /* Le ruban de texte : 2 moitiés identiques. Il glisse d'une moitié
+     puis recommence sans à-coup (la 2e moitié remplace la 1re). */
+  .bande-livraison .ruban {
+    display: flex; width: max-content;
+    animation: bande-defile 38s linear infinite;
+  }
+  .bande-livraison .message { padding: 0 22px; }
+  .bande-livraison .message[dir="rtl"] { font-size: 0.86rem; letter-spacing: 0; }
+  .bande-livraison .point { opacity: 0.55; }
+  @keyframes bande-defile { to { transform: translateX(-50%); } }
+  /* Téléphones réglés sur « réduire les animations » : texte immobile */
+  @media (prefers-reduced-motion: reduce) { .bande-livraison .ruban { animation: none; } }
+  /* Le demi-cercle commence en haut de la bande (et non sous elle) */
+  header.avec-bande { border-bottom: 0; }
+  header.avec-bande .dome-accueil { top: calc(100% - var(--hauteur-bande)); }
+  @media (min-width: 860px) {
+    .bande-livraison { margin: 2px -32px -2px; font-size: 0.8rem; }
+  }
+  /* Variante « tout en haut » (au-dessus du menu) */
+  header.bande-en-haut .bande-livraison { grid-row: 1; margin-top: -2px; margin-bottom: 2px; }
+  header.bande-en-haut > :not(.bande-livraison):not(#dome-entete):not(.bande-deroulante) { grid-row: 2; }
+  header.bande-en-haut.avec-bande .dome-accueil { top: 100%; }
+
   .separateur-dore {
     width: 90px; height: 1px; background: var(--dore); margin: 6px 0;
     position: relative;
@@ -998,7 +1037,7 @@
 </head>
 <body>
 
-<header>
+<header class="avec-bande">
   <!-- Gauche : menu ☰ -->
   <div class="entete-gauche">
     <button class="bouton-icone bouton-menu-mobile" onclick="basculerMenuMobile()" aria-label="Menu">
@@ -1022,6 +1061,8 @@
       <span class="compteur-panier" id="compteur-panier" style="display:none;">0</span>
     </button>
   </div>
+  <!-- V8.1 : bande défilante « Livraison » (texte rempli par mettreAJourBandeLivraison) -->
+  <div class="bande-livraison" id="bande-livraison" role="marquee" aria-label="Livraison 8 DT partout en Tunisie"><div class="ruban" id="ruban-livraison" aria-hidden="true"></div></div>
   <!-- Accueil : demi-cercle avec le logo, accroché sous la barre (il descend avec elle) -->
   <div id="dome-entete"></div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
@@ -1634,6 +1675,50 @@ db.collection('publicCatalog').onSnapshot(
 );
 
 /* ============================================================
+   V8.1 : BANDE DÉFILANTE « LIVRAISON »
+   ------------------------------------------------------------
+   Le montant suit les frais de livraison réglés dans le Stock
+   (8 DT par défaut). Le texte n'est réécrit que si le montant
+   change : pas de saut de l'animation pendant le pic.
+   ============================================================ */
+function messagesLivraison(frais) {
+  // Montant écrit à la française (7,5 et non 7.5)
+  const montant = String(frais).replace('.', ',');
+  if (frais === 0) {
+    return [
+      { texte: 'التوصيل مجاني لكامل تراب الجمهورية', sens: 'rtl' },
+      { texte: 'Livraison gratuite partout en Tunisie', sens: 'ltr' },
+      { texte: 'Free delivery all over Tunisia', sens: 'ltr' }
+    ];
+  }
+  return [
+    { texte: 'التوصيل بـ ' + montant + ' د.ت لكامل تراب الجمهورية', sens: 'rtl' },
+    { texte: 'Livraison ' + montant + ' DT partout en Tunisie', sens: 'ltr' },
+    { texte: 'Delivery ' + montant + ' TND all over Tunisia', sens: 'ltr' }
+  ];
+}
+
+function mettreAJourBandeLivraison() {
+  const bande = document.getElementById('bande-livraison');
+  const ruban = document.getElementById('ruban-livraison');
+  if (!bande || !ruban) return;
+  const frais = fraisLivraison();
+  if (ruban.dataset.frais === String(frais)) return; // rien n'a changé : on ne touche à rien
+  ruban.dataset.frais = String(frais);
+
+  const messages = messagesLivraison(frais);
+  // Un groupe = les 3 langues. Chaque moitié du ruban contient 3 groupes,
+  // assez pour remplir un grand écran d'ordinateur.
+  const groupe = messages.map(m =>
+    `<span class="message" dir="${m.sens}">${echapper(m.texte)}</span><span class="point" aria-hidden="true">✦</span>`
+  ).join('');
+  const moitie = groupe + groupe + groupe;
+  ruban.innerHTML = moitie + moitie;
+  bande.setAttribute('aria-label', messages[1].texte);
+}
+mettreAJourBandeLivraison(); // affichage immédiat avec 8 DT, avant même les réglages
+
+/* ============================================================
    CHARGEMENT TEMPS RÉEL DES RÉGLAGES DU SITE (siteSettings/main)
    ------------------------------------------------------------
    Si le document n'existe pas, ou si la lecture est refusée
@@ -1646,6 +1731,7 @@ db.collection('siteSettings').doc('main').onSnapshot(
     etat.reglages = doc.exists ? (doc.data() || {}) : {};
     etat.reglagesCharges = true;
     appliquerFondSite(); // V7.6
+    mettreAJourBandeLivraison(); // V8.1
     rafraichirApresDonnees();
   },
   (erreur) => {
