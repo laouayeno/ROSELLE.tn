@@ -487,7 +487,7 @@
     position: relative; display: block; margin-top: 48px; border-radius: 6px;
     overflow: hidden; background: linear-gradient(180deg, #D9CBC6 0%, #A88F89 100%); cursor: pointer;
   }
-  .bloc-banniere img { width: 100%; height: auto; display: block; }
+  .bloc-banniere img, .bloc-banniere picture { width: 100%; height: auto; display: block; }
   /* V7.8 (choix C d'Oussama) : bannière bord à bord, sur toute la largeur de
      l'écran, et image entière (rien n'est coupé, la hauteur suit l'image). */
   .bloc-banniere { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); border-radius: 0; }
@@ -1047,7 +1047,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V7.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2599,6 +2599,9 @@ function blocSeulHTML(bloc) {
 // Grande bannière : photo + titre + sous-titre + bouton
 function blocBanniereHTML(bloc) {
   const image = urlSure(bloc.imageUrl, '');
+  // V7.9 : image facultative pour téléphone (en hauteur), choisie dans Stock > Apparence.
+  // Le navigateur du téléphone ne télécharge que celle-ci ; le PC garde l'image large.
+  const imageTel = urlSure(bloc.imageUrlMobile, '');
   const titre = bloc.title ? `<h2>${echapper(bloc.title)}</h2>` : '';
   const sousTitre = bloc.subtitle ? `<p>${echapper(bloc.subtitle)}</p>` : '';
   const bouton = bloc.buttonLabel ? `<span class="bouton-principal">${echapper(bloc.buttonLabel)}</span>` : '';
@@ -2612,7 +2615,10 @@ function blocBanniereHTML(bloc) {
   }
   return `
     <a href="#" class="bloc-banniere" ${lienAttributs(bloc.link)}>
-      <img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="${echapper(bloc.title || '')}" loading="lazy">
+      <picture>
+        ${imageTel ? `<source media="(max-width: 779px)" srcset="${echapper(photoOptimisee(imageTel, 'ecran'))}">` : ''}
+        <img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="${echapper(bloc.title || '')}" loading="lazy">
+      </picture>
       ${(titre || sousTitre || bouton) ? `<div class="texte-banniere">${titre}${sousTitre}${bouton}</div>` : ''}
     </a>`;
 }
