@@ -556,30 +556,27 @@
   .fond-fonce .bloc-section.forme-rond .carte-produit .badge-epuise,
   .fond-fonce .bloc-section.forme-rond .carte-produit .badge-solde { color: #FFFFFF; }
 
-  /* V8.7 : bloc avec peu d'articles (1 à 3) : cartes plus grandes et centrées
-     au lieu de rester petites à gauche (la grille PC prévoit 4 places par ligne) */
-  .grille-produits.peu-1 { grid-template-columns: minmax(0, 300px); justify-content: center; }
+  /* V8.7 / V8.8 : bloc avec peu d'articles (1 à 3) : cartes plus grandes et centrées
+     au lieu de rester petites à gauche (la grille PC prévoit 4 places par ligne).
+     V9.0 (demande d'Oussama) : SEULEMENT pour les nouvelles formes (arche douce,
+     rectangle, coins arrondis, rond). L'ancienne forme (arche haute, choix par défaut)
+     reste exactement comme avant la V8.7. */
+  .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 300px); justify-content: center; }
   @media (min-width: 640px) {
-    /* V8.8 : cartes plus larges (440 px) ; l'arche haute reste à 360 px, sinon elle devient trop haute */
-    .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 440px)); justify-content: center; }
-    .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 440px)); justify-content: center; }
-    .grille-produits.peu-1 { grid-template-columns: minmax(0, 440px); }
-    .bloc-section:not([class*="forme-"]) .grille-produits.peu-2,
-    .bloc-section.forme-arche .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 360px)); }
-    .bloc-section:not([class*="forme-"]) .grille-produits.peu-3,
-    .bloc-section.forme-arche .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 360px)); }
-    .bloc-section:not([class*="forme-"]) .grille-produits.peu-1,
-    .bloc-section.forme-arche .grille-produits.peu-1 { grid-template-columns: minmax(0, 360px); }
-    /* le bloc prend juste la largeur de ses cartes : le titre reste aligné sur la 1re carte
-       (sinon il reste seul tout à gauche de la page) */
-    .bloc-section:has(.grille-produits.peu-2) { max-width: calc(2 * 440px + 32px); margin-left: auto; margin-right: auto; }
-    .bloc-section:has(.grille-produits.peu-3) { max-width: calc(3 * 440px + 64px); margin-left: auto; margin-right: auto; }
-    .bloc-section:not([class*="forme-"]):has(.grille-produits.peu-2),
-    .bloc-section.forme-arche:has(.grille-produits.peu-2) { max-width: calc(2 * 360px + 32px); }
-    .bloc-section:not([class*="forme-"]):has(.grille-produits.peu-3),
-    .bloc-section.forme-arche:has(.grille-produits.peu-3) { max-width: calc(3 * 360px + 64px); }
-    /* gap plus grand entre peu de cartes */
-    .grille-produits.peu-2, .grille-produits.peu-3 { column-gap: 32px; }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 440px)); justify-content: center; }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 440px)); justify-content: center; }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 440px); }
+    /* le bloc prend juste la largeur de ses cartes : le titre reste au-dessus des cartes */
+    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-2) { max-width: calc(2 * 440px + 32px); margin-left: auto; margin-right: auto; }
+    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-3) { max-width: calc(3 * 440px + 64px); margin-left: auto; margin-right: auto; }
+    /* espace plus grand entre peu de cartes */
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2, .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { column-gap: 32px; }
+  }
+  /* V9.0 : l'accueil est plus large depuis la V8.8 (1540 px) ; les blocs à l'ancienne
+     forme gardent leur ancienne largeur (1080 px) pour que leurs photos ne grandissent pas. */
+  @media (min-width: 960px) {
+    body.sur-accueil .bloc-section:not([class*="forme-"]),
+    body.sur-accueil .bloc-section.forme-arche { max-width: 1080px; margin-left: auto; margin-right: auto; }
   }
   /* Sans arche, plus besoin du grand espace blanc sous la photo */
   .bloc-section.forme-arche-douce .carte-produit .infos,
@@ -1223,7 +1220,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
