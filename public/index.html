@@ -550,6 +550,20 @@
   .bloc-section.forme-rond .carte-produit .photo-wrap,
   .bloc-section.forme-rond .tuile-categorie .photo-wrap { aspect-ratio: 1/1; border-radius: 50%; }
   .bloc-section.forme-rond .carte-produit .infos { background: transparent; }
+  /* V8.7 : forme Rond sur un fond foncé : nom et prix en blanc (plus de carte blanche derrière) */
+  .fond-fonce .bloc-section.forme-rond .carte-produit .nom,
+  .fond-fonce .bloc-section.forme-rond .carte-produit .prix,
+  .fond-fonce .bloc-section.forme-rond .carte-produit .badge-epuise,
+  .fond-fonce .bloc-section.forme-rond .carte-produit .badge-solde { color: #FFFFFF; }
+
+  /* V8.7 : bloc avec peu d'articles (1 à 3) : cartes plus grandes et centrées
+     au lieu de rester petites à gauche (la grille PC prévoit 4 places par ligne) */
+  .grille-produits.peu-1 { grid-template-columns: minmax(0, 300px); justify-content: center; }
+  @media (min-width: 640px) {
+    .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 340px)); justify-content: center; }
+    .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 340px)); justify-content: center; }
+    .grille-produits.peu-1 { grid-template-columns: minmax(0, 340px); }
+  }
   /* Sans arche, plus besoin du grand espace blanc sous la photo */
   .bloc-section.forme-arche-douce .carte-produit .infos,
   .bloc-section.forme-rectangle .carte-produit .infos,
@@ -1177,7 +1191,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2909,7 +2923,7 @@ function blocProduitsHTML(titre, produits, bloc) {
     <div class="bloc-section${forme ? ' forme-' + forme : ''}" style="position:relative;">
       ${petalesDecorHTML()}
       ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
-      <div class="grille-produits" style="position:relative; z-index:1;">
+      <div class="grille-produits${produits.length <= 3 ? ' peu-' + produits.length : ''}" style="position:relative; z-index:1;">
         ${produits.map(p => carteProduitHTML(p, bloc)).join('')}
       </div>
     </div>`;
