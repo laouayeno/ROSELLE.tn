@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Test de charge — Elle روز</title>
+<!--
+  V8.4 : PAGE DE TEST DE CHARGE DES COMMANDES (réservée à Oussama)
+  ------------------------------------------------------------------
+  But : vérifier, avant un lancement, que le site tient quand beaucoup
+  de commandes arrivent à la même seconde, et qu'on ne vend jamais plus
+  que le stock.
+
+  Comment ça marche :
+    1. Dans le Stock, créer un article dont le nom commence par
+       « TEST-CHARGE » (il n'est jamais montré aux clientes) avec du stock.
+    2. Dans Cloudflare, ajouter la clé secrète TEST_CHARGE_CLE (Worker
+       rosellestore). Sans cette clé, cette page ne peut RIEN faire.
+    3. Ouvrir cette page, coller la clé, lancer le test.
+    4. Effacer les fausses commandes avec le bouton, supprimer l'article
+       de test dans le Stock, puis SUPPRIMER la clé dans Cloudflare.
+
+  Sécurité : la clé n'est jamais écrite ici ni gardée dans le téléphone.
+  Le Worker refuse tout article qui ne s'appelle pas « TEST-CHARGE… ».
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F6F2F4; color: #2B1B26; line-height: 1.45; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sous-titre { color: #6B5564; font-size: 0.9rem; margin-bottom: 18px; }
+  .carte { background: #fff; border: 1px solid #E6DCE2; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-weight: 600; font-size: 0.9rem; margin: 10px 0 4px; }
+  input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #CDBFC8; border-radius: 10px; background: #fff; }
+  button { width: 100%; padding: 14px; font-size: 1rem; font-weight: 600; border: 0; border-radius: 12px; margin-top: 14px; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .bouton-principal { background: #A33D5C; color: #fff; }
+  .bouton-secondaire { background: #3A1F33; color: #fff; }
+  .ligne { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #F0E8EC; font-size: 0.95rem; }
+  .ligne:last-child { border-bottom: 0; }
+  .ligne b { font-variant-numeric: tabular-nums; }
+  .verdict { font-weight: 700; padding: 12px; border-radius: 10px; margin-top: 12px; }
+  .verdict.bon { background: #E3F4EC; color: #17875A; }
+  .verdict.mauvais { background: #FBE6E3; color: #D23A2A; }
+  .info { font-size: 0.9rem; color: #6B5564; margin-top: 10px; }
+  .erreur { color: #D23A2A; font-weight: 600; margin-top: 10px; }
+  ol { padding-left: 20px; margin: 8px 0 0; font-size: 0.92rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test de charge des commandes</h1>
+  <div class="sous-titre">Page réservée à l'équipe. Sans la clé secrète, elle ne fait rien.</div>
+
+  <div class="carte">
+    <label for="cle">Clé secrète du test</label>
+    <input id="cle" type="password" autocomplete="off" placeholder="Coller la clé ici">
+    <label for="nombre">Nombre de fausses commandes (10 à 300)</label>
+    <input id="nombre" type="number" inputmode="numeric" min="10" max="300" value="150">
+    <button class="bouton-principal" id="lancer">Lancer le test</button>
+    <div class="info" id="etat-article">Recherche de l'article « TEST-CHARGE »…</div>
+    <div class="erreur" id="message-erreur"></div>
+  </div>
+
+  <div class="carte" id="resultats" hidden></div>
+
+  <div class="carte">
+    <b>Après le test</b>
+    <ol>
+      <li>Toucher « Effacer les fausses commandes ».</li>
+      <li>Supprimer l'article TEST-CHARGE dans le Stock.</li>
+      <li>Supprimer la clé TEST_CHARGE_CLE dans Cloudflare.</li>
+    </ol>
+    <button class="bouton-secondaire" id="nettoyer">Effacer les fausses commandes</button>
+    <div class="info" id="etat-nettoyage"></div>
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   Réglages
+   ============================================================ */
+// Lecture publique du catalogue (la même que celle du site)
+const ADRESSE_CATALOGUE = 'https://firestore.googleapis.com/v1/projects/roselle-stock/databases/(default)/documents/publicCatalog?pageSize=300';
+const PREFIXE_ARTICLE_TEST = 'TEST-CHARGE';
+
+const champCle = document.getElementById('cle');
+const champNombre = document.getElementById('nombre');
+const boutonLancer = document.getElementById('lancer');
+const boutonNettoyer = document.getElementById('nettoyer');
+const zoneArticle = document.getElementById('etat-article');
+const zoneErreur = document.getElementById('message-erreur');
+const zoneResultats = document.getElementById('resultats');
+const zoneNettoyage = document.getElementById('etat-nettoyage');
+
+// Texte sûr (jamais de code dans la page)
+function echapper(texte) {
+  return String(texte).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ============================================================
+   Lecture de l'article de test dans le catalogue public
+   Renvoie { id, nom, variantId, dispo } ou null s'il n'existe pas.
+   ============================================================ */
+async function lireArticleTest() {
+  const reponse = await fetch(ADRESSE_CATALOGUE, { cache: 'no-store' });
+  if (!reponse.ok) throw new Error('catalogue illisible (' + reponse.status + ')');
+  const donnees = await reponse.json();
+  for (const doc of (donnees.documents || [])) {
+    const champs = doc.fields || {};
+    const nom = champs.name && champs.name.stringValue ? champs.name.stringValue : '';
+    if (!nom.startsWith(PREFIXE_ARTICLE_TEST)) continue;
+    const variantes = (champs.variants && champs.variants.arrayValue && champs.variants.arrayValue.values) || [];
+    const nombre = v => v ? Number(v.integerValue !== undefined ? v.integerValue : v.doubleValue) || 0 : 0;
+    // On prend la variante qui a le plus de stock
+    let meilleure = null;
+    for (const v of variantes) {
+      const f = (v.mapValue && v.mapValue.fields) || {};
+      const variante = { variantId: f.id ? f.id.stringValue : '', dispo: nombre(f.qty) };
+      if (variante.variantId && (!meilleure || variante.dispo > meilleure.dispo)) meilleure = variante;
+    }
+    if (!meilleure) continue;
+    return { id: doc.name.split('/').pop(), nom, variantId: meilleure.variantId, dispo: meilleure.dispo };
+  }
+  return null;
+}
+
+async function afficherArticle() {
+  try {
+    const article = await lireArticleTest();
+    zoneArticle.textContent = article
+      ? `Article trouvé : « ${article.nom} », ${article.dispo} pièce(s) disponibles.`
+      : 'Aucun article « TEST-CHARGE » trouvé : créez-le d\'abord dans le Stock.';
+    return article;
+  } catch (e) {
+    zoneArticle.textContent = 'Catalogue illisible pour le moment. Réessayez.';
+    return null;
+  }
+}
+
+/* ============================================================
+   Envoi d'une fausse commande (1 pièce), avec mesure du temps
+   Résultat : { type: 'reussie' | 'stock' | 'refuse' | 'erreur', code, ms }
+   ============================================================ */
+async function envoyerFausseCommande(cle, article, numero, depart) {
+  const debut = performance.now();
+  const commande = {
+    ref: 'WEB-' + depart + String(numero).padStart(4, '0'),
+    clientName: 'TEST CHARGE',
+    phone: '00' + String(numero).padStart(6, '0'), // un faux numéro différent par commande
+    address: 'Test de charge',
+    remark: '',
+    deliveryFee: 8,
+    items: [{ productId: article.id, variantId: article.variantId, qty: 1 }]
+  };
+  try {
+    const reponse = await fetch('/api/commande', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Test-Charge': cle },
+      body: JSON.stringify(commande)
+    });
+    const donnees = await reponse.json().catch(() => ({}));
+    const ms = performance.now() - debut;
+    if (reponse.ok && donnees.ok) return { type: 'reussie', ms };
+    if (reponse.status === 409 && donnees.erreur === 'stock') return { type: 'stock', ms };
+    if (reponse.status === 403 || reponse.status === 429 || donnees.erreur === 'article-test') {
+      return { type: 'refuse', code: donnees.erreur || reponse.status, ms };
+    }
+    return { type: 'erreur', code: donnees.erreur || reponse.status, ms };
+  } catch (e) {
+    return { type: 'erreur', code: 'réseau', ms: performance.now() - debut };
+  }
+}
+
+/* ============================================================
+   Le test : toutes les commandes partent en même temps
+   ============================================================ */
+async function lancerTest() {
+  zoneErreur.textContent = '';
+  const cle = champCle.value.trim();
+  const nombre = Math.max(10, Math.min(300, parseInt(champNombre.value, 10) || 0));
+  champNombre.value = nombre;
+  if (cle.length < 24) { zoneErreur.textContent = 'Collez d\'abord la clé secrète (au moins 24 caractères).'; return; }
+
+  boutonLancer.disabled = true;
+  boutonLancer.textContent = 'Test en cours…';
+  try {
+    const article = await afficherArticle();
+    if (!article) { zoneErreur.textContent = 'Article de test introuvable.'; return; }
+
+    // 1 commande d'essai d'abord : si la clé est mauvaise, on s'arrête tout de suite
+    const depart = String(Date.now());
+    const essai = await envoyerFausseCommande(cle, article, 0, depart);
+    if (essai.type === 'refuse') {
+      zoneErreur.textContent = essai.code === 'article-test'
+        ? 'Le Worker refuse cet article (son nom doit commencer par TEST-CHARGE).'
+        : 'Clé refusée : vérifiez la clé TEST_CHARGE_CLE dans Cloudflare.';
+      return;
+    }
+
+    const debut = performance.now();
+    const envois = [];
+    for (let i = 1; i < nombre; i++) envois.push(envoyerFausseCommande(cle, article, i, depart));
+    const resultats = [essai].concat(await Promise.all(envois));
+    const dureeTotale = (performance.now() - debut) / 1000;
+
+    // On relit le stock affiché après le test (petite attente : Firestore finit d'écrire)
+    await new Promise(r => setTimeout(r, 1500));
+    const apres = await lireArticleTest().catch(() => null);
+    afficherResultats(article, apres, resultats, dureeTotale);
+  } finally {
+    boutonLancer.disabled = false;
+    boutonLancer.textContent = 'Lancer le test';
+  }
+}
+
+function afficherResultats(avant, apres, resultats, dureeTotale) {
+  const compter = type => resultats.filter(r => r.type === type).length;
+  const reussies = compter('reussie');
+  const stockEpuise = compter('stock');
+  const refusees = compter('refuse');
+  const erreurs = resultats.filter(r => r.type === 'erreur');
+  const temps = resultats.map(r => r.ms).sort((a, b) => a - b);
+  const mediane = temps[Math.floor(temps.length / 2)] / 1000;
+  const plusLent = temps[temps.length - 1] / 1000;
+
+  // Détail des erreurs par code (ex. « serveur × 3 »)
+  const parCode = {};
+  erreurs.forEach(e => { parCode[e.code] = (parCode[e.code] || 0) + 1; });
+  const detailErreurs = Object.keys(parCode).map(c => `${c} × ${parCode[c]}`).join(', ');
+
+  // Ce qu'on attend : autant de commandes réussies que de pièces disponibles
+  // (ou toutes, s'il y avait assez de stock), aucune erreur, et un stock
+  // affiché qui a baissé exactement du nombre de commandes réussies.
+  const attendu = Math.min(resultats.length, avant.dispo);
+  const stockApres = apres ? apres.dispo : null;
+  const pasDeSurvente = reussies <= avant.dispo;
+  const stockJuste = stockApres !== null && stockApres === avant.dispo - reussies;
+  const toutBon = pasDeSurvente && stockJuste && erreurs.length === 0 && refusees === 0 && reussies === attendu;
+
+  let verdict;
+  if (!pasDeSurvente) verdict = 'PROBLÈME : plus de commandes acceptées que de stock (survente).';
+  else if (toutBon) verdict = 'Tout est bon : aucune survente, aucune erreur.';
+  else if (erreurs.length || refusees) verdict = 'Pas de survente, mais certaines commandes ont eu une erreur : envoyez une capture de cet écran à Claude.';
+  else verdict = 'À vérifier : envoyez une capture de cet écran à Claude.';
+
+  const ligne = (texte, valeur) => `<div class="ligne"><span>${echapper(texte)}</span><b>${echapper(valeur)}</b></div>`;
+  zoneResultats.hidden = false;
+  zoneResultats.innerHTML =
+    '<b>Résultats</b>' +
+    ligne('Commandes envoyées en même temps', resultats.length) +
+    ligne('Stock affiché avant le test', avant.dispo) +
+    ligne('Commandes acceptées', reussies) +
+    ligne('Refusées « stock épuisé » (normal)', stockEpuise) +
+    ligne('Refusées (clé ou limite)', refusees) +
+    ligne('Erreurs', erreurs.length + (detailErreurs ? ' (' + detailErreurs + ')' : '')) +
+    ligne('Stock affiché après le test', stockApres === null ? 'illisible' : stockApres) +
+    ligne('Durée totale', dureeTotale.toFixed(1) + ' s') +
+    ligne('Temps de réponse habituel', mediane.toFixed(1) + ' s') +
+    ligne('Réponse la plus lente', plusLent.toFixed(1) + ' s') +
+    `<div class="verdict ${toutBon ? 'bon' : 'mauvais'}">${echapper(verdict)}</div>`;
+  zoneResultats.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ============================================================
+   Effacer les faux colis (par paquets, jusqu'au dernier)
+   ============================================================ */
+async function nettoyer() {
+  const cle = champCle.value.trim();
+  if (cle.length < 24) { zoneNettoyage.textContent = 'Collez d\'abord la clé secrète en haut de la page.'; return; }
+  boutonNettoyer.disabled = true;
+  let total = 0;
+  try {
+    for (let tour = 0; tour < 20; tour++) {
+      zoneNettoyage.textContent = `Effacement en cours… (${total} effacé(s))`;
+      const reponse = await fetch('/api/test-charge/nettoyer', { method: 'POST', headers: { 'X-Test-Charge': cle } });
+      const donnees = await reponse.json().catch(() => ({}));
+      if (!reponse.ok || !donnees.ok) {
+        zoneNettoyage.textContent = reponse.status === 403 ? 'Clé refusée.' : 'Erreur pendant l\'effacement. Réessayez.';
+        return;
+      }
+      total += donnees.effaces || 0;
+      if (!donnees.encore) break;
+    }
+    zoneNettoyage.textContent = `Terminé : ${total} fausse(s) commande(s) effacée(s).`;
+  } catch (e) {
+    zoneNettoyage.textContent = 'Erreur réseau pendant l\'effacement. Réessayez.';
+  } finally {
+    boutonNettoyer.disabled = false;
+  }
+}
+
+boutonLancer.addEventListener('click', lancerTest);
+boutonNettoyer.addEventListener('click', nettoyer);
+afficherArticle();
+</script>
+</body>
+</html>

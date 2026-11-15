@@ -49,6 +49,11 @@ export default {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env);
     }
+    // V8.4 : test de charge, effacement des fausses commandes (clé secrète obligatoire).
+    if (url.pathname === '/api/test-charge/nettoyer') {
+      if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
+      return nettoyerTestCharge(requete, env);
+    }
     // V5.7 : statistiques de visite (le site n'écrit plus directement dans Firestore).
     if (url.pathname === '/api/stats') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
@@ -72,7 +77,14 @@ async function traiterCommande(requete, env) {
   // clientes peuvent partager la même adresse chez un opérateur mobile :
   // la limite reste donc large (voir "ratelimits" dans wrangler.jsonc).
   // Sans la limite (configuration absente), on continue comme avant.
-  if (env.LIMITE_COMMANDES) {
+  // V8.4 : test de charge. Seulement si la clé secrète TEST_CHARGE_CLE est
+  // installée dans Cloudflare ET envoyée par la page de test. Dans ce cas :
+  // pas de limite par connexion ni Turnstile (200 commandes partent du même
+  // téléphone), MAIS la commande ne peut toucher qu'un article dont le nom
+  // commence par « TEST-CHARGE », et le colis s'appelle « TEST CHARGE ».
+  // Sans la clé (cas normal), rien ne change pour les vraies clientes.
+  const modeTest = await cleTestValable(requete, env);
+  if (env.LIMITE_COMMANDES && !modeTest) {
     const ip = requete.headers.get('CF-Connecting-IP') || 'inconnue';
     const { success } = await env.LIMITE_COMMANDES.limit({ key: 'ip:' + ip });
     if (!success) return json({ ok: false, erreur: 'trop-de-commandes' }, 429);
@@ -86,20 +98,24 @@ async function traiterCommande(requete, env) {
   }
   const commande = verifierCommande(corps);
   if (!commande) return json({ ok: false, erreur: 'invalide' }, 400);
+  if (modeTest) {
+    commande.clientName = NOM_CLIENT_TEST;
+    commande.seulementArticleTest = true;
+  }
 
   // V2.29 : même numéro de téléphone = au plus quelques commandes par minute.
   // V6.8 : 1 par minute (wrangler.jsonc). On ne refuse pas tout de suite :
   // si c'est la MÊME commande renvoyée (réseau coupé chez la cliente après
   // l'enregistrement), on lui répond « c'est bon » plus bas, sans doublon.
   let telephoneTropRapide = false;
-  if (env.LIMITE_TELEPHONE) {
+  if (env.LIMITE_TELEPHONE && !modeTest) {
     const { success } = await env.LIMITE_TELEPHONE.limit({ key: 'tel:' + commande.phone });
     if (!success) telephoneTropRapide = true;
   }
 
   // V5.7 : Turnstile (anti-robot gratuit de Cloudflare). Tant que la clé
   // secrète TURNSTILE_SECRET n'est pas installée, on ne vérifie pas.
-  if (env.TURNSTILE_SECRET) {
+  if (env.TURNSTILE_SECRET && !modeTest) {
     const humain = await verifierTurnstile(corps.turnstile, env.TURNSTILE_SECRET, requete.headers.get('CF-Connecting-IP'));
     if (!humain) return json({ ok: false, erreur: 'turnstile' }, 403);
   }
@@ -376,6 +392,20 @@ async function enregistrerAvecTransaction(jeton, commande) {
       return { ok: true, dejaEnregistree: true };
     }
 
+    // V8.4 : pendant un test de charge, seuls les articles « TEST-CHARGE… »
+    // sont permis : un test ne peut jamais retirer le stock d'un vrai article.
+    if (commande.seulementArticleTest) {
+      const tousDeTest = [...parArticle.keys()].every(id => {
+        const fiche = fiches.get(id);
+        const nom = fiche && fiche.fields && fiche.fields.name ? String(fiche.fields.name.stringValue || '') : '';
+        return nom.startsWith(PREFIXE_ARTICLE_TEST);
+      });
+      if (!tousDeTest) {
+        await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+        return { ok: false, erreur: 'article-test' };
+      }
+    }
+
     // 1 bis (V6.6 / V6.7). Ce que la même cliente (même numéro ou même
     //    appareil) a déjà commandé et qui n'est pas encore confirmé (ni
     //    annulé, retourné ou en dépôt) : elle ne peut pas dépasser le stock
@@ -450,6 +480,59 @@ async function enregistrerAvecTransaction(jeton, commande) {
     }
   }
   throw new Error('Transaction impossible après plusieurs essais');
+}
+
+/* ---------- V8.4 : test de charge des commandes ----------
+   Sert à vérifier, avant un lancement, que le site tient quand beaucoup de
+   commandes arrivent à la même seconde (page /test-charge.html).
+   Sécurité :
+     - tout est ÉTEINT tant que la clé secrète TEST_CHARGE_CLE (au moins
+       24 caractères) n'est pas ajoutée dans Cloudflare (Workers >
+       rosellestore > Paramètres > Variables et secrets, type « Secret ») ;
+     - après le test, on SUPPRIME cette clé : le mode test n'existe plus ;
+     - même avec la clé, seuls les articles « TEST-CHARGE… » sont touchés. */
+const PREFIXE_ARTICLE_TEST = 'TEST-CHARGE';
+const NOM_CLIENT_TEST = 'TEST CHARGE';
+
+// Vrai si la page a envoyé la bonne clé de test. Les deux clés sont
+// comparées par leur empreinte (SHA-256), en temps constant.
+async function cleTestValable(requete, env) {
+  const attendue = typeof env.TEST_CHARGE_CLE === 'string' ? env.TEST_CHARGE_CLE : '';
+  const recue = requete.headers.get('X-Test-Charge') || '';
+  if (attendue.length < 24 || !recue || recue.length > 200) return false;
+  const empreinte = async (texte) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texte)));
+  const [a, b] = await Promise.all([empreinte(attendue), empreinte(recue)]);
+  let difference = 0;
+  for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+  return difference === 0;
+}
+
+// Efface les faux colis du test (client « TEST CHARGE », créés par le site),
+// par paquets de 200. La page rappelle tant qu'il en reste.
+async function nettoyerTestCharge(requete, env) {
+  if (!(await cleTestValable(requete, env))) return json({ ok: false, erreur: 'refuse' }, 403);
+  if (!env.FIREBASE_SA) return json({ ok: false, erreur: 'non-configure' }, 503);
+  try {
+    const jeton = await jetonGoogle(JSON.parse(env.FIREBASE_SA));
+    const reponses = await appelFirestore(jeton, ':runQuery', {
+      structuredQuery: {
+        from: [{ collectionId: 'shipments' }],
+        where: { fieldFilter: { field: { fieldPath: 'clientName' }, op: 'EQUAL', value: { stringValue: NOM_CLIENT_TEST } } },
+        limit: 200
+      }
+    });
+    // Double sécurité : nom du client exact ET référence du site (WEB-…)
+    const noms = reponses
+      .filter(r => r && r.document && r.document.fields
+        && r.document.fields.clientName && r.document.fields.clientName.stringValue === NOM_CLIENT_TEST
+        && /\/shipments\/WEB-[0-9]{6,20}$/.test(r.document.name))
+      .map(r => r.document.name);
+    if (noms.length) await appelFirestore(jeton, ':commit', { writes: noms.map(nom => ({ delete: nom })) });
+    return json({ ok: true, effaces: noms.length, encore: noms.length === 200 });
+  } catch (e) {
+    console.error('Erreur nettoyage test :', e && e.message);
+    return json({ ok: false, erreur: 'serveur' }, 500);
+  }
 }
 
 /* ---------- V6.8 : ce colis existe-t-il déjà ? ---------- */
