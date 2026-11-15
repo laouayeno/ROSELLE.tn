@@ -525,6 +525,36 @@
   }
 
   .bloc-section { margin-top: 64px; }
+
+  /* ===== V8.6 : forme et recadrage des photos, bloc par bloc =====
+     Choisis par Oussama dans Stock > Apparence (champs photoShape et photoCrops du bloc).
+     Le recadrage = point de la photo à garder (object-position) + zoom (--zoom).
+     Le zoom part de ce même point, donc la photo reste exactement comme dans l'aperçu du Stock. */
+  .photo-wrap img.recadree { transform: scale(var(--zoom, 1)); }
+  /* Forme « Arche douce » : arche moins haute (photo moins zoomée) */
+  .bloc-section.forme-arche-douce .carte-produit .photo-wrap,
+  .bloc-section.forme-arche-douce .tuile-categorie .photo-wrap { aspect-ratio: 2/3; border-radius: 50% 50% 0 0 / 22% 22% 0 0; }
+  .bloc-section.forme-arche-douce .tuile-categorie .photo-wrap { border-radius: 50% 50% 6px 6px / 22% 22% 6px 6px; }
+  /* Forme « Arche » pour les catégories (les produits l'ont déjà par défaut) */
+  .bloc-section.forme-arche .tuile-categorie .photo-wrap { aspect-ratio: 5/14; border-radius: 50% 50% 6px 6px / 14% 14% 6px 6px; }
+  /* Formes sans arche : rectangle, coins arrondis, rond */
+  .bloc-section.forme-rectangle .carte-produit,
+  .bloc-section.forme-arrondi .carte-produit { border-radius: 6px; }
+  .bloc-section.forme-rectangle .carte-produit .photo-wrap { aspect-ratio: 3/4; border-radius: 6px 6px 0 0; }
+  .bloc-section.forme-rectangle .tuile-categorie .photo-wrap { aspect-ratio: 3/4; border-radius: 4px; }
+  .bloc-section.forme-arrondi .carte-produit { border-radius: 22px; }
+  .bloc-section.forme-arrondi .carte-produit .photo-wrap { aspect-ratio: 3/4; border-radius: 22px 22px 0 0; }
+  .bloc-section.forme-arrondi .tuile-categorie .photo-wrap { aspect-ratio: 3/4; border-radius: 22px; }
+  .bloc-section.forme-arrondi .carte-produit .infos { border-radius: 0 0 22px 22px; }
+  .bloc-section.forme-rond .carte-produit { box-shadow: none; border-radius: 0; background: transparent; }
+  .bloc-section.forme-rond .carte-produit .photo-wrap,
+  .bloc-section.forme-rond .tuile-categorie .photo-wrap { aspect-ratio: 1/1; border-radius: 50%; }
+  .bloc-section.forme-rond .carte-produit .infos { background: transparent; }
+  /* Sans arche, plus besoin du grand espace blanc sous la photo */
+  .bloc-section.forme-arche-douce .carte-produit .infos,
+  .bloc-section.forme-rectangle .carte-produit .infos,
+  .bloc-section.forme-arrondi .carte-produit .infos,
+  .bloc-section.forme-rond .carte-produit .infos { padding: 16px 12px 18px; min-height: 0; }
   .entete-section {
     display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;
   }
@@ -699,7 +729,7 @@
     body.page-grille main { padding-left: 10px; padding-right: 10px; }
     body:not(.sur-accueil) .grille-produits { gap: 18px 8px; }
   }
-  .carte-produit:hover .photo-wrap img { transform: scale(1.04); }
+  .carte-produit:hover .photo-wrap img { transform: scale(calc(var(--zoom, 1) * 1.04)); }
   /* V2.25 : « Épuisé » et « Soldes » sont écrits sous le prix, sans cadre
      (avant, l'étiquette était sur la photo et l'arche la coupait) */
   .badge-epuise, .badge-solde {
@@ -1109,7 +1139,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1474,7 +1504,7 @@ const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
 // forme (facultatif, V5.6) = proportions du cadre, ex. '1:2.8' (largeur:hauteur) :
 // la photo est alors découpée au centre à cette forme, comme le fait l'écran
 // (object-fit: cover), au lieu d'être agrandie et floue.
-function photoOptimisee(url, largeurAffichee, forme) {
+function photoOptimisee(url, largeurAffichee, forme, facteur) {
   // Adresse non Cloudinary (ex. logo.jpg du site) : rendue telle quelle, comme avant
   const u = url === undefined || url === null ? '' : String(url).trim();
   const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/i);
@@ -1487,7 +1517,10 @@ function photoOptimisee(url, largeurAffichee, forme) {
   // les photos passent par la mémoire de Cloudflare (voir /img/ ci-dessous).
   const qualite = 'best';
   const maxPixelsParPoint = 3;
-  const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), maxPixelsParPoint);
+  // V8.6 : facteur > 1 quand la photo est recadrée/zoomée dans le Stock : elle est
+  // affichée plus grande que son cadre, on demande donc plus de pixels (toujours 2400 px maximum).
+  const multiplicateur = Number(facteur) > 1 ? Math.min(Number(facteur), 6) : 1;
+  const pixels = points * Math.min(Math.max(window.devicePixelRatio || 1, 1), maxPixelsParPoint) * multiplicateur;
   // Arrondi au-dessus par paliers de 200 px (moins de copies différentes), maximum 2400 px
   const largeur = Math.min(2400, Math.ceil(pixels / 200) * 200);
   // Découpe à la forme du cadre (c_lfill : jamais agrandie au-delà de l'original)
@@ -2741,8 +2774,8 @@ function blocsAccueilHTML() {
 function blocSeulHTML(bloc) {
   switch (bloc.type) {
     case 'banner': return blocBanniereHTML(bloc);
-    case 'products': return blocProduitsHTML(bloc.title, (Array.isArray(bloc.productIds) ? bloc.productIds : []).slice(0, 12).map(trouverProduit).filter(Boolean));
-    case 'categories': return blocCategoriesHTML(bloc.title);
+    case 'products': return blocProduitsHTML(bloc.title, (Array.isArray(bloc.productIds) ? bloc.productIds : []).slice(0, 12).map(trouverProduit).filter(Boolean), bloc);
+    case 'categories': return blocCategoriesHTML(bloc.title, bloc);
     case 'text': return blocTexteHTML(bloc);
     case 'image': return blocImageHTML(bloc);
     case 'nouveautes': return blocProduitsHTML('Nouveautés', etat.produits.slice(0, 8)); // bloc interne par défaut
@@ -2777,23 +2810,78 @@ function blocBanniereHTML(bloc) {
     </a>`;
 }
 
+/* ============================================================
+   V8.6 : FORME ET RECADRAGE DES PHOTOS D'UN BLOC
+   ------------------------------------------------------------
+   Dans Stock > Apparence, chaque bloc « Sélection de produits » ou
+   « Catégories » peut avoir :
+   - photoShape : la forme des photos du bloc ;
+   - photoCrops : pour chaque photo (clé = id du produit ou de la catégorie),
+     le point à garder { x, y } en % et le zoom z (1 à 3).
+   Sans ces champs, le bloc s'affiche exactement comme avant.
+   ============================================================ */
+// Proportion de chaque forme (largeur:hauteur, pour Cloudinary) et hauteur/largeur (pour le calcul des pixels)
+const FORMES_PHOTOS = {
+  'arche':       { cloudinary: '5:14', hauteurSurLargeur: 2.8 },
+  'arche-douce': { cloudinary: '2:3',  hauteurSurLargeur: 1.5 },
+  'rectangle':   { cloudinary: '3:4',  hauteurSurLargeur: 4 / 3 },
+  'arrondi':     { cloudinary: '3:4',  hauteurSurLargeur: 4 / 3 },
+  'rond':        { cloudinary: '1:1',  hauteurSurLargeur: 1 }
+};
+
+// Forme choisie pour un bloc ('' = forme par défaut du bloc, comme avant)
+function formeDuBloc(bloc) {
+  const f = bloc && typeof bloc.photoShape === 'string' ? bloc.photoShape : '';
+  return FORMES_PHOTOS[f] ? f : '';
+}
+
+// Recadrage d'une photo dans un bloc, nettoyé (valeurs hors limites ramenées dans les limites)
+function recadrageDuBloc(bloc, id) {
+  const tous = bloc && bloc.photoCrops && typeof bloc.photoCrops === 'object' ? bloc.photoCrops : null;
+  const r = tous ? tous[id] : null;
+  if (!r || typeof r !== 'object') return null;
+  const borne = (v, min, max, defaut) => {
+    const n = Number(v);
+    return isFinite(n) ? Math.min(max, Math.max(min, n)) : defaut;
+  };
+  return { x: borne(r.x, 0, 100, 50), y: borne(r.y, 0, 100, 50), z: borne(r.z, 1, 3, 1) };
+}
+
+// Balise <img> d'une photo, avec forme et recadrage éventuels.
+// - Sans recadrage : Cloudinary découpe la photo à la forme du cadre (comme avant, le plus net).
+// - Avec recadrage : photo entière, placée et zoomée dans le cadre par le navigateur.
+function imagePhotoBloc(photo, alt, largeur, forme, recadrage, formeParDefaut) {
+  if (!recadrage) {
+    const decoupe = forme ? FORMES_PHOTOS[forme].cloudinary : formeParDefaut;
+    return `<img src="${echapper(photoOptimisee(photo, largeur, decoupe))}" alt="${echapper(alt)}" loading="lazy" decoding="async">`;
+  }
+  // La photo (en général 2:3) est agrandie pour remplir le cadre, puis zoomée :
+  // on demande assez de pixels pour qu'elle reste nette.
+  const hauteurCadre = forme ? FORMES_PHOTOS[forme].hauteurSurLargeur : (formeParDefaut === '5:14' ? 2.8 : 4 / 3);
+  const facteur = Math.max(1, hauteurCadre / 1.5) * recadrage.z;
+  const style = `object-position:${recadrage.x}% ${recadrage.y}%;transform-origin:${recadrage.x}% ${recadrage.y}%;--zoom:${recadrage.z}`;
+  return `<img class="recadree" src="${echapper(photoOptimisee(photo, largeur, '', facteur))}" alt="${echapper(alt)}" style="${style}" loading="lazy" decoding="async">`;
+}
+
 // Sélection de produits (ex. « Les plus vendus ») ou nouveautés
-function blocProduitsHTML(titre, produits) {
+function blocProduitsHTML(titre, produits, bloc) {
   if (!produits.length) return '';
+  const forme = formeDuBloc(bloc);
   return `
-    <div class="bloc-section" style="position:relative;">
+    <div class="bloc-section${forme ? ' forme-' + forme : ''}" style="position:relative;">
       ${petalesDecorHTML()}
       ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
       <div class="grille-produits" style="position:relative; z-index:1;">
-        ${produits.map(carteProduitHTML).join('')}
+        ${produits.map(p => carteProduitHTML(p, bloc)).join('')}
       </div>
     </div>`;
 }
 
 // Carrousel des catégories (photo du dashboard, sinon photo du premier produit)
-function blocCategoriesHTML(titre) {
+function blocCategoriesHTML(titre, bloc) {
+  const forme = formeDuBloc(bloc);
   return `
-    <div class="bloc-section" style="position:relative; margin-top:40px;">
+    <div class="bloc-section${forme ? ' forme-' + forme : ''}" style="position:relative; margin-top:40px;">
       ${petalesDecorHTML()}
       ${titre ? `<div class="entete-section" style="position:relative; z-index:1;"><h2>${echapper(titre)}</h2></div>` : ''}
       <div class="carrousel-categories" style="z-index:1;">
@@ -2807,7 +2895,7 @@ function blocCategoriesHTML(titre) {
           return `
             <a class="tuile-categorie" href="#" data-cat="${echapper(cat.id)}" onclick="ouvrirCategorie(this); return false;">
               <div class="photo-wrap${photo ? ' en-chargement' : ''}">
-                ${photo ? `<img src="${echapper(photoOptimisee(photo, 600))}" alt="${echapper(cat.label)}" loading="lazy">` : ''}
+                ${photo ? imagePhotoBloc(photo, cat.label, 600, forme, recadrageDuBloc(bloc, cat.id), '') : ''}
               </div>
               <span>${echapper(cat.label)}</span>
             </a>`;
@@ -2997,7 +3085,7 @@ function vueCatalogue(categorie, collectionId) {
       </div>
 
       ${produits.length
-        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(carteProduitHTML).join('')}</div>`
+        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(p => carteProduitHTML(p)).join('')}</div>`
         : `<div class="message-vide" style="position:relative; z-index:1;">
              Aucun article disponible pour le moment avec ces filtres.
              ${etat.produits.length ? `<div style="margin-top:14px; font-size:0.75rem; opacity:0.6;">
@@ -3055,7 +3143,7 @@ function vueRecherche(texte) {
       </div>
 
       ${produits.length
-        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(carteProduitHTML).join('')}</div>`
+        ? `<div class="grille-produits" style="position:relative; z-index:1;">${produits.map(p => carteProduitHTML(p)).join('')}</div>`
         : `<div class="message-vide" style="position:relative; z-index:1;">Aucun article trouvé pour « ${echapper(texte)} ».</div>`}
     </div>
   `;
@@ -3162,14 +3250,15 @@ function formeCartes() {
   return document.body.classList.contains('sur-accueil') ? '5:14' : '';
 }
 
-function carteProduitHTML(produit) {
+// bloc (facultatif, V8.6) : bloc de l'accueil qui affiche la carte, pour sa forme et son recadrage
+function carteProduitHTML(produit, bloc) {
   const photo = photoParDefaut(produit);
   const disponible = stockTotalDisponible(produit) > 0;
   const { actuel, ancien } = prixUnitaireEffectif(produit);
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap${photo ? ' en-chargement' : ''}">
-        ${photo ? `<img src="${echapper(photoOptimisee(photo, Math.min(400, (window.innerWidth || 400) / 2), formeCartes()))}" alt="${echapper(produit.name)}" loading="lazy" decoding="async">` : ''}
+        ${photo ? imagePhotoBloc(photo, produit.name, Math.min(400, (window.innerWidth || 400) / 2), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
