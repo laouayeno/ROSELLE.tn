@@ -590,6 +590,19 @@
     display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;
   }
   .entete-section h2 { font-size: 1.5rem; }
+  /* V8.9 : titres des blocs de l'accueil en « majuscules espacées » (choix d'Oussama) :
+     centrés, police Jost fine, lettres espacées, petit trait rose dessous. */
+  #zone-accueil-blocs .entete-section { justify-content: center; margin-bottom: 30px; }
+  #zone-accueil-blocs .entete-section h2 {
+    font-family: 'Jost', sans-serif; font-weight: 400; text-transform: uppercase;
+    letter-spacing: 0.32em; font-size: 1.15rem; text-align: center;
+  }
+  #zone-accueil-blocs .entete-section h2::after {
+    content: ""; display: block; width: 36px; height: 2px;
+    background: #C9718A; margin: 12px auto 0;
+  }
+  /* Sur fond foncé, le petit trait passe en blanc comme le titre */
+  #zone-accueil-blocs .fond-fonce .entete-section h2::after { background: #FFFFFF; }
 
   /* ===== Blocs de la page d'accueil gérés depuis le dashboard ===== */
   /* Grande bannière : photo carrée sur mobile, large sur ordinateur, texte en bas */
@@ -1210,7 +1223,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
