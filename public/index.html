@@ -560,9 +560,26 @@
      au lieu de rester petites à gauche (la grille PC prévoit 4 places par ligne) */
   .grille-produits.peu-1 { grid-template-columns: minmax(0, 300px); justify-content: center; }
   @media (min-width: 640px) {
-    .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 340px)); justify-content: center; }
-    .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 340px)); justify-content: center; }
-    .grille-produits.peu-1 { grid-template-columns: minmax(0, 340px); }
+    /* V8.8 : cartes plus larges (440 px) ; l'arche haute reste à 360 px, sinon elle devient trop haute */
+    .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 440px)); justify-content: center; }
+    .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 440px)); justify-content: center; }
+    .grille-produits.peu-1 { grid-template-columns: minmax(0, 440px); }
+    .bloc-section:not([class*="forme-"]) .grille-produits.peu-2,
+    .bloc-section.forme-arche .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 360px)); }
+    .bloc-section:not([class*="forme-"]) .grille-produits.peu-3,
+    .bloc-section.forme-arche .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 360px)); }
+    .bloc-section:not([class*="forme-"]) .grille-produits.peu-1,
+    .bloc-section.forme-arche .grille-produits.peu-1 { grid-template-columns: minmax(0, 360px); }
+    /* le bloc prend juste la largeur de ses cartes : le titre reste aligné sur la 1re carte
+       (sinon il reste seul tout à gauche de la page) */
+    .bloc-section:has(.grille-produits.peu-2) { max-width: calc(2 * 440px + 32px); margin-left: auto; margin-right: auto; }
+    .bloc-section:has(.grille-produits.peu-3) { max-width: calc(3 * 440px + 64px); margin-left: auto; margin-right: auto; }
+    .bloc-section:not([class*="forme-"]):has(.grille-produits.peu-2),
+    .bloc-section.forme-arche:has(.grille-produits.peu-2) { max-width: calc(2 * 360px + 32px); }
+    .bloc-section:not([class*="forme-"]):has(.grille-produits.peu-3),
+    .bloc-section.forme-arche:has(.grille-produits.peu-3) { max-width: calc(3 * 360px + 64px); }
+    /* gap plus grand entre peu de cartes */
+    .grille-produits.peu-2, .grille-produits.peu-3 { column-gap: 32px; }
   }
   /* Sans arche, plus besoin du grand espace blanc sous la photo */
   .bloc-section.forme-arche-douce .carte-produit .infos,
@@ -777,6 +794,8 @@
      moins de marge sur les côtés au téléphone (2 par ligne) */
   /* (body.page-grille = pages catégorie, collection et résultats de recherche) */
   @media (min-width: 960px) { body.page-grille main { max-width: 1540px; } }
+  /* V8.8 : accueil aussi large que les pages catégorie sur grand écran (moins de vide à gauche et à droite) */
+  @media (min-width: 960px) { body.sur-accueil main { max-width: 1540px; } }
   @media (max-width: 639px) {
     body.page-grille main { padding-left: 10px; padding-right: 10px; }
     body:not(.sur-accueil) .grille-produits { gap: 18px 8px; }
@@ -1191,7 +1210,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
