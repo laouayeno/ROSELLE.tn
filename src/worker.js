@@ -36,7 +36,10 @@ const MAX_QTE_PAR_LIGNE = 20;
 const MAX_TEXTE = 500;
 // V6.8 : 8 essais au lieu de 5, pour tenir le pic quand beaucoup de
 // clientes commandent le même article à la même seconde.
-const ESSAIS_TRANSACTION = 8;
+// V8.5 : jusqu'à 40 essais, dans la limite de 20 secondes par commande
+// (voir enregistrerAvecTransaction).
+const ESSAIS_TRANSACTION = 40;
+const DUREE_MAX_COMMANDE_MS = 20000;
 // V2.29 : frais de livraison si la page Apparence n'en indique pas (comme le site).
 const FRAIS_PAR_DEFAUT = 8;
 
@@ -369,114 +372,124 @@ async function enregistrerAvecTransaction(jeton, commande) {
   // ne peut donc pas créer deux colis.
   const nomColis = NOM_DOC('shipments/' + commande.ref);
 
+  // V8.5 : quand beaucoup de clientes commandent le même article à la même
+  // seconde, Firestore refuse certaines demandes (« 409 » : une autre commande
+  // est en train de modifier le même article). Avant, on abandonnait après
+  // 8 essais (environ 7 s), et pas de nouvel essai du tout si le refus arrivait
+  // pendant la LECTURE. Maintenant, tout refus de ce type (à n'importe quelle
+  // étape) est réessayé, pendant DUREE_MAX_COMMANDE_MS au maximum.
+  // Aucun risque de doublon ni de survente : chaque essai repart de zéro et
+  // relit le stock ; le colis porte la référence de la commande.
+  const debut = Date.now();
   for (let essai = 1; essai <= ESSAIS_TRANSACTION; essai++) {
-    const { transaction } = await appelFirestore(jeton, ':beginTransaction', {});
-
-    // 1. Relire le stock affiché de chaque article, dans la transaction,
-    //    ainsi que les réglages du site (frais de livraison, V2.29).
-    const lecture = await appelFirestore(jeton, ':batchGet', {
-      documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)).concat(nomColis),
-      transaction
-    });
-    const fiches = new Map();
-    let colisDejaLa = false;
-    for (const r of lecture) {
-      if (!r.found) continue;
-      if (r.found.name === nomColis) colisDejaLa = true;
-      else fiches.set(r.found.name.split('/').pop(), r.found);
-    }
-    // V6.8 : cette commande est déjà enregistrée (renvoi après une coupure
-    // réseau) : on ne retire pas le stock une 2e fois, on répond « c'est bon ».
-    if (colisDejaLa) {
-      await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
-      return { ok: true, dejaEnregistree: true };
-    }
-
-    // V8.4 : pendant un test de charge, seuls les articles « TEST-CHARGE… »
-    // sont permis : un test ne peut jamais retirer le stock d'un vrai article.
-    if (commande.seulementArticleTest) {
-      const tousDeTest = [...parArticle.keys()].every(id => {
-        const fiche = fiches.get(id);
-        const nom = fiche && fiche.fields && fiche.fields.name ? String(fiche.fields.name.stringValue || '') : '';
-        return nom.startsWith(PREFIXE_ARTICLE_TEST);
-      });
-      if (!tousDeTest) {
-        await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
-        return { ok: false, erreur: 'article-test' };
-      }
-    }
-
-    // 1 bis (V6.6 / V6.7). Ce que la même cliente (même numéro ou même
-    //    appareil) a déjà commandé et qui n'est pas encore confirmé (ni
-    //    annulé, retourné ou en dépôt) : elle ne peut pas dépasser le stock
-    //    réel en plusieurs fois.
-    const dejaCommande = await dejaCommandeParCliente(jeton, transaction, commande.phone, commande.refsAppareil);
-
-    // 2. Vérifier qu'il en reste assez, et préparer les nouvelles quantités.
-    const manquants = [];
-    const ecritures = [];
-    for (const [productId, demandes] of parArticle) {
-      const fiche = fiches.get(productId);
-      const variantes = fiche ? depuisFirestore({ arrayValue: (fiche.fields.variants || {}).arrayValue || {} }) : [];
-      for (const [variantId, qte] of demandes) {
-        const v = variantes.find(x => x && x.id === variantId);
-        // V6.3 : « dispo » = disponible du site (avec la marge −1) ;
-        // « reste » = ce qu'UNE commande peut prendre, jamais plus que le
-        // stock réel (maxCommande, envoyé par le Stock V5.6).
-        const dispo = v ? Math.max(0, Number(v.qty) || 0) : 0;
-        const max = v ? Number(v.maxCommande) : NaN;
-        const deja = dejaCommande.get(productId + '|' + variantId) || 0; // V6.6
-        const reste = Number.isFinite(max) ? Math.min(dispo, Math.max(0, max - deja)) : dispo;
-        if (qte > reste) manquants.push({ productId, variantId, reste });
-        else v.qty = dispo - qte;
-      }
-      if (fiche) {
-        ecritures.push({
-          update: { name: fiche.name, fields: { variants: versFirestore(variantes) } },
-          updateMask: { fieldPaths: ['variants'] },
-          currentDocument: { exists: true }
-        });
-      }
-    }
-    if (manquants.length) {
-      await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
-      return { ok: false, erreur: 'stock', manquants };
-    }
-
-    // 3. Créer le colis (même format qu'avant) dans la même transaction.
-    const colis = {
-      ref: commande.ref,
-      courier: '',
-      clientName: commande.clientName,
-      phone: commande.phone,
-      address: commande.address,
-      remark: commande.remark,
-      status: 'transit',
-      confirmed: false,
-      items: commande.items,
-      // V2.29 : les frais viennent des réglages du site, pas du navigateur
-      // de la cliente (qui pourrait envoyer 0).
-      deliveryFee: fraisLivraison(reglages),
-      date: new Date().toISOString()
-    };
-    if (commande.gouvernorat) colis.gouvernorat = commande.gouvernorat; // V2.35
-    ecritures.push({
-      update: { name: nomColis, fields: versFirestore(colis).mapValue.fields }, // V6.8 : nom = référence
-      currentDocument: { exists: false }
-    });
-
+    let transaction = null;
     try {
+      transaction = (await appelFirestore(jeton, ':beginTransaction', {})).transaction;
+
+      // 1. Relire le stock affiché de chaque article, dans la transaction,
+      //    ainsi que les réglages du site (frais de livraison, V2.29).
+      const lecture = await appelFirestore(jeton, ':batchGet', {
+        documents: [...parArticle.keys()].map(id => NOM_DOC('publicCatalog/' + id)).concat(nomColis),
+        transaction
+      });
+      const fiches = new Map();
+      let colisDejaLa = false;
+      for (const r of lecture) {
+        if (!r.found) continue;
+        if (r.found.name === nomColis) colisDejaLa = true;
+        else fiches.set(r.found.name.split('/').pop(), r.found);
+      }
+      // V6.8 : cette commande est déjà enregistrée (renvoi après une coupure
+      // réseau) : on ne retire pas le stock une 2e fois, on répond « c'est bon ».
+      if (colisDejaLa) {
+        await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+        return { ok: true, dejaEnregistree: true };
+      }
+
+      // V8.4 : pendant un test de charge, seuls les articles « TEST-CHARGE… »
+      // sont permis : un test ne peut jamais retirer le stock d'un vrai article.
+      if (commande.seulementArticleTest) {
+        const tousDeTest = [...parArticle.keys()].every(id => {
+          const fiche = fiches.get(id);
+          const nom = fiche && fiche.fields && fiche.fields.name ? String(fiche.fields.name.stringValue || '') : '';
+          return nom.startsWith(PREFIXE_ARTICLE_TEST);
+        });
+        if (!tousDeTest) {
+          await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+          return { ok: false, erreur: 'article-test' };
+        }
+      }
+
+      // 1 bis (V6.6 / V6.7). Ce que la même cliente (même numéro ou même
+      //    appareil) a déjà commandé et qui n'est pas encore confirmé (ni
+      //    annulé, retourné ou en dépôt) : elle ne peut pas dépasser le stock
+      //    réel en plusieurs fois.
+      const dejaCommande = await dejaCommandeParCliente(jeton, transaction, commande.phone, commande.refsAppareil);
+
+      // 2. Vérifier qu'il en reste assez, et préparer les nouvelles quantités.
+      const manquants = [];
+      const ecritures = [];
+      for (const [productId, demandes] of parArticle) {
+        const fiche = fiches.get(productId);
+        const variantes = fiche ? depuisFirestore({ arrayValue: (fiche.fields.variants || {}).arrayValue || {} }) : [];
+        for (const [variantId, qte] of demandes) {
+          const v = variantes.find(x => x && x.id === variantId);
+          // V6.3 : « dispo » = disponible du site (avec la marge −1) ;
+          // « reste » = ce qu'UNE commande peut prendre, jamais plus que le
+          // stock réel (maxCommande, envoyé par le Stock V5.6).
+          const dispo = v ? Math.max(0, Number(v.qty) || 0) : 0;
+          const max = v ? Number(v.maxCommande) : NaN;
+          const deja = dejaCommande.get(productId + '|' + variantId) || 0; // V6.6
+          const reste = Number.isFinite(max) ? Math.min(dispo, Math.max(0, max - deja)) : dispo;
+          if (qte > reste) manquants.push({ productId, variantId, reste });
+          else v.qty = dispo - qte;
+        }
+        if (fiche) {
+          ecritures.push({
+            update: { name: fiche.name, fields: { variants: versFirestore(variantes) } },
+            updateMask: { fieldPaths: ['variants'] },
+            currentDocument: { exists: true }
+          });
+        }
+      }
+      if (manquants.length) {
+        await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+        return { ok: false, erreur: 'stock', manquants };
+      }
+
+      // 3. Créer le colis (même format qu'avant) dans la même transaction.
+      const colis = {
+        ref: commande.ref,
+        courier: '',
+        clientName: commande.clientName,
+        phone: commande.phone,
+        address: commande.address,
+        remark: commande.remark,
+        status: 'transit',
+        confirmed: false,
+        items: commande.items,
+        // V2.29 : les frais viennent des réglages du site, pas du navigateur
+        // de la cliente (qui pourrait envoyer 0).
+        deliveryFee: fraisLivraison(reglages),
+        date: new Date().toISOString()
+      };
+      if (commande.gouvernorat) colis.gouvernorat = commande.gouvernorat; // V2.35
+      ecritures.push({
+        update: { name: nomColis, fields: versFirestore(colis).mapValue.fields }, // V6.8 : nom = référence
+        currentDocument: { exists: false }
+      });
+
       await appelFirestore(jeton, ':commit', { writes: ecritures, transaction });
       return { ok: true };
     } catch (e) {
-      // ABORTED = quelqu'un a modifié le même article au même moment : on recommence.
-      if (e.code === 409 || e.code === 'ABORTED') {
-        // V6.8 : attente un peu plus longue à chaque essai (0,1 s, 0,2 s…),
-        // avec une part de hasard pour que les commandes ne repartent pas ensemble.
-        await attendre(100 * essai + Math.random() * 200);
-        continue;
-      }
-      throw e;
+      const occupe = e && (e.code === 409 || e.code === 'ABORTED' || e.code === 429 || e.code === 503);
+      if (!occupe) throw e;
+      // On libère la transaction ratée (sans attendre une erreur éventuelle)
+      if (transaction) await appelFirestore(jeton, ':rollback', { transaction }).catch(() => {});
+      if (Date.now() - debut > DUREE_MAX_COMMANDE_MS) break;
+      // Attente de plus en plus longue (jusqu'à 1,5 s), avec une grande part de
+      // hasard pour que les commandes ne repartent pas toutes ensemble.
+      await attendre(Math.min(1500, 100 * essai) * (0.5 + Math.random()));
     }
   }
   throw new Error('Transaction impossible après plusieurs essais');

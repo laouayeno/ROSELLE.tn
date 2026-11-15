@@ -32,7 +32,7 @@
   .sous-titre { color: #6B5564; font-size: 0.9rem; margin-bottom: 18px; }
   .carte { background: #fff; border: 1px solid #E6DCE2; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
   label { display: block; font-weight: 600; font-size: 0.9rem; margin: 10px 0 4px; }
-  input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #CDBFC8; border-radius: 10px; background: #fff; }
+  input, select { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #CDBFC8; border-radius: 10px; background: #fff; }
   button { width: 100%; padding: 14px; font-size: 1rem; font-weight: 600; border: 0; border-radius: 12px; margin-top: 14px; cursor: pointer; }
   button:disabled { opacity: 0.5; cursor: default; }
   .bouton-principal { background: #A33D5C; color: #fff; }
@@ -58,6 +58,11 @@
     <input id="cle" type="password" autocomplete="off" placeholder="Coller la clé ici">
     <label for="nombre">Nombre de fausses commandes (10 à 300)</label>
     <input id="nombre" type="number" inputmode="numeric" min="10" max="300" value="150">
+    <label for="rythme">Rythme (V8.5)</label>
+    <select id="rythme">
+      <option value="30">Pic réaliste : étalées sur 30 secondes</option>
+      <option value="0">Cas extrême : toutes à la même seconde</option>
+    </select>
     <button class="bouton-principal" id="lancer">Lancer le test</button>
     <div class="info" id="etat-article">Recherche de l'article « TEST-CHARGE »…</div>
     <div class="erreur" id="message-erreur"></div>
@@ -87,6 +92,7 @@ const PREFIXE_ARTICLE_TEST = 'TEST-CHARGE';
 
 const champCle = document.getElementById('cle');
 const champNombre = document.getElementById('nombre');
+const champRythme = document.getElementById('rythme');
 const boutonLancer = document.getElementById('lancer');
 const boutonNettoyer = document.getElementById('nettoyer');
 const zoneArticle = document.getElementById('etat-article');
@@ -174,8 +180,13 @@ async function envoyerFausseCommande(cle, article, numero, depart) {
 }
 
 /* ============================================================
-   Le test : toutes les commandes partent en même temps
+   Le test. Deux rythmes (V8.5) :
+     - cas extrême : toutes les commandes partent à la même seconde ;
+     - pic réaliste : elles partent une par une, étalées sur 30 secondes
+       (ex. 150 commandes = 5 par seconde), sans attendre les réponses.
    ============================================================ */
+const attendre = ms => new Promise(r => setTimeout(r, ms));
+
 async function lancerTest() {
   zoneErreur.textContent = '';
   const cle = champCle.value.trim();
@@ -201,21 +212,29 @@ async function lancerTest() {
 
     const debut = performance.now();
     const envois = [];
-    for (let i = 1; i < nombre; i++) envois.push(envoyerFausseCommande(cle, article, i, depart));
+    const etalement = (parseInt(champRythme.value, 10) || 0) * 1000; // 0 = toutes ensemble
+    for (let i = 1; i < nombre; i++) {
+      envois.push(envoyerFausseCommande(cle, article, i, depart));
+      if (etalement) {
+        boutonLancer.textContent = `Test en cours… ${i + 1} / ${nombre} envoyées`;
+        await attendre(etalement / nombre);
+      }
+    }
+    boutonLancer.textContent = 'Attente des dernières réponses…';
     const resultats = [essai].concat(await Promise.all(envois));
     const dureeTotale = (performance.now() - debut) / 1000;
 
     // On relit le stock affiché après le test (petite attente : Firestore finit d'écrire)
-    await new Promise(r => setTimeout(r, 1500));
+    await attendre(1500);
     const apres = await lireArticleTest().catch(() => null);
-    afficherResultats(article, apres, resultats, dureeTotale);
+    afficherResultats(article, apres, resultats, dureeTotale, etalement);
   } finally {
     boutonLancer.disabled = false;
     boutonLancer.textContent = 'Lancer le test';
   }
 }
 
-function afficherResultats(avant, apres, resultats, dureeTotale) {
+function afficherResultats(avant, apres, resultats, dureeTotale, etalement) {
   const compter = type => resultats.filter(r => r.type === type).length;
   const reussies = compter('reussie');
   const stockEpuise = compter('stock');
@@ -249,7 +268,7 @@ function afficherResultats(avant, apres, resultats, dureeTotale) {
   zoneResultats.hidden = false;
   zoneResultats.innerHTML =
     '<b>Résultats</b>' +
-    ligne('Commandes envoyées en même temps', resultats.length) +
+    ligne(etalement ? 'Commandes envoyées (étalées sur 30 s)' : 'Commandes envoyées en même temps', resultats.length) +
     ligne('Stock affiché avant le test', avant.dispo) +
     ligne('Commandes acceptées', reussies) +
     ligne('Refusées « stock épuisé » (normal)', stockEpuise) +
