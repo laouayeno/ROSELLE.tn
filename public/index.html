@@ -546,6 +546,12 @@
   .bloc-section.forme-arrondi .carte-produit .photo-wrap { aspect-ratio: 3/4; border-radius: 22px 22px 0 0; }
   .bloc-section.forme-arrondi .tuile-categorie .photo-wrap { aspect-ratio: 3/4; border-radius: 22px; }
   .bloc-section.forme-arrondi .carte-produit .infos { border-radius: 0 0 22px 22px; }
+  /* V9.1 (demande d'Oussama) : sur téléphone, photos rectangle et coins arrondis plus hautes
+     (3/5 au lieu de 3/4). Le recadrage choisi dans le Stock reste appliqué (même point de la photo). */
+  @media (max-width: 639px) {
+    .bloc-section.forme-rectangle .carte-produit .photo-wrap,
+    .bloc-section.forme-arrondi .carte-produit .photo-wrap { aspect-ratio: 3/5; }
+  }
   .bloc-section.forme-rond .carte-produit { box-shadow: none; border-radius: 0; background: transparent; }
   .bloc-section.forme-rond .carte-produit .photo-wrap,
   .bloc-section.forme-rond .tuile-categorie .photo-wrap { aspect-ratio: 1/1; border-radius: 50%; }
@@ -556,19 +562,19 @@
   .fond-fonce .bloc-section.forme-rond .carte-produit .badge-epuise,
   .fond-fonce .bloc-section.forme-rond .carte-produit .badge-solde { color: #FFFFFF; }
 
-  /* V8.7 / V8.8 : bloc avec peu d'articles (1 à 3) : cartes plus grandes et centrées
+  /* V8.7 / V8.8 / V9.1 (520 px) : bloc avec peu d'articles (1 à 3) : cartes plus grandes et centrées
      au lieu de rester petites à gauche (la grille PC prévoit 4 places par ligne).
      V9.0 (demande d'Oussama) : SEULEMENT pour les nouvelles formes (arche douce,
      rectangle, coins arrondis, rond). L'ancienne forme (arche haute, choix par défaut)
      reste exactement comme avant la V8.7. */
   .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 300px); justify-content: center; }
   @media (min-width: 640px) {
-    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 440px)); justify-content: center; }
-    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 440px)); justify-content: center; }
-    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 440px); }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 520px)); justify-content: center; }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 520px)); justify-content: center; }
+    .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 520px); }
     /* le bloc prend juste la largeur de ses cartes : le titre reste au-dessus des cartes */
-    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-2) { max-width: calc(2 * 440px + 32px); margin-left: auto; margin-right: auto; }
-    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-3) { max-width: calc(3 * 440px + 64px); margin-left: auto; margin-right: auto; }
+    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-2) { max-width: calc(2 * 520px + 32px); margin-left: auto; margin-right: auto; }
+    .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-3) { max-width: calc(3 * 520px + 64px); margin-left: auto; margin-right: auto; }
     /* espace plus grand entre peu de cartes */
     .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2, .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { column-gap: 32px; }
   }
@@ -1220,7 +1226,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2931,6 +2937,16 @@ function recadrageDuBloc(bloc, id) {
 // Balise <img> d'une photo, avec forme et recadrage éventuels.
 // - Sans recadrage : Cloudinary découpe la photo à la forme du cadre (comme avant, le plus net).
 // - Avec recadrage : photo entière, placée et zoomée dans le cadre par le navigateur.
+// V9.1 : largeur (en points) demandée pour la photo d'une carte d'article.
+// Les nouvelles formes peuvent faire jusqu'à 520 px de large sur PC : on demande
+// alors une photo plus large pour qu'elle reste nette. L'arche haute ne change pas.
+function largeurPhotoCarte(bloc) {
+  const ecran = window.innerWidth || 400;
+  const forme = formeDuBloc(bloc);
+  if (forme && forme !== 'arche' && ecran >= 640) return 560;
+  return Math.min(400, ecran / 2);
+}
+
 function imagePhotoBloc(photo, alt, largeur, forme, recadrage, formeParDefaut) {
   if (!recadrage) {
     const decoupe = forme ? FORMES_PHOTOS[forme].cloudinary : formeParDefaut;
@@ -3341,7 +3357,7 @@ function carteProduitHTML(produit, bloc) {
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap${photo ? ' en-chargement' : ''}">
-        ${photo ? imagePhotoBloc(photo, produit.name, Math.min(400, (window.innerWidth || 400) / 2), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
+        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
