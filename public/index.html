@@ -1109,7 +1109,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V8.4</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1674,7 +1674,10 @@ function sauvegarderPanier() {
    ============================================================ */
 db.collection('publicCatalog').onSnapshot(
   (snapshot) => {
-    etat.produits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // V8.4 : un article dont le nom commence par « TEST-CHARGE » sert au test
+    // de charge des commandes (/test-charge.html) : jamais montré aux clientes.
+    etat.produits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(p => !String(p.name || '').startsWith('TEST-CHARGE'));
     etat.chargementTermine = true;
     rafraichirApresDonnees();
   },
