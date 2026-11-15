@@ -654,6 +654,17 @@
   .bloc-texte.style-partage p { font-family: 'Playfair Display', serif; font-size: 1.12rem; }
   .bloc-texte.style-partage .bouton-principal { background: var(--texte); color: #FFFFFF; border-color: var(--texte); }
   .fond-fonce .bloc-texte.style-partage .bouton-principal { background: #FFFFFF; color: #111111; border-color: #FFFFFF; }
+  /* Téléphone (choix A d'Oussama) : côte à côte en petit, comme sur PC :
+     petite photo d'un côté, texte de l'autre (le côté choisi dans le Stock est respecté) */
+  @media (max-width: 779px) {
+    .bloc-texte.avec-media.style-partage { grid-template-columns: 44% minmax(0, 1fr); gap: 16px; align-items: center; }
+    .bloc-texte.avec-media.style-partage.media-gauche .media-bloc { order: 0; }
+    .bloc-texte.avec-media.style-partage.media-droite { grid-template-columns: minmax(0, 1fr) 44%; }
+    .bloc-texte.avec-media.style-partage.media-droite .media-bloc { order: 2; }
+    .bloc-texte.style-partage h2 { font-size: 1.35rem; margin-bottom: 6px; }
+    .bloc-texte.style-partage p { font-size: 0.98rem; line-height: 1.45; margin-bottom: 10px; }
+    .bloc-texte.style-partage .bouton-principal { padding: 10px 14px; font-size: 0.8rem; }
+  }
   @media (min-width: 780px) {
     .bloc-texte.avec-media.style-partage { padding: 56px 0; }
     .bloc-texte.avec-media.style-partage .media-bloc { padding: 0 clamp(24px, 4vw, 64px); }
