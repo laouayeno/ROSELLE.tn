@@ -644,9 +644,11 @@
   .bloc-texte.avec-media.style-partage .media-bloc { margin-left: 0; margin-right: 0; display: flex; justify-content: center; }
   .bloc-texte.avec-media.style-partage .media-bloc img,
   .bloc-texte.avec-media.style-partage .media-bloc video {
-    width: 100%; aspect-ratio: 4/5; object-fit: cover; border-radius: 12px;
+    width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 12px;
     box-shadow: 0 18px 40px rgba(17,17,17,0.15);
   }
+  /* Vidéo : format téléphone (9/16), comme l'idée 3 choisie par Oussama ; photo : 2/3 (ne coupe pas la robe) */
+  .bloc-texte.avec-media.style-partage .media-bloc video { aspect-ratio: 9/16; }
   .bloc-texte.style-partage h2 { font-family: 'Playfair Display', serif; font-weight: 400; font-size: 2rem; line-height: 1.25; }
   .bloc-texte.style-partage h2::after { display: none; }
   .bloc-texte.style-partage p { font-family: 'Playfair Display', serif; font-size: 1.12rem; }
@@ -656,11 +658,11 @@
     .bloc-texte.avec-media.style-partage { padding: 56px 0; }
     .bloc-texte.avec-media.style-partage .media-bloc { padding: 0 clamp(24px, 4vw, 64px); }
     .bloc-texte.avec-media.style-partage .media-bloc img,
-    .bloc-texte.avec-media.style-partage .media-bloc video { width: auto; max-width: 100%; height: min(78vh, 720px); }
+    .bloc-texte.avec-media.style-partage .media-bloc video { width: auto; max-width: 100%; height: min(84vh, 760px); }
     .bloc-texte.avec-media.style-partage .texte-bloc { justify-self: start; padding-left: clamp(16px, 3vw, 48px); }
     .bloc-texte.avec-media.style-partage.media-droite .texte-bloc { justify-self: end; }
-    .bloc-texte.style-partage h2 { font-size: 2.6rem; }
-    .bloc-texte.style-partage p { font-size: 1.3rem; line-height: 1.6; }
+    .bloc-texte.style-partage h2 { font-size: 2.8rem; }
+    .bloc-texte.style-partage p { font-size: 2rem; line-height: 1.4; }
   }
 
   /* Bloc image seule : toute la largeur de l'écran, bord à bord */
