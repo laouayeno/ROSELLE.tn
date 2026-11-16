@@ -50,7 +50,12 @@
      à gauche et à droite. On bloque le défilement de côté sur toute la page
      (html), pas seulement dans body. Le défilement vers le bas ne change pas
      et l'en-tête collant continue de marcher. */
-  html { overflow-x: hidden; }
+  html {
+    overflow-x: hidden;
+    /* V9.2 : empêche l'iPhone de grossir tout seul les textes quand on le tourne
+       à l'horizontale (et de garder parfois ces tailles en revenant à la verticale) */
+    -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  }
 
   body {
     margin: 0;
@@ -364,6 +369,9 @@
     display: block; position: absolute; z-index: 3;
     top: 100%; left: 50%; transform: translateX(-50%);
     width: 52vw; pointer-events: none;
+    /* V9.2 : téléphone à l'horizontale : le demi-cercle ne prend plus la moitié de l'écran
+       (à la verticale, 52vw est toujours plus petit : rien ne change) */
+    width: min(52vw, 60vh);
     /* Rien ne dépasse au-dessus du bas de la barre (bouts des racines) */
     clip-path: inset(0 -50% -50% -50%);
   }
@@ -583,6 +591,17 @@
   @media (min-width: 960px) {
     body.sur-accueil .bloc-section:not([class*="forme-"]),
     body.sur-accueil .bloc-section.forme-arche { max-width: 1080px; margin-left: auto; margin-right: auto; }
+  }
+  /* V9.2 : téléphone tenu à l'horizontale (écran large mais très bas) :
+     4 cartes par ligne et cartes moins larges, pour que chaque photo tienne dans l'écran
+     au lieu d'être plus haute que lui. Le PC et le téléphone à la verticale ne changent pas. */
+  @media (orientation: landscape) and (max-height: 500px) and (max-width: 1100px) {
+    html .grille-produits { grid-template-columns: repeat(4, 1fr); }
+    html .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-1 { grid-template-columns: minmax(0, 220px); }
+    html .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-2 { grid-template-columns: repeat(2, minmax(0, 220px)); }
+    html .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits.peu-3 { grid-template-columns: repeat(3, minmax(0, 220px)); }
+    html .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-2) { max-width: calc(2 * 220px + 32px); }
+    html .bloc-section[class*="forme-"]:not(.forme-arche):has(.grille-produits.peu-3) { max-width: calc(3 * 220px + 64px); }
   }
   /* Sans arche, plus besoin du grand espace blanc sous la photo */
   .bloc-section.forme-arche-douce .carte-produit .infos,
@@ -1226,7 +1245,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.2</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
