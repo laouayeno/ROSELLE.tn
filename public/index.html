@@ -487,6 +487,10 @@
   .tuiles-categories {
     display: flex; gap: 14px; margin: 0;
     overflow-x: auto; scroll-snap-type: x mandatory;
+    /* V9.3 : glisse seulement de gauche à droite. Sans cette ligne, les tuiles qui
+       attendent leur « apparition douce » (décalées de 22 px vers le bas) faisaient
+       dépasser le bloc, et sur iPhone les photos glissaient aussi en haut et en bas. */
+    overflow-y: hidden;
     padding: 0 20px 6px; scroll-padding-inline: 20px;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
@@ -1245,7 +1249,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
