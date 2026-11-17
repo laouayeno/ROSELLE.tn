@@ -1212,6 +1212,9 @@
   }
   .photo-wrap img { position: relative; } /* la photo passe devant le reflet */
   @keyframes reflet-photo { to { transform: translateX(100%); } }
+  /* V9.6 : photo pas (encore) arrivée : invisible, on voit le fond doux du cadre
+     et le reflet, jamais le « ? » de l'iPhone */
+  img.photo-cassee { opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .photo-wrap.en-chargement::before { animation: none; display: none; } }
 </style>
 </head>
@@ -1279,7 +1282,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1707,6 +1710,9 @@ function adresseSansReglage(reste) {
 document.addEventListener('error', (e) => {
   const el = e.target;
   if (!el || !el.getAttribute) return;
+  // V9.6 : une photo en échec devient invisible (classe photo-cassee) : l'iPhone
+  // n'affiche plus son « ? » bleu. Elle réapparaît dès qu'un nouvel essai réussit.
+  if (el.tagName === 'IMG') el.classList.add('photo-cassee');
   const src = el.getAttribute('src') || '';
   if (src.indexOf('/img/') === 0) {
     // V6.3 : relais Cloudflare en panne -> même photo demandée directement à Cloudinary
@@ -2524,7 +2530,13 @@ function mettreAJourCompteurPanier() {
 // on enlève le reflet de chargement de son cadre.
 ['load', 'error'].forEach(type => document.addEventListener(type, (e) => {
   const img = e.target;
-  if (img && img.tagName === 'IMG' && img.parentElement && img.parentElement.classList.contains('en-chargement')) {
+  if (!img || img.tagName !== 'IMG') return;
+  // V9.6 : en cas d'échec, on garde l'effet d'attente (reflet) au lieu du « ? »
+  // de l'iPhone : il s'arrête seulement quand la photo est vraiment arrivée
+  // (parfois au 2e ou 3e essai), et la photo est alors remontrée.
+  if (type === 'error') return;
+  img.classList.remove('photo-cassee');
+  if (img.parentElement && img.parentElement.classList.contains('en-chargement')) {
     img.parentElement.classList.remove('en-chargement');
   }
 }, true));

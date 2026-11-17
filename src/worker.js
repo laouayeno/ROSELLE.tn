@@ -681,7 +681,10 @@ const CLOUD_PHOTOS = 'vmmsu4z6';
 // Exactement les réglages fabriqués par photoOptimisee() dans public/index.html
 // V7.2 : ar_5:14 (= 1/2.8, accepté par Cloudinary). ar_1:2.8 reste permis pour les
 // pages déjà ouvertes avant la mise à jour (Cloudinary le refuse pour certaines photos).
-const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_(?:1:2\.8|5:14),g_center),w_(\d{3,4})$/;
+// V9.6 : les formes choisies bloc par bloc depuis la V8.6 (arche douce 2:3,
+// rectangle et coins arrondis 3:4, rond 1:1) manquaient ici : leurs photos non
+// recadrées étaient refusées (photo cassée, ex. tuile « Robes » en rond).
+const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_(?:1:2\.8|5:14|2:3|3:4|1:1),g_center),w_(\d{3,4})$/;
 // Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
 const FICHIER_PHOTO_PERMIS = /^(v\d+\/)?[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*(\.(jpe?g|png|webp|gif|avif|heic))?$/i;
 
