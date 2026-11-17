@@ -421,8 +421,11 @@
     font-size: 0.78rem; letter-spacing: 0.04em; white-space: nowrap;
   }
   .bande[hidden] { display: none; }
-  .bande-livraison { grid-row: 1; background: #C9848F; }   /* vieux rose choisi par Oussama */
-  .bande-offre { grid-row: 2; background: #8E3A55; }       /* framboise foncé : se distingue de la livraison */
+  /* V9.7 : couleur dans --fond-bande, remplacée si Oussama en choisit une autre
+     dans Stock > Apparence (voir COULEURS_BANDES) */
+  .bande { background: var(--fond-bande); }
+  .bande-livraison { grid-row: 1; --fond-bande: #C9848F; }   /* vieux rose choisi par Oussama */
+  .bande-offre { grid-row: 2; --fond-bande: #8E3A55; }       /* framboise foncé : se distingue de la livraison */
   /* La 1re bande visible remonte sur la marge du haut, la dernière laisse
      un petit espace avant les liens du menu */
   header.avec-bande .bande-livraison { margin-top: -2px; }
@@ -1282,7 +1285,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1897,15 +1900,15 @@ function messagesLivraison(frais) {
 const CAMION_BANDE = '<svg class="camion" viewBox="0 0 24 16" aria-hidden="true">' +
   '<path d="M1 1.5h13v10H1z" fill="currentColor"/>' +                    // caisse
   '<path d="M14 4.5h4.5l4 4v3H14z" fill="currentColor"/>' +              // cabine
-  '<path d="M16 5.8h2.2l2.3 2.4H16z" fill="#C9848F"/>' +                 // vitre
-  '<circle cx="5.5" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' + // roues
-  '<circle cx="18" cy="12.5" r="2.4" fill="currentColor" stroke="#C9848F" stroke-width="1.3"/>' +
+  '<path d="M16 5.8h2.2l2.3 2.4H16z" style="fill:var(--fond-bande)"/>' +   // vitre (V9.7 : couleur de la bande)
+  '<circle cx="5.5" cy="12.5" r="2.4" fill="currentColor" style="stroke:var(--fond-bande)" stroke-width="1.3"/>' + // roues
+  '<circle cx="18" cy="12.5" r="2.4" fill="currentColor" style="stroke:var(--fond-bande)" stroke-width="1.3"/>' +
   '</svg>';
 
 // Petit paquet cadeau blanc pour la bande « Offre spéciale » (V8.3)
 const CADEAU_BANDE = '<svg class="cadeau" viewBox="0 0 20 20" aria-hidden="true">' +
   '<path d="M2 7h16v4H2zM3.5 11h13v7h-13z" fill="currentColor"/>' +                 // boîte et couvercle
-  '<path d="M9 7h2v11H9z" fill="#8E3A55"/>' +                                     // ruban vertical
+  '<path d="M9 7h2v11H9z" style="fill:var(--fond-bande)"/>' +                     // ruban vertical (V9.7 : couleur de la bande)
   '<path d="M10 7C8 3 4.5 3.5 5 5.5S9 7 10 7zM10 7c2-4 5.5-3.5 5-1.5S11 7 10 7z" fill="currentColor"/>' + // nœud
   '</svg>';
 
@@ -1941,6 +1944,23 @@ function remplirBandeDefilante(idBande, idRuban, classeEntete, messages, icone) 
   bande.setAttribute('aria-label', (messages[1] || messages[0]).texte);
 }
 
+/* V9.7 : couleurs que Oussama peut choisir pour chaque bande (Stock > Apparence).
+   Mêmes noms que AP_COULEURS_BANDES dans le Stock. Sécurité : le réglage est un
+   NOM, la couleur vient uniquement de cette liste (rien d'écrit à la main dans la page). */
+const COULEURS_BANDES = {
+  vieuxrose: '#C9848F', framboise: '#8E3A55', rosevif: '#C23B6E', bordeaux: '#5B1F2E',
+  aubergine: '#3A1F33', terracotta: '#B5654A', dore: '#A9823A', sauge: '#5F7A5B',
+  olive: '#3E4733', bleunuit: '#1F3550', chocolat: '#4B3428', noir: '#141414'
+};
+// Applique la couleur choisie (ou remet celle par défaut si aucun nom connu)
+function colorerBande(idBande, nom) {
+  const bande = document.getElementById(idBande);
+  if (!bande) return;
+  const couleur = Object.prototype.hasOwnProperty.call(COULEURS_BANDES, nom) ? COULEURS_BANDES[nom] : '';
+  if (couleur) bande.style.setProperty('--fond-bande', couleur);
+  else bande.style.removeProperty('--fond-bande');
+}
+
 // Met à jour les 2 bandes d'après les réglages (shipping.banner et shipping.offer).
 function mettreAJourBandeLivraison() {
   const sh = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {};
@@ -1950,9 +1970,11 @@ function mettreAJourBandeLivraison() {
   const libres = textesBande(reglageLivraison);
   const livraison = reglageLivraison.show === false ? [] : (libres.length ? libres : messagesLivraison(fraisLivraison()));
   remplirBandeDefilante('bande-livraison', 'ruban-livraison', 'avec-bande', livraison, CAMION_BANDE);
+  colorerBande('bande-livraison', reglageLivraison.color);
   // Bande Offre spéciale : seulement si elle est affichée ET qu'un texte est rempli
   const reglageOffre = (sh.offer && typeof sh.offer === 'object') ? sh.offer : {};
   remplirBandeDefilante('bande-offre', 'ruban-offre', 'avec-offre', reglageOffre.show === false ? [] : textesBande(reglageOffre), CADEAU_BANDE);
+  colorerBande('bande-offre', reglageOffre.color);
 }
 mettreAJourBandeLivraison(); // affichage immédiat avec 8 DT, avant même les réglages
 
