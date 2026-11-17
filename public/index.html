@@ -1279,7 +1279,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.4</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2031,7 +2031,9 @@ function analyserHash() {
   if (vue === 'produit' && param) return { vue: 'produit', parametres: { produitId: decodeURIComponent(param) } };
   if (vue === 'collection' && param) return { vue: 'collection', parametres: { collectionId: decodeURIComponent(param) } };
   if (vue === 'recherche') return { vue: 'recherche', parametres: { texte: decodeURIComponent(param || '') } };
-  if (['accueil', 'panier', 'commande', 'confirmation', 'apropos'].includes(vue)) return { vue, parametres: {} };
+  // V9.5 : « catalogue » seul (= tous les articles) manquait ici : le 1er clic sur
+  // « Découvrir tous les articles » ramenait à l'accueil, il fallait cliquer 2 fois.
+  if (['accueil', 'catalogue', 'panier', 'commande', 'confirmation', 'apropos'].includes(vue)) return { vue, parametres: {} };
   return { vue: 'accueil', parametres: {} };
 }
 
