@@ -749,6 +749,36 @@
   /* Bloc image seule : toute la largeur de l'écran, bord à bord */
   .bloc-image { display: block; margin-top: 48px; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
   .bloc-image img { width: 100%; display: block; }
+
+  /* ===== V9.4 : recadrage des photos et vidéos choisi dans le Stock =====
+     (seulement quand un recadrage existe : sinon rien ne change) */
+  .media-recadre { transform: scale(var(--zoom, 1)); }
+  .bloc-image.recadre { overflow: hidden; }
+  /* Bannière : un recadrage pour l'ordinateur, un pour le téléphone */
+  .bloc-banniere img.media-recadre-banniere {
+    object-position: var(--rx) var(--ry); transform-origin: var(--rx) var(--ry); transform: scale(var(--rz));
+  }
+  @media (max-width: 779px) {
+    .bloc-banniere img.media-recadre-banniere {
+      object-position: var(--rxt) var(--ryt); transform-origin: var(--rxt) var(--ryt); transform: scale(var(--rzt));
+    }
+  }
+  /* Bloc Texte : le média recadré est posé dans un cadre qui coupe ce qui dépasse */
+  .media-bloc .cadre-media { display: block; overflow: hidden; }
+  /* Style « Écran partagé » : le cadre prend la forme de la carte (2/3, ou 9/16 pour une vidéo) */
+  .bloc-texte.avec-media.style-partage .media-bloc .cadre-media {
+    width: 100%; aspect-ratio: 2/3; border-radius: 12px; box-shadow: 0 18px 40px rgba(17,17,17,0.15);
+  }
+  .bloc-texte.avec-media.style-partage .media-bloc .cadre-media.cadre-video { aspect-ratio: 9/16; }
+  .bloc-texte.avec-media.style-partage .media-bloc .cadre-media img,
+  .bloc-texte.avec-media.style-partage .media-bloc .cadre-media video {
+    width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; object-fit: cover;
+  }
+  @media (min-width: 780px) {
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media { width: auto; max-width: 100%; height: min(84vh, 760px); }
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media img,
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media video { width: 100%; height: 100%; }
+  }
   .entete-section a { font-size: 0.85rem; color: var(--rose-fonce); border-bottom: 1px solid var(--rose-fonce); }
 
   /* ===== Pétales flottants décoratifs (touche florale en arrière-plan) ===== */
@@ -1249,7 +1279,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.4</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2713,6 +2743,33 @@ function rendreAccueil(conteneur) {
   majTousLesCarrousels();
 }
 
+/* ============================================================
+   V9.4 : RECADRAGE DES AUTRES PHOTOS ET VIDÉOS
+   ------------------------------------------------------------
+   Dans Stock > Apparence, Oussama peut recadrer (glisser + zoom) :
+   - la vidéo d'accueil : hero.mediaCrop (téléphone) et hero.mediaCropPc (ordinateur) ;
+   - la bannière : bloc.imageCrop (ordinateur) et bloc.imageCropMobile (téléphone) ;
+   - le bloc Texte : bloc.mediaCrop (photo ou vidéo) ;
+   - le bloc Image : bloc.imageCrop.
+   Chaque réglage = { x, y } en % (point gardé) et z (zoom 1 à 3), comme pour les
+   photos des articles (V8.6). Sans réglage, tout s'affiche exactement comme avant.
+   ============================================================ */
+function recadrageMedia(r) {
+  if (!r || typeof r !== 'object') return null;
+  const borne = (v, min, max, defaut) => {
+    const n = Number(v);
+    return isFinite(n) ? Math.min(max, Math.max(min, n)) : defaut;
+  };
+  const out = { x: borne(r.x, 0, 100, 50), y: borne(r.y, 0, 100, 50), z: borne(r.z, 1, 3, 1) };
+  // Centré sans zoom = aucun changement : on garde l'affichage d'avant
+  return (out.x === 50 && out.y === 50 && out.z === 1) ? null : out;
+}
+
+// Style à poser sur la photo ou la vidéo recadrée (lu par la classe .media-recadre)
+function styleRecadrageMedia(r) {
+  return `object-position:${r.x}% ${r.y}%;transform-origin:${r.x}% ${r.y}%;--zoom:${r.z}`;
+}
+
 // Construit le héros à partir des réglages (type vidéo ou image).
 // Sans média valide dans le dashboard, on garde la vidéo par défaut.
 function heroAccueil() {
@@ -2732,15 +2789,20 @@ function heroAccueil() {
   const texte = reglageTexte('hero', 'text');
   const libelleBouton = reglageTexte('hero', 'buttonLabel');
   const lienBouton = brut.buttonLink || REGLAGES_PAR_DEFAUT.hero.buttonLink;
+  // V9.4 : recadrage choisi dans le Stock (un pour le téléphone, un pour l'ordinateur)
+  const recadrage = recadrageMedia(ecranLarge ? brut.mediaCropPc : brut.mediaCrop);
+  const classeRecadrage = recadrage ? ' media-recadre' : '';
+  const styleRecadrage = recadrage ? ` style="${styleRecadrageMedia(recadrage)}"` : '';
+  const zoom = recadrage ? recadrage.z : 1;
 
   const mediaHTML = type === 'image'
-    ? `<img class="media-hero" src="${echapper(photoOptimisee(media, 'ecran'))}" alt="${echapper(nom)}">`
+    ? `<img class="media-hero${classeRecadrage}"${styleRecadrage} src="${echapper(photoOptimisee(media, 'ecran', '', zoom))}" alt="${echapper(nom)}">`
     // V7.4 : l'image d'attente est AUSSI posée en vraie photo derrière la vidéo, et la
     // vidéo reste invisible jusqu'à ce qu'elle joue vraiment (onplaying). Sur iPhone,
     // la vidéo affichait un écran noir entre l'image d'attente et la 1re image jouée,
     // ou tout le temps si la lecture automatique est bloquée (mode économie d'énergie).
-    : `${affiche ? `<img class="media-hero" src="${echapper(photoOptimisee(affiche, 'ecran'))}" alt="" aria-hidden="true">` : ''}
-       <video class="video-hero" autoplay muted loop playsinline onplaying="this.classList.add('en-lecture')"${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
+    : `${affiche ? `<img class="media-hero${classeRecadrage}"${styleRecadrage} src="${echapper(photoOptimisee(affiche, 'ecran', '', zoom))}" alt="" aria-hidden="true">` : ''}
+       <video class="video-hero${classeRecadrage}"${styleRecadrage} autoplay muted loop playsinline onplaying="this.classList.add('en-lecture')"${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
          <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
        </video>`;
 
@@ -2754,7 +2816,7 @@ function heroAccueil() {
     </section>
   `;
   // La signature résume ce qui, s'il change, impose de reconstruire le héros
-  const signature = JSON.stringify([type, media, affiche, nom, texte, libelleBouton, lienBouton]);
+  const signature = JSON.stringify([type, media, affiche, nom, texte, libelleBouton, lienBouton, recadrage]);
   return { html, signature };
 }
 
@@ -2910,11 +2972,21 @@ function blocBanniereHTML(bloc) {
         ${bloc.buttonLabel ? `<button class="bouton-principal" ${lienAttributs(bloc.link)}>${echapper(bloc.buttonLabel)}</button>` : ''}
       </div>`;
   }
+  // V9.4 : recadrage de l'image ordinateur et de l'image téléphone (choisis dans le Stock).
+  // Sans image téléphone, le téléphone montre l'image ordinateur avec le même recadrage.
+  const recPc = recadrageMedia(bloc.imageCrop);
+  const recTel = imageTel ? recadrageMedia(bloc.imageCropMobile) : recPc;
+  const centre = { x: 50, y: 50, z: 1 };
+  const avecRecadrage = !!(recPc || recTel);
+  const rp = recPc || centre, rt = recTel || centre;
+  const attributsRecadrage = avecRecadrage
+    ? ` class="media-recadre-banniere" style="--rx:${rp.x}%;--ry:${rp.y}%;--rz:${rp.z};--rxt:${rt.x}%;--ryt:${rt.y}%;--rzt:${rt.z}"`
+    : '';
   return `
     <a href="#" class="bloc-banniere" ${lienAttributs(bloc.link)}>
       <picture>
-        ${imageTel ? `<source media="(max-width: 779px)" srcset="${echapper(photoOptimisee(imageTel, 'ecran'))}">` : ''}
-        <img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="${echapper(bloc.title || '')}" loading="lazy">
+        ${imageTel ? `<source media="(max-width: 779px)" srcset="${echapper(photoOptimisee(imageTel, 'ecran', '', rt.z))}">` : ''}
+        <img${attributsRecadrage} src="${echapper(photoOptimisee(image, 'ecran', '', imageTel ? rp.z : Math.max(rp.z, rt.z)))}" alt="${echapper(bloc.title || '')}" loading="lazy">
       </picture>
       ${(titre || sousTitre || bouton) ? `<div class="texte-banniere">${titre}${sousTitre}${bouton}</div>` : ''}
     </a>`;
@@ -3137,9 +3209,14 @@ function blocTexteHTML(bloc) {
 
   // Vidéo si le type le dit, ou si l'adresse finit par .mp4 / .webm ; sinon image (GIF compris)
   const estVideo = bloc.mediaType === 'video' || /\.(mp4|webm)(\?|#|$)/i.test(media);
-  const mediaHTML = estVideo
-    ? `<video src="${echapper(videoOptimisee(media))}" autoplay muted loop playsinline preload="metadata"></video>`
-    : `<img src="${echapper(photoOptimisee(media, 1000))}" alt="${echapper(bloc.title || '')}" loading="lazy">`;
+  // V9.4 : recadrage choisi dans le Stock (photo ou vidéo). Le média est alors posé dans
+  // un cadre (.cadre-media) qui coupe ce qui dépasse quand on zoome.
+  const recadrage = recadrageMedia(bloc.mediaCrop);
+  const attributsRecadrage = recadrage ? ` class="media-recadre" style="${styleRecadrageMedia(recadrage)}"` : '';
+  const brutHTML = estVideo
+    ? `<video${attributsRecadrage} src="${echapper(videoOptimisee(media))}" autoplay muted loop playsinline preload="metadata"></video>`
+    : `<img${attributsRecadrage} src="${echapper(photoOptimisee(media, 1000, '', recadrage ? recadrage.z : 1))}" alt="${echapper(bloc.title || '')}" loading="lazy">`;
+  const mediaHTML = recadrage ? `<span class="cadre-media${estVideo ? ' cadre-video' : ''}">${brutHTML}</span>` : brutHTML;
   const cote = bloc.mediaSide === 'left' ? 'media-gauche' : 'media-droite';
   // V8.6 : style « Écran partagé » (carte arrondie + grand texte) au lieu du média bord à bord
   const style = bloc.textStyle === 'partage' ? ' style-partage' : '';
@@ -3155,10 +3232,15 @@ function blocTexteHTML(bloc) {
 function blocImageHTML(bloc) {
   const image = urlSure(bloc.imageUrl, '');
   if (!image) return '';
-  const img = `<img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="" loading="lazy">`;
+  // V9.4 : recadrage choisi dans le Stock (le bloc coupe alors ce qui dépasse)
+  const recadrage = recadrageMedia(bloc.imageCrop);
+  const img = recadrage
+    ? `<img class="media-recadre" style="${styleRecadrageMedia(recadrage)}" src="${echapper(photoOptimisee(image, 'ecran', '', recadrage.z))}" alt="" loading="lazy">`
+    : `<img src="${echapper(photoOptimisee(image, 'ecran'))}" alt="" loading="lazy">`;
+  const classe = recadrage ? 'bloc-image recadre' : 'bloc-image';
   return bloc.link
-    ? `<a href="#" class="bloc-image" ${lienAttributs(bloc.link)}>${img}</a>`
-    : `<div class="bloc-image">${img}</div>`;
+    ? `<a href="#" class="${classe}" ${lienAttributs(bloc.link)}>${img}</a>`
+    : `<div class="${classe}">${img}</div>`;
 }
 
 /* ============================================================
