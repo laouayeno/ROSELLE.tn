@@ -444,6 +444,10 @@
   .bande .ruban {
     display: flex; width: max-content;
     animation: bande-defile 38s linear infinite;
+    /* V10.0 : calque à part pour la carte graphique. Sur iPhone, une bande pouvait
+       rester vide (texte « perdu ») après un retour sur l'onglet ou dans Safari. */
+    will-change: transform;
+    -webkit-backface-visibility: hidden; backface-visibility: hidden;
   }
   .bande-offre .ruban { animation-duration: 32s; }       /* un peu décalée de la 1re bande */
   .bande .message { padding: 0 22px; }
@@ -451,7 +455,7 @@
   /* Petit camion blanc entre les phrases, tourné vers la gauche (choix d'Oussama) */
   .bande .camion { width: 22px; height: 15px; flex-shrink: 0; align-self: center; transform: scaleX(-1); }
   .bande .cadeau { width: 15px; height: 15px; flex-shrink: 0; align-self: center; }
-  @keyframes bande-defile { to { transform: translateX(-50%); } }
+  @keyframes bande-defile { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
   /* Téléphones réglés sur « réduire les animations » : texte immobile */
   @media (prefers-reduced-motion: reduce) { .bande .ruban { animation: none; } }
   @media (min-width: 860px) {
@@ -1348,7 +1352,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2044,6 +2048,20 @@ function mettreAJourBandeLivraison() {
   colorerBande('bande-offre', reglageOffre.color);
 }
 mettreAJourBandeLivraison(); // affichage immédiat avec 8 DT, avant même les réglages
+
+/* V10.0 : sur iPhone, Safari arrête parfois l'animation d'une bande quand on
+   revient sur la page (autre onglet, autre appli, bouton retour) : la bande
+   reste vide. Au retour sur la page, on relance le défilement des 2 bandes
+   (couper puis remettre l'animation). Très léger : 2 petits éléments. */
+function relancerBandes() {
+  document.querySelectorAll('.bande .ruban').forEach(ruban => {
+    ruban.style.animation = 'none';
+    void ruban.offsetWidth;          // le navigateur prend en compte l'arrêt
+    ruban.style.animation = '';       // puis l'animation repart du début
+  });
+}
+window.addEventListener('pageshow', relancerBandes);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) relancerBandes(); });
 
 /* ============================================================
    CHARGEMENT TEMPS RÉEL DES RÉGLAGES DU SITE (siteSettings/main)
