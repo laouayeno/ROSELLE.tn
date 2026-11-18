@@ -66,6 +66,8 @@ export default {
     if (url.pathname === '/api/config') {
       return json({ ok: true, turnstile: env.TURNSTILE_SITE_KEY || null });
     }
+    // V9.9 : recadrage de l'image d'accueil, pour l'affichage immédiat (1re visite).
+    if (url.pathname === '/api/accueil') return servirAccueil(url, ctx);
     // Toute autre adresse : le site lui-même (sécurité si la config change).
     if (env.ASSETS) return env.ASSETS.fetch(requete);
     return new Response('Introuvable', { status: 404 });
@@ -666,6 +668,53 @@ function json(objet, statut = 200) {
     status: statut,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
   });
+}
+
+/* ---------- V9.9 : réglages de l'image d'accueil ----------
+   L'accueil s'affiche tout de suite, avant Firebase (voir « AFFICHAGE IMMÉDIAT »
+   dans index.html). À la 1re visite, le site demande ici le recadrage de l'image
+   choisi dans le Stock, pour la poser directement au bon endroit.
+   - Lecture PUBLIQUE de siteSettings/main (champ hero seulement), sans jeton :
+     les règles Firestore permettent déjà à tout le monde de lire ce document.
+   - Réponse gardée 60 s dans la mémoire de Cloudflare : même avec 50 000 visites,
+     Firestore n'est lu qu'environ une fois par minute (et par centre Cloudflare).
+   - Aucune donnée privée : seulement le recadrage et « image perso oui/non ». */
+async function servirAccueil(url, ctx) {
+  const cle = new Request(`${url.origin}/api/accueil`, { method: 'GET' });
+  const cache = caches.default;
+  const enMemoire = await cache.match(cle);
+  if (enMemoire) return enMemoire;
+
+  let hero = {};
+  try {
+    const r = await fetch(`${BASE}/siteSettings/main?mask.fieldPaths=hero`);
+    if (!r.ok) return json({ ok: false }, 502);
+    const doc = await r.json();
+    hero = (doc.fields && doc.fields.hero && doc.fields.hero.mapValue && doc.fields.hero.mapValue.fields) || {};
+  } catch (e) {
+    return json({ ok: false }, 502);
+  }
+  // Recadrage { x, y, z } lu dans le format Firestore, bornes identiques au site
+  const nombre = v => v ? Number(v.integerValue !== undefined ? v.integerValue : v.doubleValue) : NaN;
+  const borne = (v, min, max, defaut) => (isFinite(v) ? Math.min(max, Math.max(min, v)) : defaut);
+  const recadrage = champ => {
+    const f = champ && champ.mapValue && champ.mapValue.fields;
+    if (!f) return null;
+    return { x: borne(nombre(f.x), 0, 100, 50), y: borne(nombre(f.y), 0, 100, 50), z: borne(nombre(f.z), 1, 3, 1) };
+  };
+  const texte = champ => (champ && typeof champ.stringValue === 'string' ? champ.stringValue.trim() : '');
+  const reponse = new Response(JSON.stringify({
+    ok: true,
+    // Vidéo ou image choisie dans le Stock : l'image par défaut ne doit pas s'afficher
+    perso: !!(texte(hero.mediaUrl) || texte(hero.posterUrl)),
+    tel: recadrage(hero.mediaCrop),
+    pc: recadrage(hero.mediaCropPc)
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' }
+  });
+  ctx.waitUntil(cache.put(cle, reponse.clone()));
+  return reponse;
 }
 
 /* ---------- V6.3 : relais des photos Cloudinary ----------
