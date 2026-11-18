@@ -25,6 +25,12 @@
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js">
 <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js">
+<!-- V9.8 : 1re image de l'accueil (image d'attente de la vidéo par défaut),
+     téléchargée EN PREMIER, sans attendre Firebase : elle s'affiche environ
+     1 s plus tôt sur téléphone (score Google « LCP »). Si une autre vidéo ou
+     photo d'accueil est choisie dans Stock > Apparence, ce petit fichier
+     (47 Ko) est téléchargé pour rien, sans autre effet. -->
+<link rel="preload" as="image" href="hero-debut.jpg" fetchpriority="high">
 
 <style>
   /* ===== Jetons de design (couleurs / typo) ===== */
@@ -1285,7 +1291,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2837,7 +2843,7 @@ function heroAccueil() {
     // vidéo reste invisible jusqu'à ce qu'elle joue vraiment (onplaying). Sur iPhone,
     // la vidéo affichait un écran noir entre l'image d'attente et la 1re image jouée,
     // ou tout le temps si la lecture automatique est bloquée (mode économie d'énergie).
-    : `${affiche ? `<img class="media-hero${classeRecadrage}"${styleRecadrage} src="${echapper(photoOptimisee(affiche, 'ecran', '', zoom))}" alt="" aria-hidden="true">` : ''}
+    : `${affiche ? `<img class="media-hero${classeRecadrage}"${styleRecadrage} fetchpriority="high" src="${echapper(photoOptimisee(affiche, 'ecran', '', zoom))}" alt="" aria-hidden="true">` : ''}
        <video class="video-hero${classeRecadrage}"${styleRecadrage} autoplay muted loop playsinline onplaying="this.classList.add('en-lecture')"${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
          <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
        </video>`;
