@@ -1282,6 +1282,63 @@
 <main id="contenu-principal">
   <div class="chargement-page">Chargement de la boutique…</div>
 </main>
+<!-- V9.9 : AFFICHAGE IMMÉDIAT DE L'ACCUEIL
+     Avant, l'accueil attendait Firebase (~350 Ko de programme) avant de montrer quoi
+     que ce soit : sur un téléphone lent, la grande image arrivait après ~4 s.
+     Ce petit script tourne tout de suite (avant Firebase) et pose le haut de l'accueil :
+     - visite suivante : exactement le dernier haut d'accueil affiché (mémorisé dans
+       ce navigateur par sauverAccueilRapide, plus bas) : rien ne bouge ensuite ;
+     - 1re visite : l'image d'accueil par défaut (hero-debut.jpg, déjà préchargée).
+     Le vrai affichage (rendre) remplace ensuite ce haut d'accueil comme avant.
+     Le stock n'est jamais mémorisé ici : il reste lu en direct par Firebase. -->
+<script>
+(function () {
+  try {
+    var h = window.location.hash;
+    if (h && h !== '#' && h !== '#accueil') return;          // seulement sur l'accueil
+    var main = document.getElementById('contenu-principal');
+    var large = (window.innerWidth || 0) > (window.innerHeight || 0);
+    var memo = null;
+    try { memo = JSON.parse(localStorage.getItem('roselle-accueil-rapide') || 'null'); } catch (e) { memo = null; }
+    var m = memo && memo[large ? 'pc' : 'tel'];
+    var valide = m && typeof m.hero === 'string' && typeof m.signature === 'string' && typeof m.dome === 'string';
+    // Hauteur réservée sous l'image : le pied de page ne remonte pas puis redescend
+    var blocs = '<div id="zone-accueil-blocs" style="min-height:100vh"></div>';
+    if (valide) {
+      var zone = document.createElement('div');
+      zone.id = 'zone-hero';
+      zone.dataset.signature = m.signature;
+      zone.innerHTML = m.hero;
+      main.innerHTML = '';
+      main.appendChild(zone);
+      main.insertAdjacentHTML('beforeend', blocs);
+      if (m.dome) {
+        document.getElementById('dome-entete').innerHTML = m.dome;
+        window.domeRapide = m.dome;
+        document.body.classList.add('sur-accueil');
+      }
+    } else {
+      main.innerHTML = '<div id="zone-hero" data-signature=""><section class="hero-video-section">' +
+        '<img class="media-hero" id="image-rapide" src="hero-debut.jpg" fetchpriority="high" alt="" aria-hidden="true">' +
+        '</section></div>' + blocs;
+      // 1re visite : recadrage choisi dans le Stock (réponse du Worker, gardée 60 s chez Cloudflare)
+      fetch('/api/accueil').then(function (r) { return r.json(); }).then(function (d) {
+        var img = document.getElementById('image-rapide');
+        if (!d || !d.ok || !img || main.dataset.coquille !== '1') return;   // vrai affichage déjà là
+        if (d.perso) { img.remove(); return; }       // image perso : on n'affiche pas celle par défaut
+        var c = d[large ? 'pc' : 'tel'];
+        if (c && !(c.x === 50 && c.y === 50 && c.z === 1)) {
+          img.classList.add('media-recadre');
+          img.style.objectPosition = c.x + '% ' + c.y + '%';
+          img.style.transformOrigin = c.x + '% ' + c.y + '%';
+          img.style.setProperty('--zoom', c.z);
+        }
+      }).catch(function () { /* pas grave : le vrai affichage arrive juste après */ });
+    }
+    main.dataset.coquille = '1';
+  } catch (e) { /* en cas de souci : affichage normal, comme avant */ }
+})();
+</script>
 
 <footer>
   <!-- Même logo dessiné qu'en haut de page -->
@@ -1291,7 +1348,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V9.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1318,6 +1375,10 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+
+// V9.9 : dessin du demi-cercle actuellement à l'écran (posé par l'affichage immédiat ou par rendre)
+let domeAffiche = window.domeRapide || '';
+
 
 /* ============================================================
    V5.7 : PLUS DE reCAPTCHA (APP CHECK) SUR LE SITE DE VENTE
@@ -2715,10 +2776,13 @@ function rendre() {
   // On attend le catalogue ET les réglages (ou le délai de secours) avant le
   // premier affichage, pour ne pas montrer la vidéo par défaut puis la remplacer.
   if (!etat.chargementTermine || !etat.reglagesCharges) {
+    // V9.9 : le haut de l'accueil déjà posé (voir « AFFICHAGE IMMÉDIAT ») reste à l'écran
+    if (conteneur.dataset.coquille === '1' && etat.vueActuelle === 'accueil') return;
     conteneur.innerHTML = `<div class="chargement-page">Chargement de la boutique…</div>`;
     conteneur.dataset.vueRendue = '';
     return;
   }
+  conteneur.dataset.coquille = '';   // V9.9 : à partir d'ici, vrai affichage
   if (etat.erreurChargement) {
     conteneur.innerHTML = `<div class="chargement-page">La boutique n'a pas pu se charger pour le moment. Merci de réessayer dans un instant.</div>`;
     conteneur.dataset.vueRendue = '';
@@ -2734,8 +2798,14 @@ function rendre() {
   // Le demi-cercle est dans la barre du haut : il reste collé à elle
   // quand on descend ou remonte dans la page (V2.19, choix d'Oussama)
   const dome = document.getElementById('dome-entete');
-  if (surAccueil && !dome.innerHTML) dome.innerHTML = domeAccueilHTML(reglageTexte('brand', 'name'));
-  if (!surAccueil) dome.innerHTML = '';
+  // V9.9 : reconstruit seulement si le dessin change (ex. nom de la marque modifié),
+  // y compris quand il vient de la mémoire de l'affichage immédiat
+  if (surAccueil) {
+    const neuf = domeAccueilHTML(reglageTexte('brand', 'name'));
+    if (domeAffiche !== neuf) { dome.innerHTML = neuf; domeAffiche = neuf; }
+  } else {
+    dome.innerHTML = ''; domeAffiche = '';
+  }
 
   switch (etat.vueActuelle) {
     case 'catalogue': conteneur.innerHTML = vueCatalogue(etat.parametresVue.categorie); break;
@@ -2775,6 +2845,7 @@ function rendreAccueil(conteneur) {
     // On garde la position des carrousels : une mise à jour du stock ne doit pas les ramener au début
     const positions = [...zoneBlocs.querySelectorAll('.tuiles-categories')].map(p => p.scrollLeft);
     zoneBlocs.innerHTML = blocsAccueilHTML();
+    zoneBlocs.style.minHeight = '';   // V9.9 : hauteur réservée par l'affichage immédiat
     zoneBlocs.querySelectorAll('.tuiles-categories').forEach((p, i) => { if (positions[i]) p.scrollLeft = positions[i]; });
   } else {
     conteneur.innerHTML = `
@@ -2783,6 +2854,22 @@ function rendreAccueil(conteneur) {
     `;
   }
   majTousLesCarrousels();
+  sauverAccueilRapide(hero);
+}
+
+// V9.9 : mémorise dans ce navigateur le haut de l'accueil (image/vidéo, texte, bouton,
+// demi-cercle) pour l'afficher tout de suite à la prochaine visite, avant Firebase.
+// Une version pour le téléphone, une pour l'ordinateur. Aucun stock, aucun prix.
+function sauverAccueilRapide(hero) {
+  try {
+    const large = (window.innerWidth || 0) > (window.innerHeight || 0);
+    const memo = JSON.parse(localStorage.getItem('roselle-accueil-rapide') || 'null') || {};
+    const dome = domeAffiche;
+    const ancien = memo[large ? 'pc' : 'tel'];
+    if (ancien && ancien.signature === hero.signature && ancien.dome === dome) return;   // rien de neuf
+    memo[large ? 'pc' : 'tel'] = { signature: hero.signature, hero: hero.html, dome };
+    localStorage.setItem('roselle-accueil-rapide', JSON.stringify(memo));
+  } catch (e) { /* navigation privée ou mémoire pleine : pas grave */ }
 }
 
 /* ============================================================
