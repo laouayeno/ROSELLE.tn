@@ -17,6 +17,13 @@
   Cache-Control: public, max-age=604800
 /hero.mp4
   Cache-Control: public, max-age=604800
+# V10.1 : nouvelle vidéo d'accueil (téléphone + PC) et sa 1re image
+/accueil-tel.mp4
+  Cache-Control: public, max-age=604800
+/accueil-pc.mp4
+  Cache-Control: public, max-age=604800
+/accueil-debut.jpg
+  Cache-Control: public, max-age=604800
 /logo-nom.png
   Cache-Control: public, max-age=604800
 
