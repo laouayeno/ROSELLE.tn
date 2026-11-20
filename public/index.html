@@ -30,7 +30,7 @@
      1 s plus tôt sur téléphone (score Google « LCP »). Si une autre vidéo ou
      photo d'accueil est choisie dans Stock > Apparence, ce petit fichier
      (47 Ko) est téléchargé pour rien, sans autre effet. -->
-<link rel="preload" as="image" href="hero-debut.jpg" fetchpriority="high">
+<link rel="preload" as="image" href="accueil-debut.jpg" fetchpriority="high">
 
 <style>
   /* ===== Jetons de design (couleurs / typo) ===== */
@@ -1292,7 +1292,7 @@
      Ce petit script tourne tout de suite (avant Firebase) et pose le haut de l'accueil :
      - visite suivante : exactement le dernier haut d'accueil affiché (mémorisé dans
        ce navigateur par sauverAccueilRapide, plus bas) : rien ne bouge ensuite ;
-     - 1re visite : l'image d'accueil par défaut (hero-debut.jpg, déjà préchargée).
+     - 1re visite : l'image d'accueil par défaut (accueil-debut.jpg, déjà préchargée).
      Le vrai affichage (rendre) remplace ensuite ce haut d'accueil comme avant.
      Le stock n'est jamais mémorisé ici : il reste lu en direct par Firebase. -->
 <script>
@@ -1323,7 +1323,7 @@
       }
     } else {
       main.innerHTML = '<div id="zone-hero" data-signature=""><section class="hero-video-section">' +
-        '<img class="media-hero" id="image-rapide" src="hero-debut.jpg" fetchpriority="high" alt="" aria-hidden="true">' +
+        '<img class="media-hero" id="image-rapide" src="accueil-debut.jpg" fetchpriority="high" alt="" aria-hidden="true">' +
         '</section></div>' + blocs;
       // 1re visite : recadrage choisi dans le Stock (réponse du Worker, gardée 60 s chez Cloudflare)
       fetch('/api/accueil').then(function (r) { return r.json(); }).then(function (d) {
@@ -1352,7 +1352,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1656,10 +1656,17 @@ const REGLAGES_PAR_DEFAUT = {
     // mediaUrlPc = en largeur (PC, tablette couchée). Fichiers dans public/, servis
     // par Cloudflare (trafic gratuit). V6.2 : test terminé, la vidéo du site est
     // remise pour les deux en attendant la vidéo HD en largeur pour le PC.
-    mediaUrl: 'hero.mp4',
-    mediaUrlPc: 'hero.mp4',
+    // V10.1 : nouvelle vidéo de la marque (1 min 21, filmée en largeur, sans son) :
+    // - accueil-tel.mp4 : milieu de l'image découpé en hauteur pour le téléphone (540×960, ~8 Mo) ;
+    // - accueil-pc.mp4 : image entière en largeur pour le PC (1138×640, ~14,6 Mo).
+    // Les anciens fichiers hero.mp4 / hero-debut.jpg restent dans public/ quelque temps :
+    // une cliente déjà venue peut encore les avoir en mémoire à sa 1re visite.
+    mediaUrl: 'accueil-tel.mp4',
+    mediaUrlPc: 'accueil-pc.mp4',
     // V7.1 : image d'attente = 1re image de la vidéo d'accueil (avant : grand logo rond logo.jpg)
-    posterUrl: 'hero-debut.jpg',
+    // V10.1 : 1re image de la nouvelle vidéo (en largeur ; sur téléphone on voit son milieu,
+    // exactement comme la vidéo téléphone)
+    posterUrl: 'accueil-debut.jpg',
     text: 'Une collection pensée avec féminité, élégance et confiance.',
     buttonLabel: 'Découvrir la collection',
     buttonLink: { type: 'catalog' }
@@ -2928,7 +2935,7 @@ function heroAccueil() {
   const media = mediaPerso || (ecranLarge ? REGLAGES_PAR_DEFAUT.hero.mediaUrlPc : REGLAGES_PAR_DEFAUT.hero.mediaUrl);
   // V7.1 : image montrée pendant le chargement de la vidéo.
   // - image choisie dans Apparence (posterUrl) si elle existe ;
-  // - sinon, avec la vidéo par défaut : sa 1re image (hero-debut.jpg), pour un passage invisible ;
+  // - sinon, avec la vidéo par défaut : sa 1re image (accueil-debut.jpg), pour un passage invisible ;
   // - sinon (vidéo perso sans image) : V7.4 : 1re image de cette vidéo, fabriquée par
   //   Cloudinary (avant : aucune image, l'accueil restait noir pendant le chargement).
   const affiche = urlSure(brut.posterUrl, '') || (mediaPerso ? premiereImageVideo(mediaPerso) : REGLAGES_PAR_DEFAUT.hero.posterUrl);
