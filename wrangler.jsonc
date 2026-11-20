@@ -16,11 +16,12 @@
   // lisibles dans le tableau de bord (Workers > rosellestore > Journaux) et par Claude.
   // Inclus dans l'offre payante 5 $ (20 millions de lignes par mois).
   "observability": { "enabled": true },
+  // V10.2 : /vid/ = vidéo d'accueil envoyée depuis le Stock (relais en mémoire, comme /img/).
   // Site statique : tous les fichiers du dossier public/ sont servis tels quels
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/img/*"]
+    "run_worker_first": ["/api/*", "/img/*", "/vid/*"]
   },
   // V2.29 : limites anti-robots sur les commandes (gratuites, comptées par
   // lieu Cloudflare). "period" vaut 10 ou 60 secondes uniquement.
