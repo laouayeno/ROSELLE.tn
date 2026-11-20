@@ -48,6 +48,8 @@ export default {
     const url = new URL(requete.url);
     // V6.3 : photos des articles, servies depuis la mémoire de Cloudflare
     if (url.pathname.startsWith('/img/')) return servirPhoto(requete, url, ctx);
+    // V10.2 : vidéo d'accueil envoyée depuis le Stock, servie depuis la mémoire de Cloudflare
+    if (url.pathname.startsWith('/vid/')) return servirVideo(requete, url, ctx);
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env);
@@ -703,8 +705,14 @@ async function servirAccueil(url, ctx) {
     return { x: borne(nombre(f.x), 0, 100, 50), y: borne(nombre(f.y), 0, 100, 50), z: borne(nombre(f.z), 1, 3, 1) };
   };
   const texte = champ => (champ && typeof champ.stringValue === 'string' ? champ.stringValue.trim() : '');
+  // V10.2 : vidéo envoyée depuis le Stock (sans image choisie) : on donne sa 1re image,
+  // pour l'afficher tout de suite à la 1re visite au lieu d'un accueil vide.
+  const typeHero = texte(hero.type);
+  const fichierVideo = typeHero !== 'image' && !texte(hero.posterUrl) ? fichierVideoAccueil(texte(hero.mediaUrl)) : '';
   const reponse = new Response(JSON.stringify({
     ok: true,
+    imageTel: fichierVideo ? `/vid/${VIDEO_ACCUEIL.tel.image}/${fichierVideo}.jpg` : '',
+    imagePc: fichierVideo ? `/vid/${VIDEO_ACCUEIL.pc.image}/${fichierVideo}.jpg` : '',
     // Vidéo ou image choisie dans le Stock : l'image par défaut ne doit pas s'afficher
     perso: !!(texte(hero.mediaUrl) || texte(hero.posterUrl)),
     tel: recadrage(hero.mediaCrop),
@@ -781,4 +789,93 @@ async function servirPhoto(requete, url, ctx) {
   });
   ctx.waitUntil(cache.put(cle, reponse.clone()));
   return reponse;
+}
+
+/* ---------- V10.2 : relais de la vidéo d'accueil ----------
+   La vidéo d'accueil peut maintenant être envoyée depuis le Stock (Apparence >
+   Accueil). Elle part sur Cloudinary, qui prépare dès l'envoi 2 versions
+   (téléphone en hauteur, PC en largeur) et leur 1re image (« eager »).
+   Le site les demande à /vid/<réglage>/<fichier>.mp4 (ou .jpg) ; ce Worker :
+     1. n'accepte QUE ces 4 réglages (liste identique dans public/index.html
+        et dans le Worker du Stock) : personne ne peut fabriquer d'autres copies ;
+     2. sert la vidéo depuis la mémoire de Cloudflare (gardée 1 an) ;
+     3. sinon la passe directement depuis Cloudinary ET la met en mémoire
+        en arrière-plan : Cloudinary ne l'envoie qu'une fois par centre Cloudflare.
+   L'iPhone lit une vidéo par morceaux (« Range ») : la mémoire de Cloudflare
+   sait répondre morceau par morceau ; sinon le morceau est demandé à Cloudinary. */
+const VIDEO_ACCUEIL = {
+  tel: { video: 'ac_none,c_fill,ar_9:16,g_center,h_1080,q_auto:good,br_1800k,vc_h264', image: 'so_0,c_fill,ar_9:16,g_center,h_1080,q_auto:good' },
+  pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_auto:good,br_3000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
+};
+const REGLAGES_VIDEO_PERMIS = [VIDEO_ACCUEIL.tel.video, VIDEO_ACCUEIL.pc.video];
+const REGLAGES_IMAGE_VIDEO_PERMIS = [VIDEO_ACCUEIL.tel.image, VIDEO_ACCUEIL.pc.image];
+// Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
+// Copies vers la mémoire déjà lancées sur cette machine (évite de télécharger 10 fois la vidéo)
+const copiesEnCours = new Set();
+const FICHIER_VIDEO_PERMIS = /^((?:v\d+\/)?[A-Za-z0-9_\-]+(?:\/[A-Za-z0-9_\-]+)*)\.(mp4|jpg)$/;
+
+// Adresse Cloudinary d'une vidéo du compte du site -> « v123/nom » ; sinon ''.
+function fichierVideoAccueil(adresse) {
+  const m = String(adresse || '').match(/^https:\/\/res\.cloudinary\.com\/([^/]+)\/video\/upload\/((?:v\d+\/)?[A-Za-z0-9_\-]+(?:\/[A-Za-z0-9_\-]+)*)\.(mp4|mov|webm|m4v)$/i);
+  return m && m[1] === CLOUD_PHOTOS ? m[2] : '';
+}
+
+async function servirVideo(requete, url, ctx) {
+  if (requete.method !== 'GET' && requete.method !== 'HEAD') {
+    return new Response('Méthode refusée', { status: 405 });
+  }
+  const reste = url.pathname.slice('/vid/'.length);
+  const coupure = reste.indexOf('/');
+  const reglage = coupure > 0 ? reste.slice(0, coupure) : '';
+  const fichier = coupure > 0 ? reste.slice(coupure + 1) : '';
+  const verif = fichier.match(FICHIER_VIDEO_PERMIS);
+  const estVideo = verif && verif[2] === 'mp4' && REGLAGES_VIDEO_PERMIS.includes(reglage);
+  const estImage = verif && verif[2] === 'jpg' && REGLAGES_IMAGE_VIDEO_PERMIS.includes(reglage);
+  if (!estVideo && !estImage) return new Response('Vidéo introuvable', { status: 404 });
+
+  const adresseCloudinary = `https://res.cloudinary.com/${CLOUD_PHOTOS}/video/upload/${reglage}/${fichier}`;
+  const cle = new Request(`${url.origin}/vid/${reglage}/${fichier}`, { method: 'GET' });
+  const cache = caches.default;
+  const morceau = requete.headers.get('Range');
+
+  // 1) En mémoire : Cloudflare répond lui-même, morceau compris (réponse 206)
+  const enMemoire = await cache.match(morceau ? new Request(cle.url, { headers: { Range: morceau } }) : cle);
+  if (enMemoire) return enMemoire;
+
+  // 2) Pas en mémoire : copie complète gardée en arrière-plan (une seule fois par
+  //    machine Cloudflare : l'iPhone demande plusieurs morceaux d'affilée)...
+  if (!copiesEnCours.has(cle.url)) ctx.waitUntil((async () => {
+    copiesEnCours.add(cle.url);
+    try {
+      const complet = await fetch(adresseCloudinary);
+      // Vidéo encore en préparation chez Cloudinary, ou erreur : rien n'est gardé
+      if (!complet.ok || complet.status !== 200) return;
+      await cache.put(cle, new Response(complet.body, { status: 200, headers: entetesVideo(complet, estVideo) }));
+    } catch (e) { /* pas grave : on réessaiera à la prochaine visite */ }
+    finally { copiesEnCours.delete(cle.url); }
+  })());
+
+  // ... et la cliente reçoit tout de suite la réponse de Cloudinary (morceau demandé compris)
+  const origine = await fetch(adresseCloudinary, morceau ? { headers: { Range: morceau } } : {});
+  if (!origine.ok) {
+    // Vidéo en préparation (quelques minutes après l'envoi) : le site garde l'image d'attente
+    return new Response('Vidéo indisponible', { status: origine.status === 404 ? 404 : 503, headers: { 'Cache-Control': 'no-store' } });
+  }
+  const entetes = entetesVideo(origine, estVideo);
+  for (const nom of ['Content-Range', 'Content-Length']) {
+    const valeur = origine.headers.get(nom);
+    if (valeur) entetes.set(nom, valeur);
+  }
+  return new Response(origine.body, { status: origine.status, headers: entetes });
+}
+
+// En-têtes communs : type du fichier, mémoire 1 an (une adresse Cloudinary ne change
+// jamais de contenu), lecture par morceaux possible.
+function entetesVideo(origine, estVideo) {
+  const h = new Headers();
+  h.set('Content-Type', origine.headers.get('Content-Type') || (estVideo ? 'video/mp4' : 'image/jpeg'));
+  h.set('Cache-Control', 'public, max-age=31536000, immutable');
+  h.set('Accept-Ranges', 'bytes');
+  h.set('X-Content-Type-Options', 'nosniff');
+  return h;
 }

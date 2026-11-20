@@ -1329,7 +1329,10 @@
       fetch('/api/accueil').then(function (r) { return r.json(); }).then(function (d) {
         var img = document.getElementById('image-rapide');
         if (!d || !d.ok || !img || main.dataset.coquille !== '1') return;   // vrai affichage déjà là
-        if (d.perso) { img.remove(); return; }       // image perso : on n'affiche pas celle par défaut
+        // V10.2 : vidéo envoyée depuis le Stock : sa 1re image tout de suite (téléphone ou PC)
+        var imagePerso = large ? d.imagePc : d.imageTel;
+        if (d.perso && typeof imagePerso === 'string' && imagePerso.indexOf('/vid/') === 0) { img.src = imagePerso; }
+        else if (d.perso) { img.remove(); return; }       // image perso : on n'affiche pas celle par défaut
         var c = d[large ? 'pc' : 'tel'];
         if (c && !(c.x === 50 && c.y === 50 && c.z === 1)) {
           img.classList.add('media-recadre');
@@ -1352,7 +1355,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.2</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1723,6 +1726,17 @@ const CLOUD_PHOTOS = 'vmmsu4z6';
 // Écran plus étroit que ça = téléphone (même seuil que la fiche produit)
 const LARGEUR_TELEPHONE = 780;
 const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
+// V10.2 : vidéo d'accueil envoyée depuis le Stock (Apparence > Accueil).
+// Cloudinary en fabrique 2 versions + leur 1re image, préparées dès l'envoi
+// (« eager » : liste IDENTIQUE dans le Worker du site et dans le Worker du Stock) :
+// - tel : milieu de l'image découpé en hauteur (9:16), 1080 px de haut au plus ;
+// - pc  : image entière, 1920×1080 au plus.
+// Le site les demande au relais /vid/ du Worker : Cloudflare les garde en mémoire,
+// Cloudinary ne les envoie qu'une fois (pas de dépassement du quota gratuit).
+const VIDEO_ACCUEIL = {
+  tel: { video: 'ac_none,c_fill,ar_9:16,g_center,h_1080,q_auto:good,br_1800k,vc_h264', image: 'so_0,c_fill,ar_9:16,g_center,h_1080,q_auto:good' },
+  pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_auto:good,br_3000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
+};
 
 // largeurAffichee = largeur à l'écran en points (ex. 400), ou 'ecran' pour toute la largeur
 // forme (facultatif, V5.6) = proportions du cadre, ex. '1:2.8' (largeur:hauteur) :
@@ -1768,6 +1782,16 @@ function videoOptimisee(url) {
   return m[1] + REGLAGE_VIDEO + '/' + m[2];
 }
 
+// V10.2 : vidéo d'accueil du compte Cloudinary du site -> adresses du relais /vid/
+// (version téléphone ou PC + sa 1re image). Autre adresse : null (ancien fonctionnement).
+function videoAccueilRelais(url, ecranLarge) {
+  const u = url === undefined || url === null ? '' : String(url).trim();
+  const m = u.match(/^https:\/\/res\.cloudinary\.com\/([^/]+)\/video\/upload\/((?:v\d+\/)?[A-Za-z0-9_\-]+(?:\/[A-Za-z0-9_\-]+)*)\.(mp4|mov|webm|m4v)$/i);
+  if (!m || m[1] !== CLOUD_PHOTOS) return null;
+  const r = VIDEO_ACCUEIL[ecranLarge ? 'pc' : 'tel'];
+  return { video: `/vid/${r.video}/${m[2]}.mp4`, image: `/vid/${r.image}/${m[2]}.jpg` };
+}
+
 // V7.4 : 1re image d'une vidéo Cloudinary (so_0 = début de la vidéo), en JPEG
 // (lu par tous les téléphones), pas plus large que l'écran. Vidéo hors Cloudinary : ''.
 function premiereImageVideo(url) {
@@ -1795,7 +1819,13 @@ document.addEventListener('error', (e) => {
   // n'affiche plus son « ? » bleu. Elle réapparaît dès qu'un nouvel essai réussit.
   if (el.tagName === 'IMG') el.classList.add('photo-cassee');
   const src = el.getAttribute('src') || '';
-  if (src.indexOf('/img/') === 0) {
+  if (src.indexOf('/vid/') === 0) {
+    // V10.2 : 1re image de la vidéo d'accueil : relais en panne -> même image chez Cloudinary.
+    // La vidéo elle-même n'est PAS redemandée en original (trop lourde) : l'image reste affichée.
+    if (el.tagName === 'IMG' && /\.jpg$/.test(src)) {
+      el.setAttribute('src', 'https://res.cloudinary.com/' + CLOUD_PHOTOS + '/video/upload/' + src.slice('/vid/'.length));
+    }
+  } else if (src.indexOf('/img/') === 0) {
     // V6.3 : relais Cloudflare en panne -> même photo demandée directement à Cloudinary
     el.setAttribute('src', 'https://res.cloudinary.com/' + CLOUD_PHOTOS + '/image/upload/' + src.slice('/img/'.length));
   } else if (src.indexOf('/upload/' + REGLAGE_PHOTO) !== -1) {
@@ -2938,7 +2968,10 @@ function heroAccueil() {
   // - sinon, avec la vidéo par défaut : sa 1re image (accueil-debut.jpg), pour un passage invisible ;
   // - sinon (vidéo perso sans image) : V7.4 : 1re image de cette vidéo, fabriquée par
   //   Cloudinary (avant : aucune image, l'accueil restait noir pendant le chargement).
-  const affiche = urlSure(brut.posterUrl, '') || (mediaPerso ? premiereImageVideo(mediaPerso) : REGLAGES_PAR_DEFAUT.hero.posterUrl);
+  // V10.2 : vidéo envoyée depuis le Stock -> version téléphone ou PC via le relais /vid/
+  const relais = type === 'video' && mediaPerso ? videoAccueilRelais(mediaPerso, ecranLarge) : null;
+  const affiche = urlSure(brut.posterUrl, '') || (relais ? relais.image : mediaPerso ? premiereImageVideo(mediaPerso) : REGLAGES_PAR_DEFAUT.hero.posterUrl);
+  const adresseVideo = relais ? relais.video : videoOptimisee(media);
   const nom = reglageTexte('brand', 'name');
   const texte = reglageTexte('hero', 'text');
   const libelleBouton = reglageTexte('hero', 'buttonLabel');
@@ -2957,7 +2990,7 @@ function heroAccueil() {
     // ou tout le temps si la lecture automatique est bloquée (mode économie d'énergie).
     : `${affiche ? `<img class="media-hero${classeRecadrage}"${styleRecadrage} fetchpriority="high" src="${echapper(photoOptimisee(affiche, 'ecran', '', zoom))}" alt="" aria-hidden="true">` : ''}
        <video class="video-hero${classeRecadrage}"${styleRecadrage} autoplay muted loop playsinline onplaying="this.classList.add('en-lecture')"${affiche ? ` poster="${echapper(photoOptimisee(affiche, 'ecran'))}"` : ''}>
-         <source src="${echapper(videoOptimisee(media))}" type="video/mp4">
+         <source src="${echapper(adresseVideo)}" type="video/mp4">
        </video>`;
 
   const html = `
