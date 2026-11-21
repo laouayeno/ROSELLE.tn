@@ -676,6 +676,10 @@
     background: var(--texte); margin-top: 14px;
   }
   .bloc-texte p { color: var(--texte); font-size: 1.06rem; line-height: 1.75; margin: 0 0 16px; }
+  /* V11.7 (demande d'Oussama, 21/11) : écriture classique comme l'écran partagé pour TOUS les
+     blocs Texte : paragraphes en Playfair Display (le titre l'est déjà), sans le petit trait sous le titre. */
+  .bloc-texte h2::after { display: none; }
+  .bloc-texte p { font-family: 'Playfair Display', serif; font-size: 1.08rem; line-height: 1.65; }
   /* V7.6 : couleur de fond choisie pour un bloc dans Stock > Apparence.
      Le bloc est entouré d'un cadre « fond-bloc » ; la couleur (--fond) va
      d'un bord à l'autre de l'écran grâce à l'ombre très large, coupée en
@@ -748,16 +752,23 @@
   .bloc-texte.style-partage p { font-family: 'Playfair Display', serif; font-size: 1.12rem; }
   .bloc-texte.style-partage .bouton-principal { background: var(--texte); color: #FFFFFF; border-color: var(--texte); }
   .fond-fonce .bloc-texte.style-partage .bouton-principal { background: #FFFFFF; color: #111111; border-color: #FFFFFF; }
-  /* Téléphone (choix A d'Oussama) : côte à côte en petit, comme sur PC :
-     petite photo d'un côté, texte de l'autre (le côté choisi dans le Stock est respecté) */
+  /* V11.7 (choix A d'Oussama, 21/11) : sur téléphone, la photo n'est plus petite à côté du texte :
+     elle passe EN HAUT, en carte arrondie un peu moins large que l'écran, et le texte
+     (grand, élégant) se lit en dessous sur toute la largeur. Le côté choisi dans le Stock
+     ne compte que sur PC. */
   @media (max-width: 779px) {
-    .bloc-texte.avec-media.style-partage { grid-template-columns: 44% minmax(0, 1fr); gap: 16px; align-items: center; }
-    .bloc-texte.avec-media.style-partage.media-gauche .media-bloc { order: 0; }
-    .bloc-texte.avec-media.style-partage.media-droite { grid-template-columns: minmax(0, 1fr) 44%; }
-    .bloc-texte.avec-media.style-partage.media-droite .media-bloc { order: 2; }
-    .bloc-texte.style-partage h2 { font-size: 1.35rem; margin-bottom: 6px; }
-    .bloc-texte.style-partage p { font-size: 0.98rem; line-height: 1.45; margin-bottom: 10px; }
-    .bloc-texte.style-partage .bouton-principal { padding: 10px 14px; font-size: 0.8rem; }
+    .bloc-texte.avec-media.style-partage,
+    .bloc-texte.avec-media.style-partage.media-droite { grid-template-columns: minmax(0, 1fr); gap: 26px; align-items: start; }
+    .bloc-texte.avec-media.style-partage .media-bloc,
+    .bloc-texte.avec-media.style-partage.media-droite .media-bloc { order: 0; }
+    .bloc-texte.avec-media.style-partage .media-bloc img,
+    .bloc-texte.avec-media.style-partage .media-bloc video,
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media { width: 84%; }
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media img,
+    .bloc-texte.avec-media.style-partage .media-bloc .cadre-media video { width: 100%; }
+    .bloc-texte.style-partage h2 { font-size: 2rem; margin-bottom: 10px; }
+    .bloc-texte.style-partage p { font-size: 1.06rem; line-height: 1.65; margin-bottom: 14px; }
+    .bloc-texte.style-partage .bouton-principal { padding: 14px 22px; font-size: 0.9rem; }
   }
   @media (min-width: 780px) {
     .bloc-texte.avec-media.style-partage { padding: 56px 0; }
@@ -1502,7 +1513,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
