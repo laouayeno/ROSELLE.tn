@@ -1049,6 +1049,22 @@
 
   .description-produit { margin-top: 28px; color: var(--texte-doux); font-size: 0.9rem; }
 
+  /* V10.6 : « Vous aimerez aussi » sous la fiche article : titre comme ceux de
+     l'accueil (majuscules espacées + trait rose), puis 4 articles au plus.
+     Téléphone : 2 colonnes ; ordinateur : 4 colonnes (grille-produits). */
+  .aimerez-aussi { margin-top: 64px; }
+  .aimerez-aussi .entete-section { justify-content: center; margin-bottom: 26px; }
+  .aimerez-aussi .entete-section h2 {
+    font-family: 'Jost', sans-serif; font-weight: 400; text-transform: uppercase;
+    letter-spacing: 0.32em; font-size: 1.05rem; text-align: center;
+  }
+  .aimerez-aussi .entete-section h2::after {
+    content: ""; display: block; width: 36px; height: 2px;
+    background: #C9718A; margin: 12px auto 0;
+  }
+  /* 4 articles : jamais 3 + 1 seul sur la 2e ligne (tablette = 2 colonnes) */
+  @media (min-width: 640px) and (max-width: 959px) { .aimerez-aussi .grille-produits { grid-template-columns: repeat(2, 1fr); } }
+
   /* V10.3 : blocs repliables « Description » et « Guide des tailles » sous les
      boutons d'achat (texte écrit dans le Stock, fiche de l'article). Fermés au
      départ ; un + devient − quand le bloc est ouvert. */
@@ -1416,7 +1432,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3823,6 +3839,37 @@ function vueProduit(produitId) {
         ${repliablesFicheHTML(produit)}
       </div>
     </div>
+    ${vousAimerezAussiHTML(produit)}
+  `;
+}
+
+/* ============================================================
+   V10.6 : « VOUS AIMEREZ AUSSI » sous la fiche article
+   ------------------------------------------------------------
+   4 articles au plus, choisis dans le catalogue déjà chargé (aucune
+   lecture Firebase en plus) :
+   1. d'abord ceux de la même catégorie,
+   2. puis les autres, dans l'ordre du catalogue.
+   Jamais l'article affiché, jamais un article épuisé.
+   Pas de hasard : la liste reste la même si le stock bouge pendant
+   que la cliente regarde (pas de cartes qui changent sous ses yeux).
+   S'il n'y a aucun autre article disponible, rien n'est affiché.
+   ============================================================ */
+const NB_AIMEREZ_AUSSI = 4;
+
+function vousAimerezAussiHTML(produit) {
+  const autres = etat.produits.filter(p => p.id !== produit.id && stockTotalDisponible(p) > 0);
+  const memeCategorie = autres.filter(p => produit.cat && normaliser(p.cat) === normaliser(produit.cat));
+  const reste = autres.filter(p => !memeCategorie.includes(p));
+  const choisis = [...memeCategorie, ...reste].slice(0, NB_AIMEREZ_AUSSI);
+  if (!choisis.length) return '';
+  return `
+    <section class="aimerez-aussi bloc-section">
+      <div class="entete-section"><h2>Vous aimerez aussi</h2></div>
+      <div class="grille-produits">
+        ${choisis.map(p => carteProduitHTML(p)).join('')}
+      </div>
+    </section>
   `;
 }
 
