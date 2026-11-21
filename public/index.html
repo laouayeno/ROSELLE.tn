@@ -1029,6 +1029,43 @@
 
   .description-produit { margin-top: 28px; color: var(--texte-doux); font-size: 0.9rem; }
 
+  /* V10.3 : blocs repliables « Description » et « Guide des tailles » sous les
+     boutons d'achat (texte écrit dans le Stock, fiche de l'article). Fermés au
+     départ ; un + devient − quand le bloc est ouvert. */
+  .repliables-fiche { margin-top: 30px; border-top: 1px solid var(--rose-clair); }
+  .repliable-fiche { border-bottom: 1px solid var(--rose-clair); }
+  .repliable-fiche summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    padding: 17px 2px; font-size: 0.95rem; letter-spacing: 0.3px; color: var(--texte);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .repliable-fiche summary::-webkit-details-marker { display: none; }
+  .repliable-fiche summary .signe { position: relative; width: 14px; height: 14px; flex-shrink: 0; }
+  .repliable-fiche summary .signe::before,
+  .repliable-fiche summary .signe::after {
+    content: ''; position: absolute; left: 0; top: 6.5px; width: 14px; height: 1.3px; background: currentColor;
+    transition: transform .25s ease;
+  }
+  .repliable-fiche summary .signe::after { transform: rotate(90deg); }
+  .repliable-fiche[open] summary .signe::after { transform: rotate(0deg); }
+  .contenu-repliable { padding: 0 2px 20px; color: var(--texte); font-size: 0.9rem; line-height: 1.7; }
+  .contenu-repliable p { margin: 0 0 12px; }
+  .contenu-repliable p:last-child { margin-bottom: 0; }
+  /* Tableau des mesures : glisse de côté sur téléphone s'il est large */
+  .guide-tailles-defile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .guide-tailles { border-collapse: collapse; width: 100%; font-size: 0.85rem; white-space: nowrap; }
+  .guide-tailles th, .guide-tailles td { padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--rose-clair); }
+  .guide-tailles th { font-weight: 600; color: var(--texte); background: var(--ivoire); }
+  .guide-tailles td:first-child, .guide-tailles th:first-child { font-weight: 600; }
+  .note-guide { margin-top: 10px; font-size: 0.78rem; color: var(--texte-doux); }
+  /* Téléphone : cases plus serrées et titres sur 2 lignes, pour voir
+     5-6 colonnes sans glisser (au-delà, le tableau glisse de côté) */
+  @media (max-width: 600px) {
+    .guide-tailles { font-size: 0.8rem; }
+    .guide-tailles th, .guide-tailles td { padding: 8px 5px; }
+    .guide-tailles th { white-space: normal; line-height: 1.25; vertical-align: bottom; }
+  }
+
   /* ===== Panier ===== */
   .ligne-panier {
     display: flex; gap: 16px; padding: 18px 0; border-bottom: 1px solid rgba(184,147,90,0.18);
@@ -1355,7 +1392,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2214,6 +2251,7 @@ function appliquerNavigation(vue, parametres) {
   if (vue !== 'commande') etat.achatDirect = null;
   if (vue === 'produit') {
     etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
+    etat.repliablesOuverts = {};   // V10.3 : nouvel article -> blocs Description / Guide fermés
   }
   basculerMenuMobile(false);
   basculerRecherche(false);
@@ -3743,9 +3781,69 @@ function vueProduit(produitId) {
         <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
           Acheter maintenant
         </button>
+        ${repliablesFicheHTML(produit)}
       </div>
     </div>
   `;
+}
+
+/* ============================================================
+   V10.3 : DESCRIPTION + GUIDE DES TAILLES de la fiche article
+   ------------------------------------------------------------
+   Écrits dans le Stock (fiche article), copiés dans publicCatalog :
+   - description : texte libre ; ligne vide = nouveau paragraphe,
+     retour à la ligne simple gardé ;
+   - guideTailles : tableau en texte (une ligne par rangée, cases
+     séparées par une tabulation, 1re rangée = titres).
+   Tout est passé par echapper() : aucun code ne peut être glissé.
+   L'ouverture des blocs est retenue (etat.repliablesOuverts) : si le
+   stock change pendant que la cliente lit, le bloc reste ouvert.
+   ============================================================ */
+function descriptionHTML(texte) {
+  return String(texte || '').trim()
+    .split(/\n\s*\n/)                       // paragraphes
+    .map(par => par.trim())
+    .filter(Boolean)
+    .map(par => `<p>${echapper(par).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+function guideTaillesHTML(texte) {
+  const lignes = String(texte || '').split('\n')
+    .map(l => l.split('\t').map(c => c.trim()))
+    .filter(l => l.some(c => c));
+  if (lignes.length < 2) return '';
+  const nbCol = Math.max(...lignes.map(l => l.length));
+  const cases = (l, balise) => Array.from({ length: nbCol }, (_, j) => `<${balise}>${echapper(l[j] || '')}</${balise}>`).join('');
+  return `
+    <div class="guide-tailles-defile">
+      <table class="guide-tailles">
+        <thead><tr>${cases(lignes[0], 'th')}</tr></thead>
+        <tbody>${lignes.slice(1).map(l => `<tr>${cases(l, 'td')}</tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="note-guide">Mesures en cm.</div>`;
+}
+
+function repliableHTML(cle, titre, contenu) {
+  if (!contenu) return '';
+  const ouvert = etat.repliablesOuverts && etat.repliablesOuverts[cle];
+  return `
+    <details class="repliable-fiche"${ouvert ? ' open' : ''} ontoggle="retenirRepliable('${cle}', this.open)">
+      <summary>${titre}<span class="signe" aria-hidden="true"></span></summary>
+      <div class="contenu-repliable">${contenu}</div>
+    </details>`;
+}
+
+function repliablesFicheHTML(produit) {
+  const blocs = repliableHTML('description', 'Description', descriptionHTML(produit.description)) +
+                repliableHTML('guide', 'Guide des tailles', guideTaillesHTML(produit.guideTailles));
+  return blocs ? `<div class="repliables-fiche">${blocs}</div>` : '';
+}
+
+function retenirRepliable(cle, ouvert) {
+  if (!etat.repliablesOuverts) etat.repliablesOuverts = {};
+  etat.repliablesOuverts[cle] = ouvert;
 }
 
 // Génère une tuile de formule (achat à l'unité ou palier de quantité)
