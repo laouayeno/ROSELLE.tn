@@ -1484,7 +1484,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3934,15 +3934,31 @@ function formeCartes() {
 }
 
 // bloc (facultatif, V8.6) : bloc de l'accueil qui affiche la carte, pour sa forme et son recadrage
+// V11.1 : recadrage d'une photo choisi dans la fiche article du Stock (Stock V7.8) :
+// produit.photoCrops = [{ url, x, y, z }], le réglage suit l'adresse de la photo.
+// Valeurs nettoyées comme recadrageDuBloc. null = pas de recadrage (photo centrée, comme avant).
+function recadrageArticle(produit, url) {
+  const liste = produit && Array.isArray(produit.photoCrops) ? produit.photoCrops : null;
+  if (!liste || !url) return null;
+  const r = liste.find(c => c && typeof c === 'object' && urlSure(c.url) === url);
+  if (!r) return null;
+  const borne = (v, min, max, defaut) => {
+    const n = Number(v);
+    return isFinite(n) ? Math.min(max, Math.max(min, n)) : defaut;
+  };
+  return { x: borne(r.x, 0, 100, 50), y: borne(r.y, 0, 100, 50), z: borne(r.z, 1, 3, 1) };
+}
+
 // V10.9 : attributs de la 2e photo posés sur le cadre de la carte (la photo est créée au survol).
 // - data-photo2 : adresse de la photo ;
 // - data-photo2-style : recadrage choisi dans le Stock (clé « idProduit::2 » du bloc), s'il y en a un.
 // Même calcul que imagePhotoBloc pour la 1re photo.
-function attributsPhoto2(photo2, idProduit, bloc) {
+function attributsPhoto2(photo2, produit, bloc) {
   const largeur = largeurPhotoCarte(bloc);
   const forme = formeDuBloc(bloc);
   const formeParDefaut = formeCartes();
-  const recadrage = recadrageDuBloc(bloc, idProduit + '::2');
+  // V11.1 : recadrage du bloc d'abord, sinon celui de l'article (fiche article du Stock)
+  const recadrage = recadrageDuBloc(bloc, produit.id + '::2') || recadrageArticle(produit, photo2);
   if (!recadrage) {
     const adresse = photoOptimisee(photo2, largeur, forme ? FORMES_PHOTOS[forme].cloudinary : formeParDefaut);
     return ` data-photo2="${echapper(adresse)}"`;
@@ -3961,8 +3977,8 @@ function carteProduitHTML(produit, bloc) {
   const photo2 = photo ? deuxiemePhoto(produit) : '';
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
-      <div class="photo-wrap${photo ? ' en-chargement' : ''}"${photo2 ? attributsPhoto2(photo2, produit.id, bloc) : ''}>
-        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
+      <div class="photo-wrap${photo ? ' en-chargement' : ''}"${photo2 ? attributsPhoto2(photo2, produit, bloc) : ''}>
+        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id) || recadrageArticle(produit, photo), formeCartes()) : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
