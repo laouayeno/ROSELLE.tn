@@ -1055,7 +1055,7 @@
      principe que les bandes du haut : 2 moitiés identiques). */
   .bande-marque {
     margin: 64px calc(50% - 50vw) 0; width: 100vw;
-    background: #141414; overflow: hidden; padding: 10px 0;
+    background: #141414; overflow: hidden; padding: 2px 0;   /* V10.7 : bande moins haute */
   }
   .bande-marque .ruban-marque {
     display: flex; width: max-content;
@@ -1066,15 +1066,15 @@
   .bande-marque .element {
     display: inline-flex; align-items: center; gap: 24px; padding-right: 24px; white-space: nowrap;
   }
-  .bande-marque img { width: 64px; height: 64px; flex-shrink: 0; }
+  .bande-marque img { width: 52px; height: 52px; flex-shrink: 0; }
   .bande-marque .phrase {
     font-family: 'Jost', sans-serif; font-weight: 300; text-transform: uppercase;
     letter-spacing: 0.3em; font-size: 0.95rem; color: #FFFFFF;
   }
   @media (min-width: 780px) {
-    .bande-marque { padding: 12px 0; }
+    .bande-marque { padding: 3px 0; }
     .bande-marque .element { gap: 32px; padding-right: 32px; }
-    .bande-marque img { width: 80px; height: 80px; }
+    .bande-marque img { width: 64px; height: 64px; }
     .bande-marque .phrase { font-size: 1.05rem; }
   }
   @media (prefers-reduced-motion: reduce) { .bande-marque .ruban-marque { animation: none; } }
@@ -1463,7 +1463,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
