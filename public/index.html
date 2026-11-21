@@ -1476,7 +1476,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2850,6 +2850,9 @@ function mettreAJourCompteurPanier() {
     if (!img) {
       img = document.createElement('img');
       img.className = 'photo-2';
+      // V10.9 : 2e photo recadrée dans le Stock (position + zoom, comme la 1re)
+      const style = cadre.getAttribute('data-photo2-style');
+      if (style) { img.classList.add('recadree'); img.setAttribute('style', style); }
       img.alt = '';
       img.setAttribute('aria-hidden', 'true');
       img.decoding = 'async';
@@ -3891,19 +3894,34 @@ function formeCartes() {
 }
 
 // bloc (facultatif, V8.6) : bloc de l'accueil qui affiche la carte, pour sa forme et son recadrage
+// V10.9 : attributs de la 2e photo posés sur le cadre de la carte (la photo est créée au survol).
+// - data-photo2 : adresse de la photo ;
+// - data-photo2-style : recadrage choisi dans le Stock (clé « idProduit::2 » du bloc), s'il y en a un.
+// Même calcul que imagePhotoBloc pour la 1re photo.
+function attributsPhoto2(photo2, idProduit, bloc) {
+  const largeur = largeurPhotoCarte(bloc);
+  const forme = formeDuBloc(bloc);
+  const formeParDefaut = formeCartes();
+  const recadrage = recadrageDuBloc(bloc, idProduit + '::2');
+  if (!recadrage) {
+    const adresse = photoOptimisee(photo2, largeur, forme ? FORMES_PHOTOS[forme].cloudinary : formeParDefaut);
+    return ` data-photo2="${echapper(adresse)}"`;
+  }
+  const hauteurCadre = forme ? FORMES_PHOTOS[forme].hauteurSurLargeur : (formeParDefaut === '5:14' ? 2.8 : 4 / 3);
+  const facteur = Math.max(1, hauteurCadre / 1.5) * recadrage.z;
+  const style = `object-position:${recadrage.x}% ${recadrage.y}%;transform-origin:${recadrage.x}% ${recadrage.y}%;--zoom:${recadrage.z}`;
+  return ` data-photo2="${echapper(photoOptimisee(photo2, largeur, '', facteur))}" data-photo2-style="${echapper(style)}"`;
+}
+
 function carteProduitHTML(produit, bloc) {
   const photo = photoParDefaut(produit);
   const disponible = stockTotalDisponible(produit) > 0;
   const { actuel, ancien } = prixUnitaireEffectif(produit);
-  // V10.8 : adresse de la 2e photo (même forme que la 1re), chargée seulement au survol / à l'appui
+  // V10.8 : 2e photo (même forme que la 1re), chargée seulement au survol / à l'appui
   const photo2 = photo ? deuxiemePhoto(produit) : '';
-  const forme = formeDuBloc(bloc);
-  const adressePhoto2 = photo2
-    ? photoOptimisee(photo2, largeurPhotoCarte(bloc), forme ? FORMES_PHOTOS[forme].cloudinary : formeCartes())
-    : '';
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
-      <div class="photo-wrap${photo ? ' en-chargement' : ''}"${adressePhoto2 ? ` data-photo2="${echapper(adressePhoto2)}"` : ''}>
+      <div class="photo-wrap${photo ? ' en-chargement' : ''}"${photo2 ? attributsPhoto2(photo2, produit.id, bloc) : ''}>
         ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
       </div>
       <div class="infos">
