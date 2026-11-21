@@ -915,6 +915,9 @@
   @media (min-width: 960px) { body.page-grille main { max-width: 1540px; } }
   /* V8.8 : accueil aussi large que les pages catégorie sur grand écran (moins de vide à gauche et à droite) */
   @media (min-width: 960px) { body.sur-accueil main { max-width: 1540px; } }
+  /* V12.0 : même largeur pendant l'affichage immédiat de l'accueil (data-coquille, 1re visite) :
+     sinon la page changeait de largeur à l'arrivée du vrai affichage (saut vu par PageSpeed PC) */
+  @media (min-width: 960px) { main[data-coquille="1"] { max-width: 1540px; } }
   @media (max-width: 639px) {
     body.page-grille main { padding-left: 10px; padding-right: 10px; }
     body:not(.sur-accueil) .grille-produits { gap: 18px 8px; }
@@ -1406,7 +1409,7 @@
 </head>
 <body>
 
-<header class="avec-bande">
+<header class="avec-bande avec-offre">
   <!-- Gauche : menu ☰ -->
   <div class="entete-gauche">
     <button class="bouton-icone bouton-menu-mobile" onclick="basculerMenuMobile()" aria-label="Menu">
@@ -1432,8 +1435,11 @@
   </div>
   <!-- V8.1 : bande défilante « Livraison » (texte rempli par mettreAJourBandeLivraison) -->
   <div class="bande bande-livraison" id="bande-livraison" role="marquee" aria-label="Livraison 8 DT partout en Tunisie"><div class="ruban" id="ruban-livraison" aria-hidden="true"></div></div>
-  <!-- V8.3 : bande « Offre spéciale », facultative (texte rempli dans Stock > Apparence) -->
-  <div class="bande bande-offre" id="bande-offre" role="marquee" hidden><div class="ruban" id="ruban-offre" aria-hidden="true"></div></div>
+  <!-- V8.3 : bande « Offre spéciale », facultative (texte rempli dans Stock > Apparence).
+       V12.0 : place gardée dès le départ (plus de « hidden ») : avant, la bande apparaissait
+       après Firebase et poussait toute la page de 26 px vers le bas (saut vu par PageSpeed PC).
+       Elle est cachée seulement si les réglages disent qu'elle est éteinte. -->
+  <div class="bande bande-offre" id="bande-offre" role="marquee"><div class="ruban" id="ruban-offre" aria-hidden="true"></div></div>
   <!-- Accueil : demi-cercle avec le logo, accroché sous la barre (il descend avec elle) -->
   <div id="dome-entete"></div>
   <nav class="desktop-nav" id="nav-desktop"></nav>
@@ -1528,7 +1534,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1726,6 +1732,7 @@ const etat = {
   // mémoire (le temps de la visite) pour le retrouver si elle part
   // « Continuer mes achats » puis revient commander.
   brouillonCommande: { clientName: '', phone: '', address: '', remark: '', gouvernorat: '', ville: '' },
+  reglagesRecus: false,    // V12.0 : vrai seulement quand siteSettings/main a vraiment répondu
   reglagesCharges: false   // devient vrai à la première réponse (ou après un court délai de secours)
 };
 
@@ -2245,9 +2252,35 @@ function colorerBande(idBande, nom) {
   else bande.style.removeProperty('--fond-bande');
 }
 
+// V12.0 : réglages des 2 bandes gardés dans ce navigateur (clé roselle-bandes) pour les
+// afficher tout de suite à la visite suivante, avant Firebase : rien ne saute.
+// Seulement les textes et les noms de couleur des bandes (aucun stock, aucun prix) ;
+// ils passent par textesBande / echapper / COULEURS_BANDES comme les vrais réglages.
+const CLE_BANDES = 'roselle-bandes';
+function lireBandesMemo() {
+  try {
+    const m = JSON.parse(localStorage.getItem(CLE_BANDES) || 'null');
+    return (m && typeof m === 'object') ? m : null;
+  } catch (e) { return null; }
+}
+function sauverBandesMemo(sh) {
+  try {
+    const memo = { banner: sh.banner || null, offer: sh.offer || null };
+    const texte = JSON.stringify(memo);
+    if (localStorage.getItem(CLE_BANDES) !== texte) localStorage.setItem(CLE_BANDES, texte);
+  } catch (e) { /* navigation privée ou mémoire pleine : pas grave */ }
+}
+
 // Met à jour les 2 bandes d'après les réglages (shipping.banner et shipping.offer).
 function mettreAJourBandeLivraison() {
-  const sh = etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {};
+  // V12.0 : tant que les vrais réglages ne sont pas arrivés, on utilise ceux gardés
+  // dans ce navigateur ; à la toute 1re visite (rien de gardé), la bande Offre garde
+  // sa place, vide, jusqu'à la réponse (ou jusqu'au délai de secours).
+  const memo = etat.reglagesRecus ? null : lireBandesMemo();
+  const sh = etat.reglagesRecus
+    ? (etat.reglages && etat.reglages.shipping ? etat.reglages.shipping : {})
+    : (memo || {});
+  if (etat.reglagesRecus) sauverBandesMemo(sh);
   // Bande Livraison : cachée si show = false ; sinon textes du Stock,
   // ou à défaut le texte automatique « Livraison X DT partout en Tunisie »
   const reglageLivraison = (sh.banner && typeof sh.banner === 'object') ? sh.banner : {};
@@ -2257,6 +2290,8 @@ function mettreAJourBandeLivraison() {
   colorerBande('bande-livraison', reglageLivraison.color);
   // Bande Offre spéciale : seulement si elle est affichée ET qu'un texte est rempli
   const reglageOffre = (sh.offer && typeof sh.offer === 'object') ? sh.offer : {};
+  // V12.0 : 1re visite, réglages pas encore là : on laisse la place réservée telle quelle
+  if (!etat.reglagesRecus && !memo && !etat.reglagesCharges) return;
   remplirBandeDefilante('bande-offre', 'ruban-offre', 'avec-offre', reglageOffre.show === false ? [] : textesBande(reglageOffre), CADEAU_BANDE);
   colorerBande('bande-offre', reglageOffre.color);
 }
@@ -2287,6 +2322,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rela
 db.collection('siteSettings').doc('main').onSnapshot(
   (doc) => {
     etat.reglages = doc.exists ? (doc.data() || {}) : {};
+    etat.reglagesRecus = true;   // V12.0 : vrais réglages reçus (voir mettreAJourBandeLivraison)
     etat.reglagesCharges = true;
     appliquerFondSite(); // V7.6
     mettreAJourBandeLivraison(); // V8.1
@@ -2296,6 +2332,7 @@ db.collection('siteSettings').doc('main').onSnapshot(
     console.warn('Réglages du site indisponibles, valeurs par défaut utilisées :', erreur);
     etat.reglages = {};
     etat.reglagesCharges = true;
+    mettreAJourBandeLivraison(); // V12.0 : libère la place gardée pour la bande Offre
     rafraichirApresDonnees();
   }
 );
@@ -2303,6 +2340,7 @@ db.collection('siteSettings').doc('main').onSnapshot(
 setTimeout(() => {
   if (!etat.reglagesCharges) {
     etat.reglagesCharges = true;
+    mettreAJourBandeLivraison(); // V12.0 : libère la place gardée pour la bande Offre
     rafraichirApresDonnees();
   }
 }, 2000);
