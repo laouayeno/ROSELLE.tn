@@ -889,6 +889,19 @@
     body:not(.sur-accueil) .grille-produits { gap: 18px 8px; }
   }
   .carte-produit:hover .photo-wrap img { transform: scale(calc(var(--zoom, 1) * 1.04)); }
+  /* V10.8 : 2e photo de l'article, posée par-dessus la 1re.
+     PC : elle apparaît en fondu quand la souris passe sur la carte.
+     Téléphone : elle apparaît tant que le doigt reste posé sur la carte.
+     Elle n'est chargée qu'au premier survol / premier appui (site léger),
+     et ne s'affiche qu'une fois arrivée (classe « prete »). */
+  .carte-produit .photo-wrap img.photo-2 {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease, transform 0.4s ease;
+  }
+  .carte-produit .photo-wrap.montre-photo-2 img.photo-2.prete { opacity: 1; }
+  /* Appui long sur iPhone : pas de menu « Enregistrer l'image », pas de sélection de texte */
+  .carte-produit { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  @media (prefers-reduced-motion: reduce) { .carte-produit .photo-wrap img.photo-2 { transition: none; } }
   /* V2.25 : « Épuisé » et « Soldes » sont écrits sous le prix, sans cadre
      (avant, l'étiquette était sur la photo et l'arche la coupait) */
   .badge-epuise, .badge-solde {
@@ -1463,7 +1476,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.7</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2524,6 +2537,17 @@ function trouverProduit(id) {
   return etat.produits.find(p => p.id === id);
 }
 
+// V10.8 : 2e photo d'un article, pour le survol des cartes.
+// On prend la 2e photo de la 1re couleur ; s'il n'y en a pas, la 1re photo
+// d'une autre couleur. Article avec une seule photo : '' (rien ne change).
+function deuxiemePhoto(produit) {
+  const toutes = [];
+  (produit.variants || []).forEach(v => photosVariante(v).forEach(u => {
+    if (u && !toutes.includes(u)) toutes.push(u);
+  }));
+  return toutes[1] || '';
+}
+
 function photoParDefaut(produit) {
   const v = (produit.variants || []).find(v => (v.photos && v.photos.length) || v.photo);
   return v ? photosVariante(v)[0] : '';
@@ -2796,6 +2820,112 @@ function mettreAJourCompteurPanier() {
     img.parentElement.classList.remove('en-chargement');
   }
 }, true));
+
+/* ============================================================
+   V10.8 : 2E PHOTO AU SURVOL (PC) OU AU DOIGT POSÉ (TÉLÉPHONE)
+   ------------------------------------------------------------
+   - PC : la souris entre sur la carte -> 2e photo en fondu ;
+     elle sort -> retour à la 1re.
+   - Téléphone : le doigt reste posé sur la carte (un court instant)
+     -> 2e photo ; le doigt se lève -> retour à la 1re.
+     Un appui court ouvre toujours l'article (rien ne change).
+     Un appui long (photo regardée) n'ouvre pas l'article.
+     Si le doigt glisse (défilement), on revient tout de suite à la 1re.
+   - La 2e photo n'est téléchargée qu'au premier survol / appui.
+   Écouteurs posés une seule fois sur la page : ils marchent aussi pour
+   les cartes redessinées. Toute erreur est ignorée (jamais bloquant).
+   ============================================================ */
+(() => {
+  const DELAI_APPUI = 200;      // ms avant de montrer la 2e photo sous le doigt (un simple toucher ne la montre pas)
+  const APPUI_LONG = 450;       // ms : au-delà, le doigt levé n'ouvre pas l'article
+  const SEUIL_GLISSE = 10;      // px : au-delà, c'est un défilement
+
+  // Cadre photo (avec 2e photo) de la carte qui contient l'élément touché / survolé
+  function cadreDe(el) {
+    const carte = el && el.closest ? el.closest('.carte-produit') : null;
+    return carte ? carte.querySelector('.photo-wrap[data-photo2]') : null;
+  }
+  function montrer(cadre) {
+    let img = cadre.querySelector('img.photo-2');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'photo-2';
+      img.alt = '';
+      img.setAttribute('aria-hidden', 'true');
+      img.decoding = 'async';
+      img.addEventListener('load', () => img.classList.add('prete'));
+      img.src = cadre.getAttribute('data-photo2');
+      cadre.appendChild(img);
+    }
+    cadre.classList.add('montre-photo-2');
+  }
+  function cacher(cadre) { if (cadre) cadre.classList.remove('montre-photo-2'); }
+
+  // --- PC : souris ---
+  document.addEventListener('pointerover', (e) => {
+    try {
+      if (e.pointerType !== 'mouse') return;
+      const cadre = cadreDe(e.target);
+      if (cadre) montrer(cadre);
+    } catch (err) {}
+  });
+  document.addEventListener('pointerout', (e) => {
+    try {
+      if (e.pointerType !== 'mouse') return;
+      const carte = e.target.closest && e.target.closest('.carte-produit');
+      if (!carte || (e.relatedTarget && carte.contains(e.relatedTarget))) return;
+      cacher(carte.querySelector('.photo-wrap[data-photo2]'));
+    } catch (err) {}
+  });
+
+  // --- Téléphone : doigt posé ---
+  let appui = null;   // { cadre, x, y, debut, minuteur, montree }
+  function finAppui() {
+    if (!appui) return;
+    clearTimeout(appui.minuteur);
+    cacher(appui.cadre);
+  }
+  document.addEventListener('touchstart', (e) => {
+    try {
+      finAppui(); appui = null;
+      if (e.touches.length !== 1) return;
+      const cadre = cadreDe(e.target);
+      if (!cadre) return;
+      const t = e.touches[0];
+      appui = { cadre, x: t.clientX, y: t.clientY, debut: Date.now(), montree: false };
+      appui.minuteur = setTimeout(() => { if (appui) { appui.montree = true; montrer(cadre); } }, DELAI_APPUI);
+    } catch (err) {}
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    try {
+      if (!appui) return;
+      const t = e.touches[0];
+      if (!t || Math.abs(t.clientX - appui.x) > SEUIL_GLISSE || Math.abs(t.clientY - appui.y) > SEUIL_GLISSE) {
+        finAppui(); appui = null;   // défilement : retour à la 1re photo
+      }
+    } catch (err) {}
+  }, { passive: true });
+  ['touchend', 'touchcancel'].forEach(type => document.addEventListener(type, () => {
+    try {
+      if (!appui) return;
+      finAppui();
+      // Photo regardée longtemps : le clic qui suit n'ouvre pas l'article
+      if (appui.montree && Date.now() - appui.debut >= APPUI_LONG) {
+        const carte = appui.cadre.closest('.carte-produit');
+        const bloquer = (ev) => {
+          if (carte && carte.contains(ev.target)) { ev.preventDefault(); ev.stopPropagation(); }
+        };
+        document.addEventListener('click', bloquer, true);
+        setTimeout(() => document.removeEventListener('click', bloquer, true), 600);
+      }
+      appui = null;
+    } catch (err) {}
+  }, { passive: true }));
+  // Android : pas de menu au long appui sur une carte
+  document.addEventListener('contextmenu', (e) => {
+    try { if (cadreDe(e.target)) e.preventDefault(); } catch (err) {}
+  });
+})();
 
 const animations = (() => {
   // Éléments déjà apparus sur la page (repérés par une clé : article, catégorie ou bloc)
@@ -3765,9 +3895,15 @@ function carteProduitHTML(produit, bloc) {
   const photo = photoParDefaut(produit);
   const disponible = stockTotalDisponible(produit) > 0;
   const { actuel, ancien } = prixUnitaireEffectif(produit);
+  // V10.8 : adresse de la 2e photo (même forme que la 1re), chargée seulement au survol / à l'appui
+  const photo2 = photo ? deuxiemePhoto(produit) : '';
+  const forme = formeDuBloc(bloc);
+  const adressePhoto2 = photo2
+    ? photoOptimisee(photo2, largeurPhotoCarte(bloc), forme ? FORMES_PHOTOS[forme].cloudinary : formeCartes())
+    : '';
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
-      <div class="photo-wrap${photo ? ' en-chargement' : ''}">
+      <div class="photo-wrap${photo ? ' en-chargement' : ''}"${adressePhoto2 ? ` data-photo2="${echapper(adressePhoto2)}"` : ''}>
         ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id), formeCartes()) : ''}
       </div>
       <div class="infos">
