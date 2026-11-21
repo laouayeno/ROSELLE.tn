@@ -919,6 +919,20 @@
   .visuel-produit .photo-principale {
     width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 3px; background: var(--rose-clair);
   }
+  /* V10.3 : flèches rondes et discrètes sur la grande photo, seulement
+     quand il y a des miniatures (2 photos ou plus) */
+  .cadre-photo-principale { position: relative; }
+  .cadre-photo-principale .photo-principale { display: block; }
+  .fleche-photo {
+    position: absolute; top: 50%; transform: translateY(-50%); display: none;
+    width: 40px; height: 40px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: rgba(255, 255, 255, 0.82); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+  }
+  .fleche-photo svg { width: 20px; height: 20px; fill: none; stroke: var(--texte); stroke-width: 1.8; }
+  .fleche-photo.gauche { left: 10px; }
+  .fleche-photo.droite { right: 10px; }
+  .visuel-produit:has(.miniature-photo) .fleche-photo { display: flex; }
   .galerie-miniatures {
     display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
   }
@@ -1028,6 +1042,43 @@
   .bouton-achat-direct:disabled { border-color: var(--rose-clair); color: var(--texte-doux); cursor: not-allowed; }
 
   .description-produit { margin-top: 28px; color: var(--texte-doux); font-size: 0.9rem; }
+
+  /* V10.3 : blocs repliables « Description » et « Guide des tailles » sous les
+     boutons d'achat (texte écrit dans le Stock, fiche de l'article). Fermés au
+     départ ; un + devient − quand le bloc est ouvert. */
+  .repliables-fiche { margin-top: 30px; border-top: 1px solid var(--rose-clair); }
+  .repliable-fiche { border-bottom: 1px solid var(--rose-clair); }
+  .repliable-fiche summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    padding: 17px 2px; font-size: 0.95rem; letter-spacing: 0.3px; color: var(--texte);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .repliable-fiche summary::-webkit-details-marker { display: none; }
+  .repliable-fiche summary .signe { position: relative; width: 14px; height: 14px; flex-shrink: 0; }
+  .repliable-fiche summary .signe::before,
+  .repliable-fiche summary .signe::after {
+    content: ''; position: absolute; left: 0; top: 6.5px; width: 14px; height: 1.3px; background: currentColor;
+    transition: transform .25s ease;
+  }
+  .repliable-fiche summary .signe::after { transform: rotate(90deg); }
+  .repliable-fiche[open] summary .signe::after { transform: rotate(0deg); }
+  .contenu-repliable { padding: 0 2px 20px; color: var(--texte); font-size: 0.9rem; line-height: 1.7; }
+  .contenu-repliable p { margin: 0 0 12px; }
+  .contenu-repliable p:last-child { margin-bottom: 0; }
+  /* Tableau des mesures : glisse de côté sur téléphone s'il est large */
+  .guide-tailles-defile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .guide-tailles { border-collapse: collapse; width: 100%; font-size: 0.85rem; white-space: nowrap; }
+  .guide-tailles th, .guide-tailles td { padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--rose-clair); }
+  .guide-tailles th { font-weight: 600; color: var(--texte); background: var(--ivoire); }
+  .guide-tailles td:first-child, .guide-tailles th:first-child { font-weight: 600; }
+  .note-guide { margin-top: 10px; font-size: 0.78rem; color: var(--texte-doux); }
+  /* Téléphone : cases plus serrées et titres sur 2 lignes, pour voir
+     5-6 colonnes sans glisser (au-delà, le tableau glisse de côté) */
+  @media (max-width: 600px) {
+    .guide-tailles { font-size: 0.8rem; }
+    .guide-tailles th, .guide-tailles td { padding: 8px 5px; }
+    .guide-tailles th { white-space: normal; line-height: 1.25; vertical-align: bottom; }
+  }
 
   /* ===== Panier ===== */
   .ligne-panier {
@@ -1355,7 +1406,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2214,6 +2265,7 @@ function appliquerNavigation(vue, parametres) {
   if (vue !== 'commande') etat.achatDirect = null;
   if (vue === 'produit') {
     etat.produitCourant = { couleurChoisie: null, tailleChoisie: null, quantiteChoisie: 1, formuleChoisie: null, selectionsPack: [] };
+    etat.repliablesOuverts = {};   // V10.3 : nouvel article -> blocs Description / Guide fermés
   }
   basculerMenuMobile(false);
   basculerRecherche(false);
@@ -3680,7 +3732,12 @@ function vueProduit(produitId) {
     </a>
     <div class="fiche-produit">
       <div class="visuel-produit">
-        <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoOptimisee(photoParDefaut(produit), 800))}" alt="${echapper(produit.name)}">
+        <!-- V10.3 : flèches pour passer d'une photo à l'autre (visibles dès 2 photos) + glissement au doigt -->
+        <div class="cadre-photo-principale" ontouchstart="debutGlissePhoto(event)" ontouchend="finGlissePhoto(event)">
+          <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoOptimisee(photoParDefaut(produit), 800))}" alt="${echapper(produit.name)}">
+          <button type="button" class="fleche-photo gauche" aria-label="Photo précédente" onclick="photoVoisine(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button type="button" class="fleche-photo droite" aria-label="Photo suivante" onclick="photoVoisine(1)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
         <div class="galerie-miniatures" id="galerie-miniatures"></div>
       </div>
       <div class="details-produit">
@@ -3743,9 +3800,69 @@ function vueProduit(produitId) {
         <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
           Acheter maintenant
         </button>
+        ${repliablesFicheHTML(produit)}
       </div>
     </div>
   `;
+}
+
+/* ============================================================
+   V10.3 : DESCRIPTION + GUIDE DES TAILLES de la fiche article
+   ------------------------------------------------------------
+   Écrits dans le Stock (fiche article), copiés dans publicCatalog :
+   - description : texte libre ; ligne vide = nouveau paragraphe,
+     retour à la ligne simple gardé ;
+   - guideTailles : tableau en texte (une ligne par rangée, cases
+     séparées par une tabulation, 1re rangée = titres).
+   Tout est passé par echapper() : aucun code ne peut être glissé.
+   L'ouverture des blocs est retenue (etat.repliablesOuverts) : si le
+   stock change pendant que la cliente lit, le bloc reste ouvert.
+   ============================================================ */
+function descriptionHTML(texte) {
+  return String(texte || '').trim()
+    .split(/\n\s*\n/)                       // paragraphes
+    .map(par => par.trim())
+    .filter(Boolean)
+    .map(par => `<p>${echapper(par).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+function guideTaillesHTML(texte) {
+  const lignes = String(texte || '').split('\n')
+    .map(l => l.split('\t').map(c => c.trim()))
+    .filter(l => l.some(c => c));
+  if (lignes.length < 2) return '';
+  const nbCol = Math.max(...lignes.map(l => l.length));
+  const cases = (l, balise) => Array.from({ length: nbCol }, (_, j) => `<${balise}>${echapper(l[j] || '')}</${balise}>`).join('');
+  return `
+    <div class="guide-tailles-defile">
+      <table class="guide-tailles">
+        <thead><tr>${cases(lignes[0], 'th')}</tr></thead>
+        <tbody>${lignes.slice(1).map(l => `<tr>${cases(l, 'td')}</tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="note-guide">Mesures en cm.</div>`;
+}
+
+function repliableHTML(cle, titre, contenu) {
+  if (!contenu) return '';
+  const ouvert = etat.repliablesOuverts && etat.repliablesOuverts[cle];
+  return `
+    <details class="repliable-fiche"${ouvert ? ' open' : ''} ontoggle="retenirRepliable('${cle}', this.open)">
+      <summary>${titre}<span class="signe" aria-hidden="true"></span></summary>
+      <div class="contenu-repliable">${contenu}</div>
+    </details>`;
+}
+
+function repliablesFicheHTML(produit) {
+  const blocs = repliableHTML('description', 'Description', descriptionHTML(produit.description)) +
+                repliableHTML('guide', 'Guide des tailles', guideTaillesHTML(produit.guideTailles));
+  return blocs ? `<div class="repliables-fiche">${blocs}</div>` : '';
+}
+
+function retenirRepliable(cle, ouvert) {
+  if (!etat.repliablesOuverts) etat.repliablesOuverts = {};
+  etat.repliablesOuverts[cle] = ouvert;
 }
 
 // Génère une tuile de formule (achat à l'unité ou palier de quantité)
@@ -3769,6 +3886,26 @@ function initialiserFicheProduit(produitId) {
   // changerQuantite ci-dessous. V2.35 : après un rafraîchissement, on remet
   // les choix que la cliente avait faits.
   remettreChoixProduit(produitId);
+  choisirPremiereCouleur(produitId);
+}
+
+// V10.3 (demande d'Oussama) : en ouvrant un article, la 1re couleur est déjà
+// choisie, pour que ses photos (grande photo + miniatures) et ses tailles
+// apparaissent tout de suite. On prend la 1re couleur qui a encore du stock
+// (sinon la 1re tout court). Pas pour les articles à formules (packs) : là,
+// la cliente choisit d'abord sa formule. Rien n'est fait si une couleur est
+// déjà choisie (retour sur la page, choix remis après un rafraîchissement).
+function choisirPremiereCouleur(produitId) {
+  if (etat.produitCourant.couleurChoisie || etat.produitCourant.formuleChoisie) return;
+  const produit = trouverProduit(produitId);
+  if (!produit) return;
+  if (Array.isArray(produit.promoPaliers) && produit.promoPaliers.length) return;
+  const pastilles = [...document.querySelectorAll('#options-couleur .swatch-couleur')];
+  if (!pastilles.length) return;
+  const variantes = produit.variants || [];
+  const couleurs = pastilles.map(el => el.dataset.couleur);
+  const avecStock = couleurs.find(c => variantes.some(v => v.color === c && Number(v.qty) > 0));
+  choisirCouleur(produitId, avecStock || couleurs[0]);
 }
 
 function choisirCouleur(produitId, couleur) {
@@ -3825,6 +3962,29 @@ function selectionnerPhoto(url, boutonClique) {
   document.getElementById('photo-produit-principale').src = photoOptimisee(url, 800);
   document.querySelectorAll('.miniature-photo').forEach(el => el.classList.remove('selectionnee'));
   boutonClique.classList.add('selectionnee');
+}
+
+// V10.3 : flèche gauche (-1) ou droite (+1) : affiche la photo voisine
+// en « cliquant » sa miniature (la galerie tourne en boucle).
+function photoVoisine(sens) {
+  const miniatures = [...document.querySelectorAll('#galerie-miniatures .miniature-photo')];
+  if (miniatures.length < 2) return;
+  const actuelle = Math.max(0, miniatures.findIndex(el => el.classList.contains('selectionnee')));
+  miniatures[(actuelle + sens + miniatures.length) % miniatures.length].click();
+}
+// Glissement au doigt sur la grande photo (téléphone) : vers la gauche = photo suivante
+let departGlissePhoto = null;
+function debutGlissePhoto(e) {
+  const t = e.changedTouches[0];
+  departGlissePhoto = { x: t.clientX, y: t.clientY };
+}
+function finGlissePhoto(e) {
+  if (!departGlissePhoto) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - departGlissePhoto.x, dy = t.clientY - departGlissePhoto.y;
+  departGlissePhoto = null;
+  // Un vrai glissement de côté (pas un défilement de la page vers le bas)
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) photoVoisine(dx < 0 ? 1 : -1);
 }
 
 function choisirTaille(produitId, couleur, taille) {
