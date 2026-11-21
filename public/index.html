@@ -781,6 +781,20 @@
     .bloc-texte.style-partage h2 { font-size: 2.4rem; }
     .bloc-texte.style-partage p { font-size: 1.6rem; line-height: 1.45; }   /* V11.9 : même taille que le style normal */
   }
+  /* V11.9 (remarques d'Oussama : trop d'espace à gauche du texte et entre le texte et la photo).
+     PC seulement. Le texte remplit sa moitié avec une marge régulière, et la photo se rapproche. */
+  @media (min-width: 780px) {
+    /* Style normal (photo bord à bord) */
+    .bloc-texte.avec-media .texte-bloc { max-width: none; justify-self: stretch; padding: 40px 40px 40px clamp(24px, 4vw, 64px); }
+    .bloc-texte.avec-media.media-gauche .texte-bloc { padding: 40px clamp(24px, 4vw, 64px) 40px 40px; }
+    /* Écran partagé : la colonne photo est un peu plus étroite et la photo se colle du côté du texte */
+    .bloc-texte.avec-media.style-partage.media-droite { grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr); }
+    .bloc-texte.avec-media.style-partage.media-gauche { grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr); }
+    .bloc-texte.avec-media.style-partage.media-droite .media-bloc { justify-content: flex-start; padding: 0 clamp(24px, 4vw, 64px) 0 0; }
+    .bloc-texte.avec-media.style-partage.media-gauche .media-bloc { justify-content: flex-end; padding: 0 0 0 clamp(24px, 4vw, 64px); }
+    .bloc-texte.avec-media.style-partage .texte-bloc,
+    .bloc-texte.avec-media.style-partage.media-droite .texte-bloc { justify-self: stretch; }
+  }
 
   /* Bloc image seule : toute la largeur de l'écran, bord à bord */
   .bloc-image { display: block; margin-top: 48px; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
