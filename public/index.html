@@ -8,6 +8,10 @@
 <!-- V5.9 : description affichée par Google sous le titre (français + anglais) -->
 <meta name="description" content="Elle روز (Roselle) : vêtements femme en Tunisie, paiement à la livraison. Women's clothing in Tunisia, cash on delivery. Boutique en ligne roselle site : rosellesite.com">
 
+<!-- V12.8 : vérification du domaine rosellesite.com pour Meta (Facebook / Instagram).
+     Code donné par Meta Business > Sécurité de la marque > Domaines. -->
+<meta name="facebook-domain-verification" content="yqk3wm30obxe1p1jfobjvzceuubkao">
+
 <!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte.
      V5.9 : chargées SANS bloquer l'affichage. La feuille est d'abord demandée
      pour « print » (le navigateur ne l'attend pas), puis passe à « all » dès
@@ -1582,7 +1586,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.8</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1746,13 +1750,162 @@ const suivi = (() => {
 
   return {
     visite: compterVisite,
-    vueArticle(id) { if (idValide(id) && premiereFois('v:' + id)) envoyer({ e: 'vue', id }); },
+    vueArticle(id) {
+      pixelFacebook.vueArticle(id); // V12.8
+      if (idValide(id) && premiereFois('v:' + id)) envoyer({ e: 'vue', id });
+    },
     ajoutPanier(id) {
+      pixelFacebook.ajoutPanier(id); // V12.8
       if (!idValide(id)) return;
       if (premiereFois('p:' + id)) envoyer({ e: 'panier', id });
       if (premiereFois('panier')) envoyer({ e: 'panierSession' });
     },
-    passageCommande() { if (premiereFois('commande')) envoyer({ e: 'commande' }); }
+    passageCommande() {
+      pixelFacebook.debutCommande(); // V12.8
+      if (premiereFois('commande')) envoyer({ e: 'commande' });
+    }
+  };
+})();
+
+/* ============================================================
+   V12.8 : PIXEL FACEBOOK (Meta) — pour les publicités Facebook / Instagram
+   ------------------------------------------------------------
+   Envoie à Meta 5 événements : PageView (arrivée sur le site),
+   ViewContent (fiche article), AddToCart (ajout au panier ou
+   « Acheter maintenant »), InitiateCheckout (page de commande) et
+   Purchase (commande réussie, montant en dinars TND).
+   SANS RISQUE pour le site :
+   - le fichier de Facebook n'est chargé qu'APRÈS l'affichage complet
+     de la page (événement « load » + moment calme), donc il ne
+     ralentit pas l'apparition de l'accueil ;
+   - en attendant, les événements sont mis en file d'attente
+     (petite fonction fbq officielle), rien n'est perdu ;
+   - toute erreur est ignorée : si Facebook est bloqué ou en panne,
+     le panier et les commandes marchent exactement pareil ;
+   - numéro vide = Pixel complètement éteint.
+   ============================================================ */
+const PIXEL_FACEBOOK_ID = '2398927967526938'; // Pixel « Pixel Roselle site » (portefeuille Meta « Roselle »)
+
+const pixelFacebook = (() => {
+  // Le numéro d'un Pixel est fait uniquement de chiffres (15-16 en général)
+  const actif = /^[0-9]{10,20}$/.test(PIXEL_FACEBOOK_ID);
+  const DEVISE = 'TND';
+
+  // Petite fonction fbq officielle de Meta (réécrite lisiblement) :
+  // elle garde les événements en file jusqu'à l'arrivée du vrai fichier.
+  if (actif && !window.fbq) {
+    try {
+      const fbq = function () {
+        if (fbq.callMethod) fbq.callMethod.apply(fbq, arguments);
+        else fbq.queue.push(arguments);
+      };
+      window.fbq = fbq;
+      if (!window._fbq) window._fbq = fbq;
+      fbq.push = fbq;
+      fbq.loaded = true;
+      fbq.version = '2.0';
+      fbq.queue = [];
+      window.fbq('init', PIXEL_FACEBOOK_ID);
+      window.fbq('track', 'PageView');
+    } catch (e) {}
+  }
+
+  // Chargement du vrai fichier de Facebook, après l'affichage de la page
+  function chargerFichier() {
+    try {
+      if (document.getElementById('script-pixel-facebook')) return;
+      const script = document.createElement('script');
+      script.id = 'script-pixel-facebook';
+      script.async = true;
+      script.src = 'https://connect.facebook.net/en_US/fbevents.js';
+      document.head.appendChild(script);
+    } catch (e) {}
+  }
+  function quandCalme() {
+    if ('requestIdleCallback' in window) requestIdleCallback(chargerFichier, { timeout: 3000 });
+    else setTimeout(chargerFichier, 1500);
+  }
+  if (actif) {
+    try {
+      if (document.readyState === 'complete') quandCalme();
+      else window.addEventListener('load', quandCalme, { once: true });
+    } catch (e) {}
+  }
+
+  // Envoi d'un événement (jamais d'erreur visible)
+  function envoyer(nom, donnees, options) {
+    if (!actif || typeof window.fbq !== 'function') return;
+    try {
+      if (options) window.fbq('track', nom, donnees, options);
+      else window.fbq('track', nom, donnees);
+    } catch (e) {}
+  }
+
+  // Montant arrondi à 3 décimales (millimes)
+  const montant = n => Math.round((Number(n) || 0) * 1000) / 1000;
+
+  // Prix actuel d'un article (promotion comprise)
+  function prixArticle(produit) {
+    try { return montant(prixUnitaireEffectif(produit).actuel); } catch (e) { return 0; }
+  }
+
+  // Résumé d'une liste de lignes (panier ou achat direct)
+  function resumeLignes(lignes) {
+    const liste = Array.isArray(lignes) ? lignes : [];
+    return {
+      content_ids: [...new Set(liste.map(l => String(l.productId)))],
+      contents: liste.map(l => ({ id: String(l.productId), quantity: Number(l.qty) || 1, item_price: montant(l.price) })),
+      content_type: 'product',
+      num_items: liste.reduce((s, l) => s + (Number(l.qty) || 1), 0),
+      value: montant(liste.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.price) || 0), 0)),
+      currency: DEVISE
+    };
+  }
+
+  return {
+    // Fiche article ouverte
+    vueArticle(id) {
+      if (!actif) return;
+      try {
+        const produit = trouverProduit(id);
+        if (!produit) return;
+        envoyer('ViewContent', {
+          content_ids: [String(id)], content_type: 'product',
+          content_name: String(produit.name || ''), content_category: String(produit.cat || ''),
+          value: prixArticle(produit), currency: DEVISE
+        });
+      } catch (e) {}
+    },
+    // Article ajouté au panier (ou « Acheter maintenant »)
+    ajoutPanier(id) {
+      if (!actif) return;
+      try {
+        const produit = trouverProduit(id);
+        if (!produit) return;
+        const quantite = Number(etat.produitCourant && etat.produitCourant.quantiteChoisie) || 1;
+        envoyer('AddToCart', {
+          content_ids: [String(id)], content_type: 'product',
+          content_name: String(produit.name || ''),
+          contents: [{ id: String(id), quantity: quantite }],
+          value: montant(prixArticle(produit) * quantite), currency: DEVISE
+        });
+      } catch (e) {}
+    },
+    // Arrivée sur la page de commande (formulaire)
+    debutCommande() {
+      if (!actif) return;
+      try { envoyer('InitiateCheckout', resumeLignes(lignesACommander())); } catch (e) {}
+    },
+    // Commande enregistrée avec succès. eventID = référence de la commande
+    // (servira si un jour on envoie aussi les achats depuis le Worker).
+    achat(lignes, fraisLivraisonCommande, reference) {
+      if (!actif) return;
+      try {
+        const donnees = resumeLignes(lignes);
+        donnees.value = montant(donnees.value + (Number(fraisLivraisonCommande) || 0));
+        envoyer('Purchase', donnees, { eventID: String(reference || '') });
+      } catch (e) {}
+    }
   };
 })();
 
@@ -5422,6 +5575,7 @@ function envoyerCommande() {
 
   // Commande réussie : on vide le panier et on affiche la confirmation.
   const reussite = () => {
+    pixelFacebook.achat(lignes, nouveauColis.deliveryFee, numeroCommande); // V12.8 : achat envoyé à Meta
     etat.dernierNumeroCommande = numeroCommande;
     etat.commandeEnCours = null; // V6.8 : la prochaine commande aura une nouvelle référence
     noterCommandeAppareil(numeroCommande); // V6.7 : mémoire des commandes de cet appareil
