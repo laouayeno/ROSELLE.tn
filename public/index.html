@@ -1049,6 +1049,53 @@
 
   .description-produit { margin-top: 28px; color: var(--texte-doux); font-size: 0.9rem; }
 
+  /* V10.6 : bande noire de la marque sous la fiche article (choix d'Oussama :
+     style « grandes lettres ») : phrases en lettres blanches espacées et rose
+     dorée transparente entre elles. Bord à bord, défile lentement (même
+     principe que les bandes du haut : 2 moitiés identiques). */
+  .bande-marque {
+    margin: 64px calc(50% - 50vw) 0; width: 100vw;
+    background: #141414; overflow: hidden; padding: 10px 0;
+  }
+  .bande-marque .ruban-marque {
+    display: flex; width: max-content;
+    animation: bande-defile 60s linear infinite;
+    will-change: transform;
+    -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  }
+  .bande-marque .element {
+    display: inline-flex; align-items: center; gap: 24px; padding-right: 24px; white-space: nowrap;
+  }
+  .bande-marque img { width: 64px; height: 64px; flex-shrink: 0; }
+  .bande-marque .phrase {
+    font-family: 'Jost', sans-serif; font-weight: 300; text-transform: uppercase;
+    letter-spacing: 0.3em; font-size: 0.95rem; color: #FFFFFF;
+  }
+  @media (min-width: 780px) {
+    .bande-marque { padding: 12px 0; }
+    .bande-marque .element { gap: 32px; padding-right: 32px; }
+    .bande-marque img { width: 80px; height: 80px; }
+    .bande-marque .phrase { font-size: 1.05rem; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bande-marque .ruban-marque { animation: none; } }
+  .bande-marque + .aimerez-aussi { margin-top: 48px; }
+
+  /* V10.6 : « Vous aimerez aussi » sous la fiche article : titre comme ceux de
+     l'accueil (majuscules espacées + trait rose), puis 4 articles au plus.
+     Téléphone : 2 colonnes ; ordinateur : 4 colonnes (grille-produits). */
+  .aimerez-aussi { margin-top: 64px; }
+  .aimerez-aussi .entete-section { justify-content: center; margin-bottom: 26px; }
+  .aimerez-aussi .entete-section h2 {
+    font-family: 'Jost', sans-serif; font-weight: 400; text-transform: uppercase;
+    letter-spacing: 0.32em; font-size: 1.05rem; text-align: center;
+  }
+  .aimerez-aussi .entete-section h2::after {
+    content: ""; display: block; width: 36px; height: 2px;
+    background: #C9718A; margin: 12px auto 0;
+  }
+  /* 4 articles : jamais 3 + 1 seul sur la 2e ligne (tablette = 2 colonnes) */
+  @media (min-width: 640px) and (max-width: 959px) { .aimerez-aussi .grille-produits { grid-template-columns: repeat(2, 1fr); } }
+
   /* V10.3 : blocs repliables « Description » et « Guide des tailles » sous les
      boutons d'achat (texte écrit dans le Stock, fiche de l'article). Fermés au
      départ ; un + devient − quand le bloc est ouvert. */
@@ -1416,7 +1463,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3823,6 +3870,58 @@ function vueProduit(produitId) {
         ${repliablesFicheHTML(produit)}
       </div>
     </div>
+    ${bandeMarqueHTML()}
+    ${vousAimerezAussiHTML(produit)}
+  `;
+}
+
+/* ============================================================
+   V10.6 : « VOUS AIMEREZ AUSSI » sous la fiche article
+   ------------------------------------------------------------
+   4 articles au plus, choisis dans le catalogue déjà chargé (aucune
+   lecture Firebase en plus) :
+   1. d'abord ceux de la même catégorie,
+   2. puis les autres, dans l'ordre du catalogue.
+   Jamais l'article affiché, jamais un article épuisé.
+   Pas de hasard : la liste reste la même si le stock bouge pendant
+   que la cliente regarde (pas de cartes qui changent sous ses yeux).
+   S'il n'y a aucun autre article disponible, rien n'est affiché.
+   ============================================================ */
+/* V10.6 : bande noire de la marque (phrases fixes, choisies par Oussama).
+   Une moitié = les 3 phrases répétées 2 fois (assez pour un grand écran) ;
+   la 2e moitié est identique pour que le défilement boucle sans à-coup.
+   Logo : public/rose-bande.webp (13 Ko, gardé 7 jours dans le téléphone). */
+const PHRASES_BANDE_MARQUE = [
+  'ROSELLE, l\u2019élégance au quotidien',
+  'Chaque femme mérite sa rose',
+  'Pensée en Tunisie, portée avec amour'
+];
+
+function bandeMarqueHTML() {
+  const element = phrase => `
+    <span class="element">
+      <img src="/rose-bande.webp" alt="" width="80" height="80" loading="lazy" decoding="async">
+      <span class="phrase">${echapper(phrase)}</span>
+    </span>`;
+  const moitie = [...PHRASES_BANDE_MARQUE, ...PHRASES_BANDE_MARQUE].map(element).join('');
+  return `<div class="bande-marque" aria-hidden="true"><div class="ruban-marque">${moitie}${moitie}</div></div>`;
+}
+
+const NB_AIMEREZ_AUSSI = 4;
+
+function vousAimerezAussiHTML(produit) {
+  const autres = etat.produits.filter(p => p.id !== produit.id && stockTotalDisponible(p) > 0);
+  const memeCategorie = autres.filter(p => produit.cat && normaliser(p.cat) === normaliser(produit.cat));
+  const reste = autres.filter(p => !memeCategorie.includes(p));
+  const choisis = [...memeCategorie, ...reste].slice(0, NB_AIMEREZ_AUSSI);
+  if (!choisis.length) return '';
+  return `
+    <section class="aimerez-aussi bloc-section">
+      <div class="entete-section"><h2>Vous aimerez aussi</h2></div>
+      <div class="grille-produits">
+        ${choisis.map(p => carteProduitHTML(p)).join('')}
+      </div>
+    </section>
   `;
 }
 

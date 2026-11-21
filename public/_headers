@@ -26,6 +26,9 @@
   Cache-Control: public, max-age=604800
 /logo-nom.png
   Cache-Control: public, max-age=604800
+# V10.6 : rose dorée de la bande noire sous les fiches articles
+/rose-bande.webp
+  Cache-Control: public, max-age=604800
 
 # V2.34 : protections de sécurité envoyées avec TOUTES les pages et fichiers.
 # Elles ne changent rien à l'affichage du site.
