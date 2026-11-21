@@ -1502,7 +1502,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.5</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.6</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3531,7 +3531,43 @@ function recadrageDuBloc(bloc, id) {
     const n = Number(v);
     return isFinite(n) ? Math.min(max, Math.max(min, n)) : defaut;
   };
-  return { x: borne(r.x, 0, 100, 50), y: borne(r.y, 0, 100, 50), z: borne(r.z, 1, 3, 1) };
+  // V11.6 : réglage du cadre téléphone (clé « ...::tel », Stock V8.0) : dézoom possible
+  // jusqu'à 0,5× ; il garde alors la couleur du fond (fond) et la forme de la photo (a).
+  const tel = String(id).endsWith('::tel');
+  const net = { x: borne(r.x, 0, 100, 50), y: borne(r.y, 0, 100, 50), z: borne(r.z, tel ? 0.5 : 1, 3, 1) };
+  if (net.z < 1) {
+    const a = Number(r.a);
+    if (!(isFinite(a) && a > 0.2 && a < 5)) net.z = 1;   // forme inconnue : pas de dézoom
+    else {
+      net.a = a;
+      net.fond = typeof r.fond === 'string' && /^#[0-9a-f]{6}$/i.test(r.fond) ? r.fond : '#ffffff';
+    }
+  }
+  return net;
+}
+
+// V11.6 : recadrage d'une photo de CARTE : sur téléphone (cadre 1/2), le réglage téléphone
+// du bloc s'il y en a un ; sinon le réglage habituel.
+function recadrageCarte(bloc, id) {
+  if (formePhotoCarte(bloc).endsWith('-tel')) {
+    const tel = recadrageDuBloc(bloc, id + '::tel');
+    if (tel) return tel;
+  }
+  return recadrageDuBloc(bloc, id);
+}
+
+// V11.6 : style CSS d'une photo recadrée. Dézoom (z < 1) : photo entière (contain) réduite,
+// le vide autour rempli avec la couleur du fond de la photo (même calcul que le Stock).
+function styleRecadrage(recadrage, hauteurCadre) {
+  let style = `object-position:${recadrage.x}% ${recadrage.y}%;transform-origin:${recadrage.x}% ${recadrage.y}%;`;
+  if (recadrage.z < 1 && recadrage.a) {
+    // rapport entre « photo qui remplit le cadre » et « photo entière »
+    const largeurSurHauteur = 1 / hauteurCadre, a = recadrage.a;
+    const rapport = Math.max(largeurSurHauteur / a, a / largeurSurHauteur);
+    style += `--zoom:${Math.round(recadrage.z * rapport * 1000) / 1000};object-fit:contain;background:${recadrage.fond};box-shadow:0 0 0 100vmax ${recadrage.fond}`;
+  }
+  else style += `--zoom:${recadrage.z}`;
+  return style;
 }
 
 // Balise <img> d'une photo, avec forme et recadrage éventuels.
@@ -3555,8 +3591,8 @@ function imagePhotoBloc(photo, alt, largeur, forme, recadrage, formeParDefaut) {
   // La photo (en général 2:3) est agrandie pour remplir le cadre, puis zoomée :
   // on demande assez de pixels pour qu'elle reste nette.
   const hauteurCadre = forme ? FORMES_PHOTOS[forme].hauteurSurLargeur : (formeParDefaut === '5:14' ? 2.8 : 4 / 3);
-  const facteur = Math.max(1, hauteurCadre / 1.5) * recadrage.z;
-  const style = `object-position:${recadrage.x}% ${recadrage.y}%;transform-origin:${recadrage.x}% ${recadrage.y}%;--zoom:${recadrage.z}`;
+  const facteur = Math.max(1, hauteurCadre / 1.5) * Math.max(1, recadrage.z);
+  const style = styleRecadrage(recadrage, hauteurCadre);
   return `<img class="recadree" src="${echapper(photoOptimisee(photo, largeur, '', facteur))}" alt="${echapper(alt)}" style="${style}" loading="lazy" decoding="async">`;
 }
 
@@ -3991,14 +4027,14 @@ function attributsPhoto2(photo2, produit, bloc) {
   const forme = formePhotoCarte(bloc);   // V11.2 : 1:2 sur téléphone (rectangle / coins arrondis)
   const formeParDefaut = formeCartes();
   // V11.1 : recadrage du bloc d'abord, sinon celui de l'article (fiche article du Stock)
-  const recadrage = recadrageDuBloc(bloc, produit.id + '::2') || recadrageArticle(produit, photo2);
+  const recadrage = recadrageCarte(bloc, produit.id + '::2') || recadrageArticle(produit, photo2);   // V11.6 : réglage téléphone
   if (!recadrage) {
     const adresse = photoOptimisee(photo2, largeur, forme ? FORMES_PHOTOS[forme].cloudinary : formeParDefaut);
     return ` data-photo2="${echapper(adresse)}"`;
   }
   const hauteurCadre = forme ? FORMES_PHOTOS[forme].hauteurSurLargeur : (formeParDefaut === '5:14' ? 2.8 : 4 / 3);
-  const facteur = Math.max(1, hauteurCadre / 1.5) * recadrage.z;
-  const style = `object-position:${recadrage.x}% ${recadrage.y}%;transform-origin:${recadrage.x}% ${recadrage.y}%;--zoom:${recadrage.z}`;
+  const facteur = Math.max(1, hauteurCadre / 1.5) * Math.max(1, recadrage.z);
+  const style = styleRecadrage(recadrage, hauteurCadre);
   return ` data-photo2="${echapper(photoOptimisee(photo2, largeur, '', facteur))}" data-photo2-style="${echapper(style)}"`;
 }
 
@@ -4011,7 +4047,7 @@ function carteProduitHTML(produit, bloc) {
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap${photo ? ' en-chargement' : ''}"${photo2 ? attributsPhoto2(photo2, produit, bloc) : ''}>
-        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formePhotoCarte(bloc), recadrageDuBloc(bloc, produit.id) || recadrageArticle(produit, photo), formeCartes()) : ''}
+        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formePhotoCarte(bloc), recadrageCarte(bloc, produit.id) || recadrageArticle(produit, photo), formeCartes()) : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
