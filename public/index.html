@@ -3867,6 +3867,26 @@ function initialiserFicheProduit(produitId) {
   // changerQuantite ci-dessous. V2.35 : après un rafraîchissement, on remet
   // les choix que la cliente avait faits.
   remettreChoixProduit(produitId);
+  choisirPremiereCouleur(produitId);
+}
+
+// V10.3 (demande d'Oussama) : en ouvrant un article, la 1re couleur est déjà
+// choisie, pour que ses photos (grande photo + miniatures) et ses tailles
+// apparaissent tout de suite. On prend la 1re couleur qui a encore du stock
+// (sinon la 1re tout court). Pas pour les articles à formules (packs) : là,
+// la cliente choisit d'abord sa formule. Rien n'est fait si une couleur est
+// déjà choisie (retour sur la page, choix remis après un rafraîchissement).
+function choisirPremiereCouleur(produitId) {
+  if (etat.produitCourant.couleurChoisie || etat.produitCourant.formuleChoisie) return;
+  const produit = trouverProduit(produitId);
+  if (!produit) return;
+  if (Array.isArray(produit.promoPaliers) && produit.promoPaliers.length) return;
+  const pastilles = [...document.querySelectorAll('#options-couleur .swatch-couleur')];
+  if (!pastilles.length) return;
+  const variantes = produit.variants || [];
+  const couleurs = pastilles.map(el => el.dataset.couleur);
+  const avecStock = couleurs.find(c => variantes.some(v => v.color === c && Number(v.qty) > 0));
+  choisirCouleur(produitId, avecStock || couleurs[0]);
 }
 
 function choisirCouleur(produitId, couleur) {
