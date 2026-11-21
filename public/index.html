@@ -896,11 +896,19 @@
      et ne s'affiche qu'une fois arrivée (classe « prete »). */
   .carte-produit .photo-wrap img.photo-2 {
     position: absolute; inset: 0; opacity: 0; pointer-events: none;
-    transition: opacity 0.35s ease, transform 0.4s ease;
+    transition: opacity 0.25s ease, transform 0.4s ease;
   }
   .carte-produit .photo-wrap.montre-photo-2 img.photo-2.prete { opacity: 1; }
   /* Appui long sur iPhone : pas de menu « Enregistrer l'image », pas de sélection de texte */
   .carte-produit { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* V11.0 : sur iPhone, la 2e photo dépassait du cadre (arche) : Safari ne découpait pas
+     une photo animée. Ces 2 lignes forcent la découpe au bord du cadre. */
+  .carte-produit .photo-wrap { isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); }
+  /* V11.0 : appui long = plus de « Ouvrir l'image dans un nouvel onglet » : les photos des
+     cartes ne reçoivent plus le doigt (c'est la carte qui le reçoit) */
+  .carte-produit .photo-wrap img { pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
+  /* V11.0 : téléphone (pas de souris) : pas de léger zoom « au survol », qui restait collé après un toucher */
+  @media (hover: none) { .carte-produit:hover .photo-wrap img { transform: scale(var(--zoom, 1)); } }
   @media (prefers-reduced-motion: reduce) { .carte-produit .photo-wrap img.photo-2 { transition: none; } }
   /* V2.25 : « Épuisé » et « Soldes » sont écrits sous le prix, sans cadre
      (avant, l'étiquette était sur la photo et l'arche la coupait) */
@@ -1476,7 +1484,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.9</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2836,16 +2844,16 @@ function mettreAJourCompteurPanier() {
    les cartes redessinées. Toute erreur est ignorée (jamais bloquant).
    ============================================================ */
 (() => {
-  const DELAI_APPUI = 200;      // ms avant de montrer la 2e photo sous le doigt (un simple toucher ne la montre pas)
-  const APPUI_LONG = 450;       // ms : au-delà, le doigt levé n'ouvre pas l'article
-  const SEUIL_GLISSE = 10;      // px : au-delà, c'est un défilement
+  const DELAI_APPUI = 160;      // ms avant de montrer la 2e photo sous le doigt (un simple toucher ne la montre pas)
+  const SEUIL_GLISSE = 12;      // px : au-delà, c'est un défilement
 
   // Cadre photo (avec 2e photo) de la carte qui contient l'élément touché / survolé
   function cadreDe(el) {
     const carte = el && el.closest ? el.closest('.carte-produit') : null;
     return carte ? carte.querySelector('.photo-wrap[data-photo2]') : null;
   }
-  function montrer(cadre) {
+  // Crée la 2e photo (cachée) : elle commence à se télécharger
+  function preparer(cadre) {
     let img = cadre.querySelector('img.photo-2');
     if (!img) {
       img = document.createElement('img');
@@ -2860,8 +2868,37 @@ function mettreAJourCompteurPanier() {
       img.src = cadre.getAttribute('data-photo2');
       cadre.appendChild(img);
     }
+    return img;
+  }
+  function montrer(cadre) {
+    preparer(cadre);
     cadre.classList.add('montre-photo-2');
   }
+
+  // V11.0 : la 2e photo est téléchargée à l'avance, quand la carte arrive à l'écran
+  // (après le chargement de la page, pour ne pas ralentir les 1res photos) :
+  // elle apparaît tout de suite quand on pose le doigt.
+  let observateur = null;
+  let pageChargee = document.readyState === 'complete';
+  window.addEventListener('load', () => { pageChargee = true; window.prechargerPhotos2(); });
+  window.prechargerPhotos2 = () => {
+    try {
+      if (!pageChargee || !('IntersectionObserver' in window)) return;
+      if (!observateur) {
+        observateur = new IntersectionObserver((entrees) => {
+          entrees.forEach(e => {
+            if (!e.isIntersecting) return;
+            observateur.unobserve(e.target);
+            preparer(e.target);
+          });
+        }, { rootMargin: '200px 0px' });
+      }
+      document.querySelectorAll('.photo-wrap[data-photo2]:not([data-photo2-suivie])').forEach(cadre => {
+        cadre.setAttribute('data-photo2-suivie', '1');
+        observateur.observe(cadre);
+      });
+    } catch (err) {}
+  };
   function cacher(cadre) { if (cadre) cadre.classList.remove('montre-photo-2'); }
 
   // --- PC : souris ---
@@ -2896,6 +2933,7 @@ function mettreAJourCompteurPanier() {
       if (!cadre) return;
       const t = e.touches[0];
       appui = { cadre, x: t.clientX, y: t.clientY, debut: Date.now(), montree: false };
+      preparer(cadre);   // V11.0 : téléchargement lancé dès le contact
       appui.minuteur = setTimeout(() => { if (appui) { appui.montree = true; montrer(cadre); } }, DELAI_APPUI);
     } catch (err) {}
   }, { passive: true });
@@ -2912,8 +2950,8 @@ function mettreAJourCompteurPanier() {
     try {
       if (!appui) return;
       finAppui();
-      // Photo regardée longtemps : le clic qui suit n'ouvre pas l'article
-      if (appui.montree && Date.now() - appui.debut >= APPUI_LONG) {
+      // V11.0 : 2e photo montrée = appui long : le clic qui suit n'ouvre pas l'article
+      if (appui.montree) {
         const carte = appui.cadre.closest('.carte-produit');
         const bloquer = (ev) => {
           if (carte && carte.contains(ev.target)) { ev.preventDefault(); ev.stopPropagation(); }
@@ -3122,6 +3160,8 @@ function rendre() {
 
   // V7.0 : apparition douce des nouvelles cartes (voir animations.cartes)
   animations.cartes();
+  // V11.0 : 2e photos des cartes téléchargées à l'avance (voir prechargerPhotos2)
+  if (window.prechargerPhotos2) window.prechargerPhotos2();
 
   // Ré-attache les écouteurs spécifiques à la vue produit / formulaire après insertion du HTML
   if (etat.vueActuelle === 'produit') initialiserFicheProduit(etat.parametresVue.produitId);
