@@ -706,8 +706,8 @@
   .bloc-texte .texte-bloc .bouton-principal { margin-top: 8px; }
   @media (min-width: 780px) {
     /* V11.8 (demande d'Oussama) : même grande écriture que le style « Écran partagé » */
-    .bloc-texte h2 { font-size: 2.8rem; }
-    .bloc-texte p { font-size: 2rem; line-height: 1.4; }
+    .bloc-texte h2 { font-size: 2.4rem; }
+    .bloc-texte p { font-size: 1.6rem; line-height: 1.45; }   /* V11.9 : un peu plus petit (avant 2rem) */
   }
 
   /* Bloc texte avec photo / GIF / vidéo (V2.21, choix d'Oussama) :
@@ -778,8 +778,8 @@
     .bloc-texte.avec-media.style-partage .media-bloc video { width: auto; max-width: 100%; height: min(84vh, 760px); }
     .bloc-texte.avec-media.style-partage .texte-bloc { justify-self: start; padding-left: clamp(16px, 3vw, 48px); }
     .bloc-texte.avec-media.style-partage.media-droite .texte-bloc { justify-self: end; }
-    .bloc-texte.style-partage h2 { font-size: 2.8rem; }
-    .bloc-texte.style-partage p { font-size: 2rem; line-height: 1.4; }
+    .bloc-texte.style-partage h2 { font-size: 2.4rem; }
+    .bloc-texte.style-partage p { font-size: 1.6rem; line-height: 1.45; }   /* V11.9 : même taille que le style normal */
   }
 
   /* Bloc image seule : toute la largeur de l'écran, bord à bord */
@@ -1514,7 +1514,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.8</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.9</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
