@@ -681,6 +681,8 @@
     margin-top: 56px; padding: 44px 0 48px;
   }
   .fond-bloc + .fond-bloc { margin-top: 0; }          /* deux blocs colorés qui se suivent : pas de trou blanc */
+  /* V10.5 : 1er bloc coloré juste sous la vidéo d'accueil : il la touche, sans bande blanche */
+  #zone-accueil-blocs > .fond-bloc:first-child { margin-top: 0; }
   .fond-bloc > * { margin-top: 0 !important; }        /* l'espace du haut est donné par le cadre */
   .fond-bloc .separateur-dore::after { background: var(--fond); }
   /* Fond foncé : titres et textes en blanc, bouton inversé (blanc, texte noir).
@@ -706,6 +708,10 @@
   .media-bloc img, .media-bloc video {
     width: 100%; display: block; background: var(--rose-clair);
   }
+  /* V10.5 : le fond gris ne sert que pendant le chargement. Une fois la photo
+     arrivée, il disparaît : une photo transparente (ex. logo PNG) laisse voir
+     la couleur du bloc au lieu d'un carré gris. */
+  .media-bloc img.media-charge { background: transparent; }
   /* Sur téléphone, le média sort des marges de la page (bord à bord) */
   .bloc-texte.avec-media .media-bloc { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
   .bloc-texte.avec-media.media-droite .media-bloc { order: 2; }
@@ -1151,6 +1157,10 @@
     border-top: 1px solid var(--rose-clair); margin-top: 40px; padding: 40px 20px 30px;
     text-align: center; color: var(--texte-doux); font-size: 0.82rem;
   }
+  /* V10.5 : accueil qui finit par un bloc coloré : le pied de page le touche,
+     sans bande blanche entre les deux (ni marge, ni trait) */
+  main:has(#zone-accueil-blocs > .fond-bloc:last-child) { padding-bottom: 0; }
+  main:has(#zone-accueil-blocs > .fond-bloc:last-child) ~ footer { margin-top: 0; border-top: none; }
   footer .liens-sociaux { display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; }
   footer .liens-sociaux a { color: var(--rose-fonce); font-size: 0.85rem; }
   footer .signature-logo { display: block; height: 84px; width: auto; margin: 0 auto 14px; }
@@ -1406,7 +1416,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.4</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3469,6 +3479,13 @@ function blocTexteHTML(bloc) {
       ${texte}
     </div>`;
 }
+
+// V10.5 : photo du bloc Texte arrivée -> on retire le fond gris d'attente (voir CSS .media-charge).
+// Écoute « load » sur toute la page (les blocs sont redessinés sans recharger la page).
+document.addEventListener('load', (e) => {
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && img.closest && img.closest('.media-bloc')) img.classList.add('media-charge');
+}, true);
 
 // Image seule, avec lien optionnel
 function blocImageHTML(bloc) {
