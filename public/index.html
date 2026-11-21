@@ -919,6 +919,20 @@
   .visuel-produit .photo-principale {
     width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 3px; background: var(--rose-clair);
   }
+  /* V10.3 : flèches rondes et discrètes sur la grande photo, seulement
+     quand il y a des miniatures (2 photos ou plus) */
+  .cadre-photo-principale { position: relative; }
+  .cadre-photo-principale .photo-principale { display: block; }
+  .fleche-photo {
+    position: absolute; top: 50%; transform: translateY(-50%); display: none;
+    width: 40px; height: 40px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: rgba(255, 255, 255, 0.82); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+  }
+  .fleche-photo svg { width: 20px; height: 20px; fill: none; stroke: var(--texte); stroke-width: 1.8; }
+  .fleche-photo.gauche { left: 10px; }
+  .fleche-photo.droite { right: 10px; }
+  .visuel-produit:has(.miniature-photo) .fleche-photo { display: flex; }
   .galerie-miniatures {
     display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
   }
@@ -3718,7 +3732,12 @@ function vueProduit(produitId) {
     </a>
     <div class="fiche-produit">
       <div class="visuel-produit">
-        <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoOptimisee(photoParDefaut(produit), 800))}" alt="${echapper(produit.name)}">
+        <!-- V10.3 : flèches pour passer d'une photo à l'autre (visibles dès 2 photos) + glissement au doigt -->
+        <div class="cadre-photo-principale" ontouchstart="debutGlissePhoto(event)" ontouchend="finGlissePhoto(event)">
+          <img class="photo-principale" id="photo-produit-principale" src="${echapper(photoOptimisee(photoParDefaut(produit), 800))}" alt="${echapper(produit.name)}">
+          <button type="button" class="fleche-photo gauche" aria-label="Photo précédente" onclick="photoVoisine(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button type="button" class="fleche-photo droite" aria-label="Photo suivante" onclick="photoVoisine(1)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
         <div class="galerie-miniatures" id="galerie-miniatures"></div>
       </div>
       <div class="details-produit">
@@ -3943,6 +3962,29 @@ function selectionnerPhoto(url, boutonClique) {
   document.getElementById('photo-produit-principale').src = photoOptimisee(url, 800);
   document.querySelectorAll('.miniature-photo').forEach(el => el.classList.remove('selectionnee'));
   boutonClique.classList.add('selectionnee');
+}
+
+// V10.3 : flèche gauche (-1) ou droite (+1) : affiche la photo voisine
+// en « cliquant » sa miniature (la galerie tourne en boucle).
+function photoVoisine(sens) {
+  const miniatures = [...document.querySelectorAll('#galerie-miniatures .miniature-photo')];
+  if (miniatures.length < 2) return;
+  const actuelle = Math.max(0, miniatures.findIndex(el => el.classList.contains('selectionnee')));
+  miniatures[(actuelle + sens + miniatures.length) % miniatures.length].click();
+}
+// Glissement au doigt sur la grande photo (téléphone) : vers la gauche = photo suivante
+let departGlissePhoto = null;
+function debutGlissePhoto(e) {
+  const t = e.changedTouches[0];
+  departGlissePhoto = { x: t.clientX, y: t.clientY };
+}
+function finGlissePhoto(e) {
+  if (!departGlissePhoto) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - departGlissePhoto.x, dy = t.clientY - departGlissePhoto.y;
+  departGlissePhoto = null;
+  // Un vrai glissement de côté (pas un défilement de la page vers le bas)
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) photoVoisine(dx < 0 ? 1 : -1);
 }
 
 function choisirTaille(produitId, couleur, taille) {
