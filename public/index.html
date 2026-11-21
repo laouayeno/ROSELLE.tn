@@ -1406,7 +1406,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V10.4</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1780,13 +1780,16 @@ const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
 // V10.2 : vidéo d'accueil envoyée depuis le Stock (Apparence > Accueil).
 // Cloudinary en fabrique 2 versions + leur 1re image, préparées dès l'envoi
 // (« eager » : liste IDENTIQUE dans le Worker du site et dans le Worker du Stock) :
-// - tel : milieu de l'image découpé en hauteur (9:16), 1080 px de haut au plus ;
+// - tel : milieu de l'image découpé en hauteur (9:16), 1920 px de haut au plus ;
 // - pc  : image entière, 1920×1080 au plus.
+// V10.4 : haute qualité (q_90, ~2 à 4 Mbit/s téléphone, ~4,5 Mbit/s PC ; avant q_auto:good,
+// trop économe). Téléphone : découpe AVANT réduction (c_crop puis c_limit) : une vidéo 4K
+// donne 1080×1920 (net sur iPhone), une vidéo 1080p reste à 608×1080 (jamais agrandie).
 // Le site les demande au relais /vid/ du Worker : Cloudflare les garde en mémoire,
 // Cloudinary ne les envoie qu'une fois (pas de dépassement du quota gratuit).
 const VIDEO_ACCUEIL = {
-  tel: { video: 'ac_none,c_fill,ar_9:16,g_center,h_1080,q_auto:good,br_1800k,vc_h264', image: 'so_0,c_fill,ar_9:16,g_center,h_1080,q_auto:good' },
-  pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_auto:good,br_3000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
+  tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_90,br_4000k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
+  pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_90,br_5000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
 };
 
 // largeurAffichee = largeur à l'écran en points (ex. 400), ou 'ecran' pour toute la largeur
