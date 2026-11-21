@@ -912,6 +912,12 @@
   /* V11.0 : appui long = plus de « Ouvrir l'image dans un nouvel onglet » : les photos des
      cartes ne reçoivent plus le doigt (c'est la carte qui le reçoit) */
   .carte-produit .photo-wrap img { pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
+  /* V11.3 : même chose pour TOUTES les images et vidéos du site (blocs Texte et Image,
+     bannières, fiche article, logo...) : appui long = plus de menu « Enregistrer l'image /
+     Ouvrir dans un nouvel onglet ». Les images qui n'ont pas leur propre clic laissent
+     passer le doigt au bloc qui les contient (glisser, flèches et liens marchent comme avant). */
+  img, video { -webkit-touch-callout: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; }
+  img:not([onclick]) { pointer-events: none; }
   /* V11.0 : téléphone (pas de souris) : pas de léger zoom « au survol », qui restait collé après un toucher */
   @media (hover: none) { .carte-produit:hover .photo-wrap img { transform: scale(var(--zoom, 1)); } }
   @media (prefers-reduced-motion: reduce) { .carte-produit .photo-wrap img.photo-2 { transition: none; } }
@@ -1489,7 +1495,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2968,8 +2974,12 @@ function mettreAJourCompteurPanier() {
     } catch (err) {}
   }, { passive: true }));
   // Android : pas de menu au long appui sur une carte
+  // V11.3 : ni sur une image ou une vidéo du site (ex. le logo)
   document.addEventListener('contextmenu', (e) => {
-    try { if (cadreDe(e.target)) e.preventDefault(); } catch (err) {}
+    try {
+      const t = e.target;
+      if (cadreDe(t) || (t && (t.tagName === 'IMG' || t.tagName === 'VIDEO'))) e.preventDefault();
+    } catch (err) {}
   });
 })();
 
