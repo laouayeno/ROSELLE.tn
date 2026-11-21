@@ -5,6 +5,10 @@
 {
   "name": "rosellestore",
   "compatibility_date": "2026-10-09",
+  // V12.0 : adresse rosellestore.roselle-tn.workers.dev ÉTEINTE (les commandes y échouaient :
+  // Turnstile n'accepte que rosellesite.com). Sans cette ligne, chaque mise en ligne la rallumait.
+  // Le site reste sur rosellesite.com (domaine réglé dans le tableau de bord Cloudflare, pas ici).
+  "workers_dev": false,
   // V2.24 : petit programme qui enregistre les commandes (src/worker.js).
   // V6.3 : il sert aussi les photos (/img/...) depuis la mémoire de Cloudflare,
   // ce qui compte dans les requêtes du Worker (offre payante 5 $ : 10 millions/mois).
