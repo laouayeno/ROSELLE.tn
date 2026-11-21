@@ -912,7 +912,7 @@
   /* V11.0 : appui long = plus de « Ouvrir l'image dans un nouvel onglet » : les photos des
      cartes ne reçoivent plus le doigt (c'est la carte qui le reçoit) */
   .carte-produit .photo-wrap img { pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
-  /* V11.3 : même chose pour TOUTES les images et vidéos du site (blocs Texte et Image,
+  /* V11.5 : même chose pour TOUTES les images et vidéos du site (blocs Texte et Image,
      bannières, fiche article, logo...) : appui long = plus de menu « Enregistrer l'image /
      Ouvrir dans un nouvel onglet ». Les images qui n'ont pas leur propre clic laissent
      passer le doigt au bloc qui les contient (glisser, flèches et liens marchent comme avant). */
@@ -1240,6 +1240,13 @@
      sans bande blanche entre les deux (ni marge, ni trait) */
   main:has(#zone-accueil-blocs > .fond-bloc:last-child) { padding-bottom: 0; }
   main:has(#zone-accueil-blocs > .fond-bloc:last-child) ~ footer { margin-top: 0; border-top: none; }
+  /* V11.4 : la bannière (photo bord à bord) touche les blocs colorés, les autres
+     bannières et la vidéo d'accueil, au-dessus comme en dessous : plus de bande blanche.
+     Si l'accueil finit par une bannière, le pied de page la touche aussi. */
+  .fond-bloc + .bloc-banniere, .bloc-banniere + .bloc-banniere,
+  .bloc-banniere + .fond-bloc, #zone-accueil-blocs > .bloc-banniere:first-child { margin-top: 0; }
+  main:has(#zone-accueil-blocs > .bloc-banniere:last-child) { padding-bottom: 0; }
+  main:has(#zone-accueil-blocs > .bloc-banniere:last-child) ~ footer { margin-top: 0; border-top: none; }
   footer .liens-sociaux { display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; }
   footer .liens-sociaux a { color: var(--rose-fonce); font-size: 0.85rem; }
   footer .signature-logo { display: block; height: 84px; width: auto; margin: 0 auto 14px; }
@@ -1495,7 +1502,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.5</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -2974,7 +2981,7 @@ function mettreAJourCompteurPanier() {
     } catch (err) {}
   }, { passive: true }));
   // Android : pas de menu au long appui sur une carte
-  // V11.3 : ni sur une image ou une vidéo du site (ex. le logo)
+  // V11.5 : ni sur une image ou une vidéo du site (ex. le logo)
   document.addEventListener('contextmenu', (e) => {
     try {
       const t = e.target;
