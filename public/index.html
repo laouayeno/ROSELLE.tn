@@ -575,7 +575,12 @@
      (3/5 au lieu de 3/4). Le recadrage choisi dans le Stock reste appliqué (même point de la photo). */
   @media (max-width: 639px) {
     .bloc-section.forme-rectangle .carte-produit .photo-wrap,
-    .bloc-section.forme-arrondi .carte-produit .photo-wrap { aspect-ratio: 3/5; }
+    .bloc-section.forme-arrondi .carte-produit .photo-wrap { aspect-ratio: 1/2; }   /* V11.2 : 3/5 -> 1/2 (choix B d'Oussama) */
+  }
+  /* V11.2 (choix 2 d'Oussama) : sur PC, blocs de 4 articles ou plus aux nouvelles formes
+     = 3 cartes par ligne (plus grandes) au lieu de 4. L'arche haute ne change pas. */
+  @media (min-width: 960px) {
+    body.sur-accueil .bloc-section[class*="forme-"]:not(.forme-arche) .grille-produits:not([class*="peu-"]) { grid-template-columns: repeat(3, 1fr); gap: 40px 32px; }
   }
   .bloc-section.forme-rond .carte-produit { box-shadow: none; border-radius: 0; background: transparent; }
   .bloc-section.forme-rond .carte-produit .photo-wrap,
@@ -1484,7 +1489,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V11.2</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3480,13 +3485,24 @@ const FORMES_PHOTOS = {
   'arche-douce': { cloudinary: '2:3',  hauteurSurLargeur: 1.5 },
   'rectangle':   { cloudinary: '3:4',  hauteurSurLargeur: 4 / 3 },
   'arrondi':     { cloudinary: '3:4',  hauteurSurLargeur: 4 / 3 },
-  'rond':        { cloudinary: '1:1',  hauteurSurLargeur: 1 }
+  'rond':        { cloudinary: '1:1',  hauteurSurLargeur: 1 },
+  // V11.2 : cartes d'articles sur téléphone (cadre 1/2, voir CSS) : photo découpée en 1:2
+  // pour qu'elle reste nette (avant : 3:4 agrandie par le navigateur)
+  'rectangle-tel': { cloudinary: '1:2', hauteurSurLargeur: 2 },
+  'arrondi-tel':   { cloudinary: '1:2', hauteurSurLargeur: 2 }
 };
+
+// V11.2 : forme de la photo d'une CARTE d'article (téléphone : rectangle / coins arrondis en 1:2)
+function formePhotoCarte(bloc) {
+  const forme = formeDuBloc(bloc);
+  if ((forme === 'rectangle' || forme === 'arrondi') && (window.innerWidth || 400) < 640) return forme + '-tel';
+  return forme;
+}
 
 // Forme choisie pour un bloc ('' = forme par défaut du bloc, comme avant)
 function formeDuBloc(bloc) {
   const f = bloc && typeof bloc.photoShape === 'string' ? bloc.photoShape : '';
-  return FORMES_PHOTOS[f] ? f : '';
+  return FORMES_PHOTOS[f] && !f.endsWith('-tel') ? f : '';   // V11.2 : les formes « -tel » sont internes
 }
 
 // Recadrage d'une photo dans un bloc, nettoyé (valeurs hors limites ramenées dans les limites)
@@ -3955,7 +3971,7 @@ function recadrageArticle(produit, url) {
 // Même calcul que imagePhotoBloc pour la 1re photo.
 function attributsPhoto2(photo2, produit, bloc) {
   const largeur = largeurPhotoCarte(bloc);
-  const forme = formeDuBloc(bloc);
+  const forme = formePhotoCarte(bloc);   // V11.2 : 1:2 sur téléphone (rectangle / coins arrondis)
   const formeParDefaut = formeCartes();
   // V11.1 : recadrage du bloc d'abord, sinon celui de l'article (fiche article du Stock)
   const recadrage = recadrageDuBloc(bloc, produit.id + '::2') || recadrageArticle(produit, photo2);
@@ -3978,7 +3994,7 @@ function carteProduitHTML(produit, bloc) {
   return `
     <div class="carte-produit" data-id="${echapper(produit.id)}" onclick="naviguerVers('produit', {produitId: ${enJs(produit.id)}})">
       <div class="photo-wrap${photo ? ' en-chargement' : ''}"${photo2 ? attributsPhoto2(photo2, produit, bloc) : ''}>
-        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formeDuBloc(bloc), recadrageDuBloc(bloc, produit.id) || recadrageArticle(produit, photo), formeCartes()) : ''}
+        ${photo ? imagePhotoBloc(photo, produit.name, largeurPhotoCarte(bloc), formePhotoCarte(bloc), recadrageDuBloc(bloc, produit.id) || recadrageArticle(produit, photo), formeCartes()) : ''}
       </div>
       <div class="infos">
         <div class="nom">${echapper(produit.name)}</div>
