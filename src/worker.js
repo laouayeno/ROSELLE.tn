@@ -804,12 +804,16 @@ async function servirPhoto(requete, url, ctx) {
    L'iPhone lit une vidéo par morceaux (« Range ») : la mémoire de Cloudflare
    sait répondre morceau par morceau ; sinon le morceau est demandé à Cloudinary. */
 const VIDEO_ACCUEIL = {
-  tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_90,br_4000k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
+  // V12.1 : version téléphone allégée (voir public/index.html)
+  tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_auto:good,br_1200k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
   pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_90,br_5000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
 };
 // V10.4 : réglages de la V10.2 (qualité plus basse) encore acceptés quelque temps : un
 // téléphone peut avoir gardé en mémoire l'ancien haut d'accueil (affichage immédiat V9.9).
+// V12.1 : l'ancien réglage téléphone V10.4 (q_90, br_4000k) reste accepté pour les téléphones
+// qui ont gardé l'ancien haut d'accueil en mémoire.
 const REGLAGES_VIDEO_PERMIS = [VIDEO_ACCUEIL.tel.video, VIDEO_ACCUEIL.pc.video,
+  'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_90,br_4000k,vc_h264',
   'ac_none,c_fill,ar_9:16,g_center,h_1080,q_auto:good,br_1800k,vc_h264', 'ac_none,c_limit,w_1920,h_1080,q_auto:good,br_3000k,vc_h264'];
 const REGLAGES_IMAGE_VIDEO_PERMIS = [VIDEO_ACCUEIL.tel.image, VIDEO_ACCUEIL.pc.image, 'so_0,c_fill,ar_9:16,g_center,h_1080,q_auto:good'];
 // Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
