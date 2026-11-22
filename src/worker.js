@@ -122,9 +122,21 @@ async function traiterCommande(requete, env) {
 
   // V5.7 : Turnstile (anti-robot gratuit de Cloudflare). Tant que la clé
   // secrète TURNSTILE_SECRET n'est pas installée, on ne vérifie pas.
+  // V12.1 : un jeton absent ou refusé NE BLOQUE PLUS la commande.
+  // Le navigateur intégré d'Instagram / Facebook sur Android n'arrivait pas
+  // à obtenir de jeton : ces clientes ne pouvaient pas commander (lancement
+  // du 22/11). On garde la vérification pour les journaux, et les autres
+  // protections restent : limite par connexion (IP) + 1 commande par minute
+  // par numéro de téléphone.
   if (env.TURNSTILE_SECRET && !modeTest) {
     const humain = await verifierTurnstile(corps.turnstile, env.TURNSTILE_SECRET, requete.headers.get('CF-Connecting-IP'));
-    if (!humain) return json({ ok: false, erreur: 'turnstile' }, 403);
+    if (!humain) {
+      console.warn('Commande sans jeton Turnstile valable (acceptée)', JSON.stringify({
+        erreurPage: typeof corps.turnstileErreur === 'string' ? corps.turnstileErreur.slice(0, 40) : '',
+        jetonPresent: typeof corps.turnstile === 'string' && corps.turnstile.length > 0,
+        navigateur: (requete.headers.get('User-Agent') || '').slice(0, 200)
+      }));
+    }
   }
 
   let compte;
