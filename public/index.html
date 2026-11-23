@@ -1353,7 +1353,9 @@
   .fenetre-ajout-article img, .fenetre-ajout-sans-photo { width: 52px; height: 68px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); flex-shrink: 0; }
   .fenetre-ajout-texte { min-width: 0; }
   .fenetre-ajout-article.nouveau .fenetre-ajout-nom::after { content: ' ✓'; color: #17875A; }
-  .fenetre-ajout-total { display: flex; justify-content: space-between; font-weight: 600; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--rose-clair); }
+  .fenetre-ajout-recap { display: flex; justify-content: space-between; font-size: 0.88rem; color: var(--texte-doux); padding-top: 6px; }
+  .fenetre-ajout-recap:first-of-type { border-top: 1px solid var(--rose-clair); margin-top: 4px; padding-top: 10px; }
+  .fenetre-ajout-total { display: flex; justify-content: space-between; font-weight: 600; padding-top: 6px; }
   .fenetre-ajout-nom { font-weight: 600; }
   .fenetre-ajout-details { font-size: 0.85rem; color: var(--texte-doux); margin-top: 2px; }
   .fenetre-ajout-prix { color: var(--rose-fonce); margin-top: 4px; }
@@ -3292,7 +3294,10 @@ function ouvrirFenetreAjout(ligne, titre) {
     <div class="fenetre-ajout" role="dialog" aria-modal="true" aria-label="Article ajouté au panier">
       <div class="fenetre-ajout-titre">✓ ${echapper(titre || 'Ajouté au panier')} · <span class="texte-ar" lang="ar" dir="rtl">تمت الإضافة إلى السلة</span></div>
       <div class="fenetre-ajout-liste">${lignes.map(ligneHTML).join('')}</div>
-      ${lignes.length ? `<div class="fenetre-ajout-total"><span>${bilingue('Total')} (${nbArticles})</span><span>${prixFormat(sousTotal)}</span></div>` : ''}
+      ${lignes.length ? `
+      <div class="fenetre-ajout-recap"><span>${bilingue('Sous-total')} (${nbArticles})</span><span>${prixFormat(sousTotal)}</span></div>
+      <div class="fenetre-ajout-recap"><span>${bilingue('Livraison')}</span><span>${prixFormat(fraisLivraison())}</span></div>
+      <div class="fenetre-ajout-total"><span>${bilingue('Total')}</span><span>${prixFormat(sousTotal + fraisLivraison())}</span></div>` : ''}
       <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>
       <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
       <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
