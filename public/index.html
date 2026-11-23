@@ -1230,6 +1230,12 @@
     font-family: 'Inter', sans-serif; font-size: 0.92rem; background: var(--blanc); color: var(--texte);
   }
   .champ input:focus, .champ textarea:focus, .champ select:focus { outline: none; border-color: var(--rose-fonce); }
+  /* V12.4 : sur iPhone, un champ écrit en moins de 16 px fait ZOOMER la page
+     quand on le touche ; la page devient alors plus large que l'écran et
+     « glisse » sur le côté. 16 px sur téléphone et tablette = plus de zoom. */
+  @media (max-width: 1024px), (hover: none) {
+    input, select, textarea { font-size: 16px !important; }
+  }
   .champ textarea { resize: vertical; min-height: 70px; }
   .erreur-champ { color: var(--erreur); font-size: 0.78rem; margin-top: 5px; display: none; }
 
@@ -1341,12 +1347,23 @@
     .fenetre-ajout { border-radius: 18px; }
   }
   .fenetre-ajout-titre { font-weight: 600; font-size: 1rem; color: #17875A; margin-bottom: 14px; }
-  .fenetre-ajout-article { display: flex; gap: 14px; align-items: center; margin-bottom: 6px; }
-  .fenetre-ajout-article img { width: 64px; height: 84px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); }
+  .fenetre-ajout-liste { max-height: 38vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .fenetre-ajout-article { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rose-clair); }
+  .fenetre-ajout-article:last-child { border-bottom: none; }
+  .fenetre-ajout-article img, .fenetre-ajout-sans-photo { width: 52px; height: 68px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); flex-shrink: 0; }
+  .fenetre-ajout-texte { min-width: 0; }
+  .fenetre-ajout-article.nouveau .fenetre-ajout-nom::after { content: ' ✓'; color: #17875A; }
+  .fenetre-ajout-recap { display: flex; justify-content: space-between; font-size: 0.88rem; color: var(--texte-doux); padding-top: 6px; }
+  .fenetre-ajout-recap:first-of-type { border-top: 1px solid var(--rose-clair); margin-top: 4px; padding-top: 10px; }
+  .fenetre-ajout-total { display: flex; justify-content: space-between; font-weight: 600; padding-top: 6px; }
   .fenetre-ajout-nom { font-weight: 600; }
   .fenetre-ajout-details { font-size: 0.85rem; color: var(--texte-doux); margin-top: 2px; }
   .fenetre-ajout-prix { color: var(--rose-fonce); margin-top: 4px; }
   .fenetre-ajout .bouton-ajouter { margin-top: 16px; }
+  .fenetre-ajout-texte { flex: 1; }
+  .fenetre-ajout-retirer { margin-top: 0; flex-shrink: 0; align-self: center; padding: 6px 0 6px 4px; font-family: inherit; cursor: pointer; }
+  .fenetre-ajout-vide { text-align: center; color: var(--texte-doux); padding: 18px 0 4px; }
+  .fenetre-ajout-fond.sans-animation, .fenetre-ajout-fond.sans-animation .fenetre-ajout { transition: none; }
   .fenetre-ajout-note { text-align: center; font-size: 0.8rem; color: var(--texte-doux); margin-top: 14px; }
   @media (prefers-reduced-motion: reduce) { .fenetre-ajout-fond, .fenetre-ajout { transition: none; } }
 
@@ -1565,7 +1582,11 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
+<<<<<<< ours
   <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.3</div>
+=======
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.4</div>
+>>>>>>> theirs
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1837,12 +1858,13 @@ function remettreChoixProduit(produitId) {
 
 // V2.35 : les 24 gouvernorats, avec le code demandé par la société de livraison
 // Bestway (le même que dans le Stock). Le colis arrive ainsi prêt à être envoyé.
+// V12.3 : 3e valeur = nom en arabe (affiché seulement dans la liste ; Bestway reçoit le nom en français)
 const GOUVERNORATS = [
-  ['Ariana', '2080'], ['Béja', '9000'], ['Ben Arous', '2013'], ['Bizerte', '7000'], ['Gabès', '6000'],
-  ['Gafsa', '2100'], ['Jendouba', '8100'], ['Kairouan', '3100'], ['Kasserine', '1200'], ['Kébili', '4200'],
-  ['La Manouba', '2010'], ['Le Kef', '7100'], ['Mahdia', '5100'], ['Médenine', '4100'], ['Monastir', '5000'],
-  ['Nabeul', '8000'], ['Sfax', '3000'], ['Sidi Bouzid', '9100'], ['Siliana', '6100'], ['Sousse', '4000'],
-  ['Tataouine', '3200'], ['Tozeur', '2200'], ['Tunis', '1000'], ['Zaghouan', '1100']
+  ['Ariana', '2080', 'أريانة'], ['Béja', '9000', 'باجة'], ['Ben Arous', '2013', 'بن عروس'], ['Bizerte', '7000', 'بنزرت'], ['Gabès', '6000', 'قابس'],
+  ['Gafsa', '2100', 'قفصة'], ['Jendouba', '8100', 'جندوبة'], ['Kairouan', '3100', 'القيروان'], ['Kasserine', '1200', 'القصرين'], ['Kébili', '4200', 'قبلي'],
+  ['La Manouba', '2010', 'منوبة'], ['Le Kef', '7100', 'الكاف'], ['Mahdia', '5100', 'المهدية'], ['Médenine', '4100', 'مدنين'], ['Monastir', '5000', 'المنستير'],
+  ['Nabeul', '8000', 'نابل'], ['Sfax', '3000', 'صفاقس'], ['Sidi Bouzid', '9100', 'سيدي بوزيد'], ['Siliana', '6100', 'سليانة'], ['Sousse', '4000', 'سوسة'],
+  ['Tataouine', '3200', 'تطاوين'], ['Tozeur', '2200', 'توزر'], ['Tunis', '1000', 'تونس'], ['Zaghouan', '1100', 'زغوان']
 ];
 function nomGouvernorat(code) {
   const g = GOUVERNORATS.find(x => x[1] === code);
@@ -3238,6 +3260,7 @@ const TEXTES_ARABE = {
   'Sous-total': 'المجموع',
   'Livraison': 'التوصيل',
   'Total': 'المجموع الكلي',
+  'Votre panier': 'سلتك',
   'Votre panier est vide': 'سلتك فارغة',
   'Retirer': 'حذف',
   'Passer la commande': 'أكمل الطلب'
@@ -3252,33 +3275,72 @@ function bilingue(francais) {
    message de 2 s apparaissait et la cliente ne savait pas quoi faire
    ensuite. Maintenant, une fenêtre montre l'article ajouté avec deux
    gros boutons : « Acheter maintenant » et « Continuer mes achats ». */
-function ouvrirFenetreAjout(ligne, titre) {
+function ouvrirFenetreAjout(ligne, titre, sansAnimation) {
   fermerFenetreAjout();
+  fenetreAjoutLigne = ligne || null;
   const fond = document.createElement('div');
   fond.className = 'fenetre-ajout-fond';
   fond.id = 'fenetre-ajout';
   fond.onclick = (e) => { if (e.target === fond) fermerFenetreAjout(); };
-  const details = ligne ? [ligne.color, ligne.size].filter(Boolean).join(' · ') : '';
-  const photo = ligne && urlSure(ligne.photo) ? photoOptimisee(ligne.photo, 120) : '';
+  // V12.4 : la fenêtre montre TOUT le panier (l'article qui vient d'être
+  // ajouté en premier), avec le total des articles.
+  const lignes = etat.panier.slice();
+  const position = ligne ? lignes.indexOf(ligne) : -1;
+  if (position > 0) { lignes.splice(position, 1); lignes.unshift(ligne); }
+  const ligneHTML = (l) => {
+    const details = [l.color, l.size].filter(Boolean).join(' · ');
+    const photo = urlSure(l.photo) ? photoOptimisee(l.photo, 120) : '';
+    return `
+      <div class="fenetre-ajout-article${l === ligne ? ' nouveau' : ''}">
+        ${photo ? `<img src="${echapper(photo)}" alt="">` : '<div class="fenetre-ajout-sans-photo"></div>'}
+        <div class="fenetre-ajout-texte">
+          <div class="fenetre-ajout-nom">${echapper(l.name || '')}</div>
+          ${details ? `<div class="fenetre-ajout-details">${echapper(details)}${l.packLabel ? ' · ' + echapper(l.packLabel) : ''}</div>` : ''}
+          <div class="fenetre-ajout-prix">${Number(l.qty) > 1 ? `${Number(l.qty)} × ` : ''}${prixFormat(l.price)}</div>
+        </div>
+        <!-- V12.4 : la cliente peut retirer l'article directement ici -->
+        <button type="button" class="bouton-supprimer fenetre-ajout-retirer" onclick="retirerDeLaFenetre(${etat.panier.indexOf(l)})">${bilingue('Retirer')}</button>
+      </div>`;
+  };
+  const sousTotal = etat.panier.reduce((t, l) => t + (Number(l.qty) || 0) * Number(l.price || 0), 0);
+  const nbArticles = etat.panier.reduce((t, l) => t + (Number(l.qty) || 0), 0);
   fond.innerHTML = `
     <div class="fenetre-ajout" role="dialog" aria-modal="true" aria-label="Article ajouté au panier">
-      <div class="fenetre-ajout-titre">✓ ${echapper(titre || 'Ajouté au panier')} · <span class="texte-ar" lang="ar" dir="rtl">تمت الإضافة إلى السلة</span></div>
-      ${ligne ? `
-      <div class="fenetre-ajout-article">
-        ${photo ? `<img src="${echapper(photo)}" alt="">` : ''}
-        <div>
-          <div class="fenetre-ajout-nom">${echapper(ligne.packLabel || ligne.name || '')}</div>
-          ${details && !ligne.packId ? `<div class="fenetre-ajout-details">${echapper(details)}</div>` : ''}
-          ${!ligne.packId ? `<div class="fenetre-ajout-prix">${prixFormat(ligne.price)}</div>` : ''}
-        </div>
-      </div>` : ''}
-      <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>
+      <div class="fenetre-ajout-titre">${titre === 'Votre panier'
+        ? `${bilingue('Votre panier')}`
+        : `✓ ${echapper(titre || 'Ajouté au panier')} · <span class="texte-ar" lang="ar" dir="rtl">تمت الإضافة إلى السلة</span>`}</div>
+      ${lignes.length ? `<div class="fenetre-ajout-liste">${lignes.map(ligneHTML).join('')}</div>`
+        : `<p class="fenetre-ajout-vide">${bilingue('Votre panier est vide')}</p>`}
+      ${lignes.length ? `
+      <div class="fenetre-ajout-recap"><span>${bilingue('Sous-total')} (${nbArticles})</span><span>${prixFormat(sousTotal)}</span></div>
+      <div class="fenetre-ajout-recap"><span>${bilingue('Livraison')}</span><span>${prixFormat(fraisLivraison())}</span></div>
+      <div class="fenetre-ajout-total"><span>${bilingue('Total')}</span><span>${prixFormat(sousTotal + fraisLivraison())}</span></div>` : ''}
+      ${lignes.length ? `<button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>` : ''}
       <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
+      <!-- V12.4 : pour changer une quantité (même style que les autres boutons) -->
+      ${lignes.length ? `<button type="button" class="bouton-achat-direct fenetre-ajout-modifier" onclick="fermerFenetreAjout(); naviguerVers('panier')">${bilingue('Modifier mon panier')}</button>` : ''}
       <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
     </div>`;
   document.body.appendChild(fond);
-  requestAnimationFrame(() => fond.classList.add('visible'));
+  if (sansAnimation) fond.classList.add('visible', 'sans-animation');
+  else requestAnimationFrame(() => fond.classList.add('visible'));
 }
+// Article mis en avant (✓) dans la fenêtre ouverte
+let fenetreAjoutLigne = null;
+/* V12.4 : « Retirer » dans la fenêtre : on enlève l'article du panier,
+   on met à jour le compteur, et on redessine la fenêtre sans animation.
+   On ne redessine PAS la page derrière (pas de re-rendu pendant un choix). */
+function retirerDeLaFenetre(index) {
+  if (index < 0 || index >= etat.panier.length) return;
+  etat.panier.splice(index, 1);
+  mettreAJourCompteurPanier();
+  sauvegarderPanier();
+  const ligne = etat.panier.includes(fenetreAjoutLigne) ? fenetreAjoutLigne : null;
+  ouvrirFenetreAjout(ligne, 'Votre panier', true);
+  // Si la cliente est sur la page panier ou commande, on la met à jour
+  if (etat.vueActuelle === 'panier' || etat.vueActuelle === 'commande') rendre();
+}
+window.retirerDeLaFenetre = retirerDeLaFenetre;
 function fermerFenetreAjout() {
   const fond = document.getElementById('fenetre-ajout');
   if (fond) fond.remove();
@@ -5122,7 +5184,7 @@ function vueCommande() {
           <label for="champ-gouvernorat">${bilingue('Gouvernorat')}</label>
           <select id="champ-gouvernorat" name="gouvernorat" required>
             <option value="">— Choisir · اختاري —</option>
-            ${GOUVERNORATS.map(([nom, code]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}</option>`).join('')}
+            ${GOUVERNORATS.map(([nom, code, arabe]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}${arabe ? ' · ' + arabe : ''}</option>`).join('')}
           </select>
         </div>
         <div class="champ">
