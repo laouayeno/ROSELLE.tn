@@ -1347,8 +1347,13 @@
     .fenetre-ajout { border-radius: 18px; }
   }
   .fenetre-ajout-titre { font-weight: 600; font-size: 1rem; color: #17875A; margin-bottom: 14px; }
-  .fenetre-ajout-article { display: flex; gap: 14px; align-items: center; margin-bottom: 6px; }
-  .fenetre-ajout-article img { width: 64px; height: 84px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); }
+  .fenetre-ajout-liste { max-height: 38vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .fenetre-ajout-article { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rose-clair); }
+  .fenetre-ajout-article:last-child { border-bottom: none; }
+  .fenetre-ajout-article img, .fenetre-ajout-sans-photo { width: 52px; height: 68px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); flex-shrink: 0; }
+  .fenetre-ajout-texte { min-width: 0; }
+  .fenetre-ajout-article.nouveau .fenetre-ajout-nom::after { content: ' ✓'; color: #17875A; }
+  .fenetre-ajout-total { display: flex; justify-content: space-between; font-weight: 600; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--rose-clair); }
   .fenetre-ajout-nom { font-weight: 600; }
   .fenetre-ajout-details { font-size: 0.85rem; color: var(--texte-doux); margin-top: 2px; }
   .fenetre-ajout-prix { color: var(--rose-fonce); margin-top: 4px; }
@@ -3263,20 +3268,31 @@ function ouvrirFenetreAjout(ligne, titre) {
   fond.className = 'fenetre-ajout-fond';
   fond.id = 'fenetre-ajout';
   fond.onclick = (e) => { if (e.target === fond) fermerFenetreAjout(); };
-  const details = ligne ? [ligne.color, ligne.size].filter(Boolean).join(' · ') : '';
-  const photo = ligne && urlSure(ligne.photo) ? photoOptimisee(ligne.photo, 120) : '';
+  // V12.4 : la fenêtre montre TOUT le panier (l'article qui vient d'être
+  // ajouté en premier), avec le total des articles.
+  const lignes = etat.panier.slice();
+  const position = ligne ? lignes.indexOf(ligne) : -1;
+  if (position > 0) { lignes.splice(position, 1); lignes.unshift(ligne); }
+  const ligneHTML = (l) => {
+    const details = [l.color, l.size].filter(Boolean).join(' · ');
+    const photo = urlSure(l.photo) ? photoOptimisee(l.photo, 120) : '';
+    return `
+      <div class="fenetre-ajout-article${l === ligne ? ' nouveau' : ''}">
+        ${photo ? `<img src="${echapper(photo)}" alt="">` : '<div class="fenetre-ajout-sans-photo"></div>'}
+        <div class="fenetre-ajout-texte">
+          <div class="fenetre-ajout-nom">${echapper(l.name || '')}</div>
+          ${details ? `<div class="fenetre-ajout-details">${echapper(details)}${l.packLabel ? ' · ' + echapper(l.packLabel) : ''}</div>` : ''}
+          <div class="fenetre-ajout-prix">${Number(l.qty) > 1 ? `${Number(l.qty)} × ` : ''}${prixFormat(l.price)}</div>
+        </div>
+      </div>`;
+  };
+  const sousTotal = etat.panier.reduce((t, l) => t + (Number(l.qty) || 0) * Number(l.price || 0), 0);
+  const nbArticles = etat.panier.reduce((t, l) => t + (Number(l.qty) || 0), 0);
   fond.innerHTML = `
     <div class="fenetre-ajout" role="dialog" aria-modal="true" aria-label="Article ajouté au panier">
       <div class="fenetre-ajout-titre">✓ ${echapper(titre || 'Ajouté au panier')} · <span class="texte-ar" lang="ar" dir="rtl">تمت الإضافة إلى السلة</span></div>
-      ${ligne ? `
-      <div class="fenetre-ajout-article">
-        ${photo ? `<img src="${echapper(photo)}" alt="">` : ''}
-        <div>
-          <div class="fenetre-ajout-nom">${echapper(ligne.packLabel || ligne.name || '')}</div>
-          ${details && !ligne.packId ? `<div class="fenetre-ajout-details">${echapper(details)}</div>` : ''}
-          ${!ligne.packId ? `<div class="fenetre-ajout-prix">${prixFormat(ligne.price)}</div>` : ''}
-        </div>
-      </div>` : ''}
+      <div class="fenetre-ajout-liste">${lignes.map(ligneHTML).join('')}</div>
+      ${lignes.length ? `<div class="fenetre-ajout-total"><span>${bilingue('Total')} (${nbArticles})</span><span>${prixFormat(sousTotal)}</span></div>` : ''}
       <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>
       <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
       <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
