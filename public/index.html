@@ -1565,7 +1565,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.2</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3235,7 +3235,10 @@ const TEXTES_ARABE = {
   'Modifier mon panier': 'تعديل السلة',
   'Sous-total': 'المجموع',
   'Livraison': 'التوصيل',
-  'Total': 'المجموع الكلي'
+  'Total': 'المجموع الكلي',
+  'Votre panier est vide': 'سلتك فارغة',
+  'Retirer': 'حذف',
+  'Passer la commande': 'أكمل الطلب'
 };
 // Renvoie du HTML : « Français · عربي » (le français est échappé).
 function bilingue(francais) {
@@ -5006,7 +5009,7 @@ function vuePanier() {
   if (etat.panier.length === 0) {
     return `
       <div class="panier-vide">
-        <h2 class="titre-serif" style="font-size:1.4rem; margin-bottom:14px;">Votre panier est vide</h2>
+        <h2 class="titre-serif" style="font-size:1.4rem; margin-bottom:14px;">${bilingue('Votre panier est vide')}</h2>
         <button class="bouton-principal" onclick="naviguerVers('catalogue', {categorie: '${CATEGORIES_PRINCIPALES[0]}'})">Voir la collection</button>
       </div>
     `;
@@ -5019,6 +5022,7 @@ function vuePanier() {
   return `
     <div class="section-etroite" style="margin-top:30px;">
       <h1 style="font-size:1.6rem; margin-bottom:6px;">Votre panier</h1>
+      <div class="texte-ar-ligne" lang="ar" dir="rtl" style="font-size:1.2rem; margin-bottom:10px;">سلة المشتريات</div>
       <div>
         ${etat.panier.map((ligne, index) => `
           <div class="ligne-panier">
@@ -5034,22 +5038,25 @@ function vuePanier() {
                 </div>
                 <div class="prix-ligne">${prixFormat(ligne.qty * ligne.price)}</div>
               </div>
-              <button type="button" class="bouton-supprimer" onclick="retirerDuPanier(${index})">Retirer</button>
+              <button type="button" class="bouton-supprimer" onclick="retirerDuPanier(${index})">${bilingue('Retirer')}</button>
             </div>
           </div>
         `).join('')}
       </div>
       <div class="recap-commande" style="margin-top:10px;">
-        <div class="ligne-recap"><span>Sous-total</span><span>${prixFormat(sousTotal)}</span></div>
-        <div class="ligne-recap"><span>Livraison</span><span>${prixFormat(frais)}</span></div>
+        <div class="ligne-recap"><span>${bilingue('Sous-total')}</span><span>${prixFormat(sousTotal)}</span></div>
+        <div class="ligne-recap"><span>${bilingue('Livraison')}</span><span>${prixFormat(frais)}</span></div>
       </div>
       <div class="recap-total">
-        <span class="label">Total</span>
+        <span class="label">${bilingue('Total')}</span>
         <span class="montant">${prixFormat(total)}</span>
       </div>
-      <div class="rappel-paiement">Paiement à la livraison — réglez en espèces à réception de votre colis.</div>
-      <button class="bouton-principal" style="width:100%;" onclick="naviguerVers('commande')">Passer la commande</button>
-      <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
+      <div class="rappel-paiement">
+        <div>💵 Paiement à la livraison : vous payez en espèces à la réception du colis.</div>
+        <div class="texte-ar-ligne" lang="ar" dir="rtl">الدفع عند الاستلام نقداً</div>
+      </div>
+      <button class="bouton-principal" style="width:100%;" onclick="naviguerVers('commande')">${bilingue('Passer la commande')}</button>
+      <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">${bilingue('Continuer mes achats')}</button>
     </div>
   `;
 }
