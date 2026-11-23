@@ -1565,7 +1565,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.2</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.3</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -1837,12 +1837,13 @@ function remettreChoixProduit(produitId) {
 
 // V2.35 : les 24 gouvernorats, avec le code demandé par la société de livraison
 // Bestway (le même que dans le Stock). Le colis arrive ainsi prêt à être envoyé.
+// V12.3 : 3e valeur = nom en arabe (affiché seulement dans la liste ; Bestway reçoit le nom en français)
 const GOUVERNORATS = [
-  ['Ariana', '2080'], ['Béja', '9000'], ['Ben Arous', '2013'], ['Bizerte', '7000'], ['Gabès', '6000'],
-  ['Gafsa', '2100'], ['Jendouba', '8100'], ['Kairouan', '3100'], ['Kasserine', '1200'], ['Kébili', '4200'],
-  ['La Manouba', '2010'], ['Le Kef', '7100'], ['Mahdia', '5100'], ['Médenine', '4100'], ['Monastir', '5000'],
-  ['Nabeul', '8000'], ['Sfax', '3000'], ['Sidi Bouzid', '9100'], ['Siliana', '6100'], ['Sousse', '4000'],
-  ['Tataouine', '3200'], ['Tozeur', '2200'], ['Tunis', '1000'], ['Zaghouan', '1100']
+  ['Ariana', '2080', 'أريانة'], ['Béja', '9000', 'باجة'], ['Ben Arous', '2013', 'بن عروس'], ['Bizerte', '7000', 'بنزرت'], ['Gabès', '6000', 'قابس'],
+  ['Gafsa', '2100', 'قفصة'], ['Jendouba', '8100', 'جندوبة'], ['Kairouan', '3100', 'القيروان'], ['Kasserine', '1200', 'القصرين'], ['Kébili', '4200', 'قبلي'],
+  ['La Manouba', '2010', 'منوبة'], ['Le Kef', '7100', 'الكاف'], ['Mahdia', '5100', 'المهدية'], ['Médenine', '4100', 'مدنين'], ['Monastir', '5000', 'المنستير'],
+  ['Nabeul', '8000', 'نابل'], ['Sfax', '3000', 'صفاقس'], ['Sidi Bouzid', '9100', 'سيدي بوزيد'], ['Siliana', '6100', 'سليانة'], ['Sousse', '4000', 'سوسة'],
+  ['Tataouine', '3200', 'تطاوين'], ['Tozeur', '2200', 'توزر'], ['Tunis', '1000', 'تونس'], ['Zaghouan', '1100', 'زغوان']
 ];
 function nomGouvernorat(code) {
   const g = GOUVERNORATS.find(x => x[1] === code);
@@ -5120,7 +5121,7 @@ function vueCommande() {
           <label for="champ-gouvernorat">${bilingue('Gouvernorat')}</label>
           <select id="champ-gouvernorat" name="gouvernorat" required>
             <option value="">— Choisir · اختاري —</option>
-            ${GOUVERNORATS.map(([nom, code]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}</option>`).join('')}
+            ${GOUVERNORATS.map(([nom, code, arabe]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}${arabe ? ' · ' + arabe : ''}</option>`).join('')}
           </select>
         </div>
         <div class="champ">
