@@ -1565,7 +1565,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.1</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.0</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -5189,7 +5189,7 @@ function initialiserFormulaireCommande() {
    et la commande part sans jeton (le Worker ne vérifie pas non plus).
    Chaque jeton ne sert qu'une seule fois.
    ============================================================ */
-const turnstileEtat = { cle: undefined, script: null, widget: null, jeton: '', enAttente: [], erreur: '' };
+const turnstileEtat = { cle: undefined, script: null, widget: null, jeton: '', enAttente: [] };
 
 function chargerCleTurnstile() {
   if (turnstileEtat.cle !== undefined) return Promise.resolve(turnstileEtat.cle);
@@ -5228,44 +5228,23 @@ function preparerTurnstile() {
           turnstileEtat.enAttente.splice(0).forEach(f => f(jeton));
         },
         'expired-callback': () => { turnstileEtat.jeton = ''; },
-        // V12.1 : en cas d'erreur (ex. navigateur intégré d'Instagram ou
-        // de Facebook sur Android), on note le code et on débloque tout de
-        // suite la commande au lieu de faire attendre la cliente 20 s.
-        'error-callback': (code) => {
-          turnstileEtat.jeton = '';
-          turnstileEtat.erreur = String(code || 'erreur').slice(0, 40);
-          turnstileEtat.enAttente.splice(0).forEach(f => f(''));
-          return true; // on gère l'erreur nous-mêmes (pas de nouvel essai en boucle)
-        }
+        'error-callback': () => { turnstileEtat.jeton = ''; }
       });
     });
-  }).catch(e => {
-    // V12.1 : le script Turnstile n'a pas pu se charger : on le note.
-    turnstileEtat.erreur = 'script';
-    turnstileEtat.enAttente.splice(0).forEach(f => f(''));
-    console.warn(e && e.message);
-  });
+  }).catch(e => console.warn(e && e.message));
 }
 
 // Renvoie (promesse) le jeton à joindre à la commande : '' si Turnstile
-// n'est pas installé, en erreur, ou n'a pas répondu à temps.
-// V12.1 : la commande part TOUJOURS (avant : bloquée si pas de jeton,
-// ce qui empêchait de commander depuis Instagram / Facebook sur Android).
-// Les autres protections restent côté Worker (limite par connexion,
-// 1 commande par minute par numéro).
+// n'est pas installé ; null si la vérification n'a pas abouti à temps.
 function obtenirJetonTurnstile() {
   return chargerCleTurnstile().then(cle => {
     if (!cle) return '';
     if (turnstileEtat.jeton) return turnstileEtat.jeton;
-    if (turnstileEtat.erreur) return '';
     return new Promise(ok => {
       turnstileEtat.enAttente.push(ok);
-      setTimeout(() => {
-        if (!turnstileEtat.jeton && !turnstileEtat.erreur) turnstileEtat.erreur = 'delai';
-        ok(turnstileEtat.jeton || '');
-      }, 8000);
+      setTimeout(() => ok(turnstileEtat.jeton || null), 20000);
     });
-  }).catch(() => { turnstileEtat.erreur = turnstileEtat.erreur || 'config'; return ''; });
+  });
 }
 
 // Après un envoi (réussi ou non), le jeton est usé : on en redemande un.
@@ -5418,12 +5397,14 @@ function envoyerCommande() {
   // V5.7 : protégé par Turnstile (jeton joint à la commande).
   obtenirJetonTurnstile()
     .then((jetonTurnstile) => {
-      // V12.1 : plus de blocage si le jeton manque : la commande part quand
-      // même, avec le code d'erreur Turnstile pour les journaux.
+      if (jetonTurnstile === null) {
+        relancerTurnstile();
+        throw new Error('turnstile-delai');
+      }
       return fetch('/api/commande', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...nouveauColis, gouvernorat, turnstile: jetonTurnstile || '', turnstileErreur: turnstileEtat.erreur || '', refsAppareil: refsCommandesAppareil() }) // V2.35 : le Worker ajoute le gouvernorat au colis
+        body: JSON.stringify({ ...nouveauColis, gouvernorat, turnstile: jetonTurnstile, refsAppareil: refsCommandesAppareil() }) // V2.35 : le Worker ajoute le gouvernorat au colis
       });
     })
     .then(async (reponse) => {
