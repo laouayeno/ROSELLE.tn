@@ -1230,6 +1230,12 @@
     font-family: 'Inter', sans-serif; font-size: 0.92rem; background: var(--blanc); color: var(--texte);
   }
   .champ input:focus, .champ textarea:focus, .champ select:focus { outline: none; border-color: var(--rose-fonce); }
+  /* V12.4 : sur iPhone, un champ écrit en moins de 16 px fait ZOOMER la page
+     quand on le touche ; la page devient alors plus large que l'écran et
+     « glisse » sur le côté. 16 px sur téléphone et tablette = plus de zoom. */
+  @media (max-width: 1024px), (hover: none) {
+    input, select, textarea { font-size: 16px !important; }
+  }
   .champ textarea { resize: vertical; min-height: 70px; }
   .erreur-champ { color: var(--erreur); font-size: 0.78rem; margin-top: 5px; display: none; }
 
@@ -1565,7 +1571,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.3</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.4</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
