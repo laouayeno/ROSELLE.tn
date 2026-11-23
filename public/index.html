@@ -1565,7 +1565,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.0</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.1</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
@@ -3215,7 +3215,7 @@ const animations = (() => {
    formulaire de commande). Si un texte n'est pas dans la liste, seul le
    français est affiché. */
 const TEXTES_ARABE = {
-  'Commander maintenant': 'اطلب الآن',
+  'Acheter maintenant': 'اشتري الآن',
   'Ajouter au panier': 'أضف إلى السلة',
   'Choisir une couleur': 'اختاري اللون',
   'Choisir une taille': 'اختاري المقاس',
@@ -3246,7 +3246,7 @@ function bilingue(francais) {
 /* V12.1 : FENÊTRE APRÈS « AJOUTER AU PANIER ». Avant, seul un petit
    message de 2 s apparaissait et la cliente ne savait pas quoi faire
    ensuite. Maintenant, une fenêtre montre l'article ajouté avec deux
-   gros boutons : « Commander maintenant » et « Continuer mes achats ». */
+   gros boutons : « Acheter maintenant » et « Continuer mes achats ». */
 function ouvrirFenetreAjout(ligne, titre) {
   fermerFenetreAjout();
   const fond = document.createElement('div');
@@ -3267,7 +3267,7 @@ function ouvrirFenetreAjout(ligne, titre) {
           ${!ligne.packId ? `<div class="fenetre-ajout-prix">${prixFormat(ligne.price)}</div>` : ''}
         </div>
       </div>` : ''}
-      <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Commander maintenant')}</button>
+      <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>
       <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
       <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
     </div>`;
@@ -4305,10 +4305,10 @@ function vueProduit(produitId) {
           </div>
         </div>
 
-        <!-- V12.1 : « Commander maintenant » devient le bouton principal (plein),
+        <!-- V12.1 : « Acheter maintenant » devient le bouton principal (plein),
              « Ajouter au panier » passe en second (contour). Textes en arabe aussi. -->
         <button class="bouton-ajouter bouton-commander-fiche" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
-          ${bilingue('Commander maintenant')}
+          ${bilingue('Acheter maintenant')}
         </button>
         <button class="bouton-achat-direct bouton-panier-fiche" id="bouton-ajouter" disabled onclick="gererClicAjouter(${enJs(produitId)})">
           ${bilingue(aDesPaliers ? 'Choisissez une formule' : 'Choisir une taille')}
@@ -4713,7 +4713,7 @@ function ajouterAuPanier(produitId) {
   sauvegarderPanier();
   suivi.ajoutPanier(produitId);
   animations.volVersPanier(); // V7.0
-  // V12.1 : fenêtre avec « Commander maintenant » (avant : petit message 2 s)
+  // V12.1 : fenêtre avec « Acheter maintenant » (avant : petit message 2 s)
   const produit = trouverProduit(produitId);
   const variante = varianteChoisie(produit);
   const ligne = variante ? etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId) : null;
