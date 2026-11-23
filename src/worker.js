@@ -804,7 +804,7 @@ async function servirPhoto(requete, url, ctx) {
    L'iPhone lit une vidéo par morceaux (« Range ») : la mémoire de Cloudflare
    sait répondre morceau par morceau ; sinon le morceau est demandé à Cloudinary. */
 const VIDEO_ACCUEIL = {
-  // V12.1 : version téléphone allégée (voir public/index.html)
+  // Version téléphone allégée (voir public/index.html)
   tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_auto:good,br_1200k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
   pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_90,br_5000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
 };
