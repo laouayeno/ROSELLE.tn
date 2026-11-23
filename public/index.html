@@ -1360,6 +1360,7 @@
   .fenetre-ajout-details { font-size: 0.85rem; color: var(--texte-doux); margin-top: 2px; }
   .fenetre-ajout-prix { color: var(--rose-fonce); margin-top: 4px; }
   .fenetre-ajout .bouton-ajouter { margin-top: 16px; }
+  .fenetre-ajout-modifier { display: block; margin: 12px auto 0; background: none; border: none; color: var(--texte); text-decoration: underline; font-size: 0.9rem; font-family: inherit; cursor: pointer; padding: 6px; }
   .fenetre-ajout-note { text-align: center; font-size: 0.8rem; color: var(--texte-doux); margin-top: 14px; }
   @media (prefers-reduced-motion: reduce) { .fenetre-ajout-fond, .fenetre-ajout { transition: none; } }
 
@@ -3300,6 +3301,8 @@ function ouvrirFenetreAjout(ligne, titre) {
       <div class="fenetre-ajout-total"><span>${bilingue('Total')}</span><span>${prixFormat(sousTotal + fraisLivraison())}</span></div>` : ''}
       <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Acheter maintenant')}</button>
       <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
+      <!-- V12.4 : pour retirer un article ou changer une quantité -->
+      <button type="button" class="fenetre-ajout-modifier" onclick="fermerFenetreAjout(); naviguerVers('panier')">${bilingue('Modifier mon panier')}</button>
       <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
     </div>`;
   document.body.appendChild(fond);
