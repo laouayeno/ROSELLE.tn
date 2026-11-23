@@ -1319,6 +1319,37 @@
   }
   .bouton-secours.clair { background: #fff; color: var(--texte); border: 1px solid var(--texte); }
   .note-secours { margin-top: 8px; font-size: 0.8rem; }
+  /* V12.1 : textes arabes + fenêtre après « Ajouter au panier » */
+  .texte-ar { font-family: 'Noto Sans Arabic', 'Geeza Pro', Tahoma, sans-serif; font-weight: 500; unicode-bidi: isolate; }
+  .texte-ar-ligne { font-family: 'Noto Sans Arabic', 'Geeza Pro', Tahoma, sans-serif; text-align: right; font-size: 0.9em; opacity: 0.9; }
+  .champ label .texte-ar { opacity: 0.75; font-weight: 400; }
+  #bouton-valider-commande::after { content: none; } /* V12.1 : pas de flèche (le texte bilingue est long) */
+  .fenetre-ajout-fond {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 200;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  .fenetre-ajout-fond.visible { opacity: 1; }
+  .fenetre-ajout {
+    background: var(--blanc); width: 100%; max-width: 460px; border-radius: 18px 18px 0 0;
+    padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+    transform: translateY(30px); transition: transform 0.25s ease;
+  }
+  .fenetre-ajout-fond.visible .fenetre-ajout { transform: translateY(0); }
+  @media (min-width: 700px) {
+    .fenetre-ajout-fond { align-items: center; }
+    .fenetre-ajout { border-radius: 18px; }
+  }
+  .fenetre-ajout-titre { font-weight: 600; font-size: 1rem; color: #17875A; margin-bottom: 14px; }
+  .fenetre-ajout-article { display: flex; gap: 14px; align-items: center; margin-bottom: 6px; }
+  .fenetre-ajout-article img { width: 64px; height: 84px; object-fit: cover; border-radius: 8px; background: var(--rose-clair); }
+  .fenetre-ajout-nom { font-weight: 600; }
+  .fenetre-ajout-details { font-size: 0.85rem; color: var(--texte-doux); margin-top: 2px; }
+  .fenetre-ajout-prix { color: var(--rose-fonce); margin-top: 4px; }
+  .fenetre-ajout .bouton-ajouter { margin-top: 16px; }
+  .fenetre-ajout-note { text-align: center; font-size: 0.8rem; color: var(--texte-doux); margin-top: 14px; }
+  @media (prefers-reduced-motion: reduce) { .fenetre-ajout-fond, .fenetre-ajout { transition: none; } }
+
   .toast-panier {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--texte); color: var(--blanc); padding: 12px 22px; border-radius: 3px;
@@ -3179,6 +3210,76 @@ const animations = (() => {
   return { cartes, nouvellePage, fonduPage, volVersPanier };
 })();
 
+/* V12.1 : TEXTES EN ARABE sous / à côté du français, pour les clientes
+   qui lisent mieux l'arabe (boutons de la fiche, fenêtre après ajout,
+   formulaire de commande). Si un texte n'est pas dans la liste, seul le
+   français est affiché. */
+const TEXTES_ARABE = {
+  'Commander maintenant': 'اطلب الآن',
+  'Ajouter au panier': 'أضف إلى السلة',
+  'Choisir une couleur': 'اختاري اللون',
+  'Choisir une taille': 'اختاري المقاس',
+  'Épuisé dans cette taille': 'نفد هذا المقاس',
+  'Choisissez une formule': 'اختاري العرض',
+  'Choisir chaque article du pack': 'اختاري كل قطعة',
+  'Ajouter le pack au panier': 'أضف العرض إلى السلة',
+  'Continuer mes achats': 'واصل التسوق',
+  'Voir mon panier': 'سلة المشتريات',
+  'Confirmer la commande': 'تأكيد الطلب',
+  'Nom complet': 'الاسم واللقب',
+  'Téléphone (8 chiffres)': 'رقم الهاتف',
+  'Gouvernorat': 'الولاية',
+  'Ville': 'المدينة',
+  'Adresse de livraison': 'عنوان التوصيل',
+  'Remarque (optionnel)': 'ملاحظة (اختياري)',
+  'Modifier mon panier': 'تعديل السلة',
+  'Sous-total': 'المجموع',
+  'Livraison': 'التوصيل',
+  'Total': 'المجموع الكلي'
+};
+// Renvoie du HTML : « Français · عربي » (le français est échappé).
+function bilingue(francais) {
+  const arabe = TEXTES_ARABE[francais];
+  return echapper(francais) + (arabe ? ` · <span class="texte-ar" lang="ar" dir="rtl">${arabe}</span>` : '');
+}
+
+/* V12.1 : FENÊTRE APRÈS « AJOUTER AU PANIER ». Avant, seul un petit
+   message de 2 s apparaissait et la cliente ne savait pas quoi faire
+   ensuite. Maintenant, une fenêtre montre l'article ajouté avec deux
+   gros boutons : « Commander maintenant » et « Continuer mes achats ». */
+function ouvrirFenetreAjout(ligne, titre) {
+  fermerFenetreAjout();
+  const fond = document.createElement('div');
+  fond.className = 'fenetre-ajout-fond';
+  fond.id = 'fenetre-ajout';
+  fond.onclick = (e) => { if (e.target === fond) fermerFenetreAjout(); };
+  const details = ligne ? [ligne.color, ligne.size].filter(Boolean).join(' · ') : '';
+  const photo = ligne && urlSure(ligne.photo) ? photoOptimisee(ligne.photo, 120) : '';
+  fond.innerHTML = `
+    <div class="fenetre-ajout" role="dialog" aria-modal="true" aria-label="Article ajouté au panier">
+      <div class="fenetre-ajout-titre">✓ ${echapper(titre || 'Ajouté au panier')} · <span class="texte-ar" lang="ar" dir="rtl">تمت الإضافة إلى السلة</span></div>
+      ${ligne ? `
+      <div class="fenetre-ajout-article">
+        ${photo ? `<img src="${echapper(photo)}" alt="">` : ''}
+        <div>
+          <div class="fenetre-ajout-nom">${echapper(ligne.packLabel || ligne.name || '')}</div>
+          ${details && !ligne.packId ? `<div class="fenetre-ajout-details">${echapper(details)}</div>` : ''}
+          ${!ligne.packId ? `<div class="fenetre-ajout-prix">${prixFormat(ligne.price)}</div>` : ''}
+        </div>
+      </div>` : ''}
+      <button type="button" class="bouton-ajouter fenetre-ajout-commander" onclick="fermerFenetreAjout(); naviguerVers('commande')">${bilingue('Commander maintenant')}</button>
+      <button type="button" class="bouton-achat-direct" onclick="fermerFenetreAjout()">${bilingue('Continuer mes achats')}</button>
+      <div class="fenetre-ajout-note">Paiement à la livraison · <span class="texte-ar" lang="ar" dir="rtl">الدفع عند الاستلام</span></div>
+    </div>`;
+  document.body.appendChild(fond);
+  requestAnimationFrame(() => fond.classList.add('visible'));
+}
+function fermerFenetreAjout() {
+  const fond = document.getElementById('fenetre-ajout');
+  if (fond) fond.remove();
+}
+window.fermerFenetreAjout = fermerFenetreAjout;
+
 function afficherToast(message) {
   const toast = document.getElementById('toast-panier');
   toast.textContent = message;
@@ -4204,11 +4305,13 @@ function vueProduit(produitId) {
           </div>
         </div>
 
-        <button class="bouton-ajouter" id="bouton-ajouter" disabled onclick="gererClicAjouter(${enJs(produitId)})">
-          ${aDesPaliers ? 'Choisissez une formule' : 'Choisir une taille'}
+        <!-- V12.1 : « Commander maintenant » devient le bouton principal (plein),
+             « Ajouter au panier » passe en second (contour). Textes en arabe aussi. -->
+        <button class="bouton-ajouter bouton-commander-fiche" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
+          ${bilingue('Commander maintenant')}
         </button>
-        <button class="bouton-achat-direct" id="bouton-acheter-maintenant" disabled onclick="acheterMaintenant(${enJs(produitId)})">
-          Acheter maintenant
+        <button class="bouton-achat-direct bouton-panier-fiche" id="bouton-ajouter" disabled onclick="gererClicAjouter(${enJs(produitId)})">
+          ${bilingue(aDesPaliers ? 'Choisissez une formule' : 'Choisir une taille')}
         </button>
         ${repliablesFicheHTML(produit)}
       </div>
@@ -4554,21 +4657,21 @@ function actualiserBoutonAjouter(produitId) {
   const bouton = document.getElementById('bouton-ajouter');
   const boutonAchat = document.getElementById('bouton-acheter-maintenant');
   if (!etat.produitCourant.couleurChoisie) {
-    bouton.disabled = true; bouton.textContent = 'Choisir une couleur';
+    bouton.disabled = true; bouton.innerHTML = bilingue('Choisir une couleur');
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
   if (!variante) {
-    bouton.disabled = true; bouton.textContent = 'Choisir une taille';
+    bouton.disabled = true; bouton.innerHTML = bilingue('Choisir une taille');
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
   if (dispoParCommande(variante, produitId) <= 0) {
-    bouton.disabled = true; bouton.textContent = 'Épuisé dans cette taille';
+    bouton.disabled = true; bouton.innerHTML = bilingue('Épuisé dans cette taille');
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
-  bouton.disabled = false; bouton.textContent = 'Ajouter au panier';
+  bouton.disabled = false; bouton.innerHTML = bilingue('Ajouter au panier');
   if (boutonAchat) boutonAchat.disabled = false;
 }
 
@@ -4609,8 +4712,12 @@ function ajouterAuPanier(produitId) {
   mettreAJourCompteurPanier();
   sauvegarderPanier();
   suivi.ajoutPanier(produitId);
-  afficherToast('Article ajouté au panier');
   animations.volVersPanier(); // V7.0
+  // V12.1 : fenêtre avec « Commander maintenant » (avant : petit message 2 s)
+  const produit = trouverProduit(produitId);
+  const variante = varianteChoisie(produit);
+  const ligne = variante ? etat.panier.find(l => l.productId === produitId && l.variantId === variante.id && !l.packId) : null;
+  ouvrirFenetreAjout(ligne, 'Ajouté au panier');
 }
 
 /* ============================================================
@@ -4722,7 +4829,7 @@ function choisirFormule(cle, qte) {
     zoneSimple.style.display = '';
     zonePack.innerHTML = '';
     bouton.disabled = true;
-    bouton.textContent = 'Choisir une couleur';
+    bouton.innerHTML = bilingue('Choisir une couleur');
     if (boutonAchat) boutonAchat.disabled = true;
     return;
   }
@@ -4757,7 +4864,7 @@ function choisirFormule(cle, qte) {
 
   bouton.disabled = true;
   if (boutonAchat) boutonAchat.disabled = true;
-  bouton.textContent = 'Choisir chaque article du pack';
+  bouton.innerHTML = bilingue('Choisir chaque article du pack');
 }
 
 function choisirCouleurPack(index, couleur) {
@@ -4838,7 +4945,7 @@ function actualiserBoutonPack() {
   actualiserVerrousPack(); // V7.9 : articles dans l'ordre
   const complet = selections.length > 0 && selections.every(s => s && s.color && s.size);
   bouton.disabled = !complet;
-  bouton.textContent = complet ? 'Ajouter le pack au panier' : 'Choisir chaque article du pack';
+  bouton.innerHTML = bilingue(complet ? 'Ajouter le pack au panier' : 'Choisir chaque article du pack');
   if (boutonAchat) boutonAchat.disabled = !complet;
 }
 
@@ -4886,8 +4993,10 @@ function ajouterPackAuPanier(produitId) {
   mettreAJourCompteurPanier();
   sauvegarderPanier();
   suivi.ajoutPanier(produitId);
-  afficherToast('Pack ajouté au panier');
   animations.volVersPanier(); // V7.0
+  // V12.1 : même fenêtre que pour un article seul
+  const lignesPack = etat.panier.filter(l => l.productId === produitId && l.packId);
+  ouvrirFenetreAjout(lignesPack.length ? lignesPack[lignesPack.length - 1] : null, 'Pack ajouté au panier');
 }
 
 /* ============================================================
@@ -4978,39 +5087,46 @@ function vueCommande() {
   const total = sousTotal + etat.fraisAffiches;
   return `
     <div class="section-etroite" style="margin-top:30px;">
-      <h1 style="font-size:1.6rem; margin-bottom:24px;">Vos coordonnées de livraison</h1>
+      <h1 style="font-size:1.6rem; margin-bottom:6px;">Vos coordonnées de livraison</h1>
+      <div class="texte-ar-ligne" lang="ar" dir="rtl" style="font-size:1.2rem; margin-bottom:24px;">معلومات التوصيل</div>
 
-      <div class="rappel-paiement">Paiement à la livraison — réglez en espèces à la remise de votre colis.</div>
+      <!-- V12.1 : rappel rassurant, en français et en arabe -->
+      <div class="rappel-paiement">
+        <div>💵 Paiement à la livraison : vous payez en espèces à la réception du colis.</div>
+        <div class="texte-ar-ligne" lang="ar" dir="rtl">الدفع عند الاستلام نقداً</div>
+        <div style="margin-top:8px;">📞 Nous vous appelons pour confirmer avant l'envoi.</div>
+        <div class="texte-ar-ligne" lang="ar" dir="rtl">سنتصل بك لتأكيد الطلب قبل الإرسال</div>
+      </div>
 
       <div id="bandeau-erreur-commande"></div>
 
       <form id="formulaire-commande">
         <div class="champ">
-          <label for="champ-nom">Nom complet</label>
+          <label for="champ-nom">${bilingue('Nom complet')}</label>
           <input type="text" id="champ-nom" name="clientName" required value="${echapper(brouillon.clientName)}">
         </div>
         <div class="champ">
-          <label for="champ-telephone">Téléphone (8 chiffres)</label>
+          <label for="champ-telephone">${bilingue('Téléphone (8 chiffres)')}</label>
           <input type="tel" id="champ-telephone" name="phone" required inputmode="numeric" maxlength="8" autocomplete="tel-national" placeholder="Ex : 20123456" value="${echapper(brouillon.phone)}">
         </div>
         <div class="champ">
-          <label for="champ-gouvernorat">Gouvernorat</label>
+          <label for="champ-gouvernorat">${bilingue('Gouvernorat')}</label>
           <select id="champ-gouvernorat" name="gouvernorat" required>
-            <option value="">— Choisir —</option>
+            <option value="">— Choisir · اختاري —</option>
             ${GOUVERNORATS.map(([nom, code]) => `<option value="${code}" ${brouillon.gouvernorat === code ? 'selected' : ''}>${echapper(nom)}</option>`).join('')}
           </select>
         </div>
         <div class="champ">
-          <label for="champ-ville">Ville</label>
-          <input type="text" id="champ-ville" name="ville" required maxlength="80" placeholder="Ex : Ksar Hellal" value="${echapper(brouillon.ville)}">
+          <label for="champ-ville">${bilingue('Ville')}</label>
+          <input type="text" id="champ-ville" name="ville" required maxlength="80" placeholder="Ex : Ksar Hellal · مثال: قصر هلال" value="${echapper(brouillon.ville)}">
         </div>
         <div class="champ">
-          <label for="champ-adresse">Adresse de livraison</label>
+          <label for="champ-adresse">${bilingue('Adresse de livraison')}</label>
           <textarea id="champ-adresse" name="address" required>${echapper(brouillon.address)}</textarea>
         </div>
         <div class="champ">
-          <label for="champ-remarque">Remarque (optionnel)</label>
-          <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère, horaires préférés…">${echapper(brouillon.remark)}</textarea>
+          <label for="champ-remarque">${bilingue('Remarque (optionnel)')}</label>
+          <textarea id="champ-remarque" name="remark" placeholder="Étage, point de repère… · الطابق، علامة مميزة…">${echapper(brouillon.remark)}</textarea>
         </div>
 
         <div class="recap-commande">
@@ -5018,23 +5134,23 @@ function vueCommande() {
             <div class="ligne-recap"><span>${echapper(l.name)} (${echapper(l.color)}, ${echapper(l.size)}) ×${Number(l.qty) || 0}</span><span>${prixFormat(l.qty * l.price)}</span></div>
           `).join('')}
           <div class="ligne-recap" style="margin-top:8px; border-top:1px solid var(--dore); padding-top:10px;">
-            <span>Sous-total</span><span>${prixFormat(sousTotal)}</span>
+            <span>${bilingue('Sous-total')}</span><span>${prixFormat(sousTotal)}</span>
           </div>
           <div class="ligne-recap">
-            <span>Livraison</span><span>${prixFormat(etat.fraisAffiches)}</span>
+            <span>${bilingue('Livraison')}</span><span>${prixFormat(etat.fraisAffiches)}</span>
           </div>
           <div class="ligne-recap" style="font-weight:600;">
-            <span>Total</span><span>${prixFormat(total)}</span>
+            <span>${bilingue('Total')}</span><span>${prixFormat(total)}</span>
           </div>
         </div>
 
         <!-- V5.7 : vérification anti-robot Turnstile (invisible, sauf si Cloudflare a un doute) -->
         <div id="zone-turnstile" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
-        <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">Confirmer la commande</button>
-        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">Continuer mes achats</button>
+        <button type="submit" class="bouton-principal" style="width:100%;" id="bouton-valider-commande">${bilingue('Confirmer la commande')}</button>
+        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="continuerMesAchats()">${bilingue('Continuer mes achats')}</button>
         <!-- Ouvre le panier pour retirer ou changer un article avant de commander
              (l'article d'« Acheter maintenant » y est mis automatiquement) -->
-        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="naviguerVers('panier')">Modifier mon panier</button>
+        <button type="button" class="bouton-secondaire" style="width:100%; margin-top:12px;" onclick="naviguerVers('panier')">${bilingue('Modifier mon panier')}</button>
       </form>
     </div>
   `;
@@ -5294,7 +5410,7 @@ function envoyerCommande() {
         <div class="note-secours" id="note-secours">Votre commande est copiée en touchant un bouton : il suffit de la coller dans le message.</div>` : ''}
     </div>`;
     boutonValider.disabled = false;
-    boutonValider.textContent = 'Confirmer la commande';
+    boutonValider.innerHTML = bilingue('Confirmer la commande');
   };
 
   // V2.24 : la commande passe par le Worker Cloudflare (/api/commande), qui
@@ -5317,7 +5433,7 @@ function envoyerCommande() {
       if (reponse.status === 409 && Array.isArray(donnees.manquants)) {
         // Stock insuffisant au moment exact de l'envoi
         boutonValider.disabled = false;
-        boutonValider.textContent = 'Confirmer la commande';
+        boutonValider.innerHTML = bilingue('Confirmer la commande');
         afficherStockChange(bandeauErreur, donnees.manquants.map(m => {
           const ligne = lignes.find(l => l.productId === m.productId && l.variantId === m.variantId) || {};
           const details = [ligne.color, ligne.size].filter(Boolean).join(', ');
@@ -5329,21 +5445,21 @@ function envoyerCommande() {
         // V5.7 : la vérification anti-robot n'a pas abouti
         bandeauErreur.innerHTML = `<div class="bandeau-erreur">La vérification de sécurité n'a pas abouti. Merci de réessayer.</div>`;
         boutonValider.disabled = false;
-        boutonValider.textContent = 'Confirmer la commande';
+        boutonValider.innerHTML = bilingue('Confirmer la commande');
         return;
       }
       if (reponse.status === 429 && donnees.erreur === 'trop-de-commandes-telephone') {
         // V6.8 : une commande vient déjà d'être envoyée avec ce numéro (1 par minute)
         bandeauErreur.innerHTML = `<div class="bandeau-erreur">Une commande vient d'être envoyée avec ce numéro. Merci d'attendre une minute avant une nouvelle commande.</div>`;
         boutonValider.disabled = false;
-        boutonValider.textContent = 'Confirmer la commande';
+        boutonValider.innerHTML = bilingue('Confirmer la commande');
         return;
       }
       if (reponse.status === 429) {
         // V2.29 : trop de commandes envoyées en peu de temps depuis la même connexion
         bandeauErreur.innerHTML = `<div class="bandeau-erreur">Beaucoup de commandes viennent d'être envoyées depuis votre connexion. Merci de patienter une minute puis de réessayer.</div>`;
         boutonValider.disabled = false;
-        boutonValider.textContent = 'Confirmer la commande';
+        boutonValider.innerHTML = bilingue('Confirmer la commande');
         return;
       }
       // Toute autre réponse (panne 500/503, adresse inconnue 404/405…) :
