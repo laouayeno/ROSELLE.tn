@@ -30,6 +30,21 @@
 /rose-bande.webp
   Cache-Control: public, max-age=604800
 
+# V12.7 : icônes du site (onglet, iPhone, Android). Gardées 1 jour seulement :
+# si on change l'icône en gardant les mêmes noms, tout le monde la voit le lendemain.
+/favicon.ico
+  Cache-Control: public, max-age=86400
+/favicon-32.png
+  Cache-Control: public, max-age=86400
+/apple-touch-icon.png
+  Cache-Control: public, max-age=86400
+/icone-192.png
+  Cache-Control: public, max-age=86400
+/icone-512.png
+  Cache-Control: public, max-age=86400
+/site.webmanifest
+  Cache-Control: public, max-age=86400
+
 # V2.34 : protections de sécurité envoyées avec TOUTES les pages et fichiers.
 # Elles ne changent rien à l'affichage du site.
 # - X-Frame-Options + frame-ancestors : un autre site ne peut pas afficher
