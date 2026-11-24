@@ -52,7 +52,7 @@ export default {
     if (url.pathname.startsWith('/vid/')) return servirVideo(requete, url, ctx);
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
-      return traiterCommande(requete, env);
+      return traiterCommande(requete, env, ctx);
     }
     // V8.4 : test de charge, effacement des fausses commandes (clé secrète obligatoire).
     if (url.pathname === '/api/test-charge/nettoyer') {
@@ -77,7 +77,7 @@ export default {
 };
 
 /* ---------- Réception et vérification de la commande ---------- */
-async function traiterCommande(requete, env) {
+async function traiterCommande(requete, env, ctx) {
   if (!env.FIREBASE_SA) return json({ ok: false, erreur: 'non-configure' }, 503);
 
   // V2.29 : limite anti-robots, par connexion (adresse IP). Beaucoup de
@@ -157,6 +157,12 @@ async function traiterCommande(requete, env) {
   try {
     const resultat = await enregistrerAvecTransaction(jeton, commande);
     if (!resultat.ok) return json(resultat, 409);
+    // V12.5 : notification « Nouvelle commande » sur l'appli Stock.
+    // Envoyée APRÈS la réponse à la cliente (waitUntil) : elle ne ralentit
+    // jamais la commande, et une panne des notifications ne la bloque pas.
+    if (!resultat.dejaEnregistree && !commande.seulementArticleTest) {
+      ctx.waitUntil(prevenirStock(env, commande, resultat.articles).catch(e => console.log('Notification commande :', e && e.message)));
+    }
     return json({ ok: true, ref: commande.ref });
   } catch (e) {
     console.error('Erreur commande :', e && e.message);
@@ -204,6 +210,29 @@ function verifierCommande(c) {
     .filter(r => typeof r === 'string' && /^WEB-[0-9]{6,20}$/.test(r))
     .slice(0, 10);
   return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee, gouvernorat, refsAppareil };
+}
+
+/* ---------- V12.5 : prévenir l'appli Stock d'une nouvelle commande ----------
+   Liaison de service STOCK (wrangler.jsonc) vers le Worker « rosellestock »,
+   porte interne « Notifications » : pas d'adresse sur Internet, pas de clé.
+   On n'envoie NI le nom, NI le téléphone, NI l'adresse de la cliente :
+   seulement les noms des articles, le nombre de pièces et le gouvernorat. */
+const NOMS_GOUVERNORAT = {
+  '2080': 'Ariana', '9000': 'Béja', '2013': 'Ben Arous', '7000': 'Bizerte', '6000': 'Gabès', '2100': 'Gafsa',
+  '8100': 'Jendouba', '3100': 'Kairouan', '1200': 'Kasserine', '4200': 'Kébili', '2010': 'La Manouba', '7100': 'Le Kef',
+  '5100': 'Mahdia', '4100': 'Médenine', '5000': 'Monastir', '8000': 'Nabeul', '3000': 'Sfax', '9100': 'Sidi Bouzid',
+  '6100': 'Siliana', '4000': 'Sousse', '3200': 'Tataouine', '2200': 'Tozeur', '1000': 'Tunis', '1100': 'Zaghouan'
+};
+async function prevenirStock(env, commande, articles) {
+  if (!env.STOCK || typeof env.STOCK.nouvelleCommande !== 'function') return;
+  const pieces = commande.items.reduce((n, it) => n + it.qty, 0);
+  const noms = Array.isArray(articles) ? articles.slice(0, 4).join(', ') + (articles.length > 4 ? '…' : '') : '';
+  await env.STOCK.nouvelleCommande({
+    ref: commande.ref,
+    pieces,
+    articles: noms ? (pieces > 1 ? pieces + ' pièces : ' : '') + noms : '',
+    ville: NOMS_GOUVERNORAT[commande.gouvernorat] || ''
+  });
 }
 
 // Les 24 gouvernorats (mêmes codes que dans le Stock et sur le site).
@@ -484,7 +513,12 @@ async function enregistrerAvecTransaction(jeton, commande) {
       });
 
       await appelFirestore(jeton, ':commit', { writes: ecritures, transaction });
-      return { ok: true };
+      // V12.5 : noms des articles commandés, pour la notification du Stock.
+      const articles = [...parArticle.keys()].map(id => {
+        const fiche = fiches.get(id);
+        return fiche && fiche.fields && fiche.fields.name ? String(fiche.fields.name.stringValue || '') : '';
+      }).filter(Boolean);
+      return { ok: true, articles };
     } catch (e) {
       const occupe = e && (e.code === 409 || e.code === 'ABORTED' || e.code === 429 || e.code === 503);
       if (!occupe) throw e;
