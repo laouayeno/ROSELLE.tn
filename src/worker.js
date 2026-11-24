@@ -157,7 +157,7 @@ async function traiterCommande(requete, env, ctx) {
   try {
     const resultat = await enregistrerAvecTransaction(jeton, commande);
     if (!resultat.ok) return json(resultat, 409);
-    // V12.5 : notification « Nouvelle commande » sur l'appli Stock.
+    // V12.6 : notification « Nouvelle commande » sur l'appli Stock.
     // Envoyée APRÈS la réponse à la cliente (waitUntil) : elle ne ralentit
     // jamais la commande, et une panne des notifications ne la bloque pas.
     if (!resultat.dejaEnregistree && !commande.seulementArticleTest) {
@@ -212,7 +212,7 @@ function verifierCommande(c) {
   return { ref, clientName, phone, address, remark, items, deliveryFee: c.deliveryFee, gouvernorat, refsAppareil };
 }
 
-/* ---------- V12.5 : prévenir l'appli Stock d'une nouvelle commande ----------
+/* ---------- V12.6 : prévenir l'appli Stock d'une nouvelle commande ----------
    Liaison de service STOCK (wrangler.jsonc) vers le Worker « rosellestock »,
    porte interne « Notifications » : pas d'adresse sur Internet, pas de clé.
    On n'envoie NI le nom, NI le téléphone, NI l'adresse de la cliente :
@@ -513,7 +513,7 @@ async function enregistrerAvecTransaction(jeton, commande) {
       });
 
       await appelFirestore(jeton, ':commit', { writes: ecritures, transaction });
-      // V12.5 : noms des articles commandés, pour la notification du Stock.
+      // V12.6 : noms des articles commandés, pour la notification du Stock.
       const articles = [...parArticle.keys()].map(id => {
         const fiche = fiches.get(id);
         return fiche && fiche.fields && fiche.fields.name ? String(fiche.fields.name.stringValue || '') : '';

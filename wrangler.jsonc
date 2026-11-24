@@ -45,7 +45,7 @@
     // (large : beaucoup de clientes partagent la même adresse chez l'opérateur).
     { "name": "LIMITE_STATS", "namespace_id": "2903", "simple": { "limit": 300, "period": 60 } }
   ],
-  // V12.5 : liaison INTERNE vers le Worker du Stock, pour la notification
+  // V12.6 : liaison INTERNE vers le Worker du Stock, pour la notification
   // « Nouvelle commande » sur l'appli Stock (rien n'est ouvert sur Internet).
   "services": [
     { "binding": "STOCK", "service": "rosellestock", "entrypoint": "Notifications" }
