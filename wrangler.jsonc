@@ -44,6 +44,11 @@
     // V5.7 : statistiques de visite, 300 événements par minute et par connexion
     // (large : beaucoup de clientes partagent la même adresse chez l'opérateur).
     { "name": "LIMITE_STATS", "namespace_id": "2903", "simple": { "limit": 300, "period": 60 } }
+  ],
+  // V12.6 : liaison INTERNE vers le Worker du Stock, pour la notification
+  // « Nouvelle commande » sur l'appli Stock (rien n'est ouvert sur Internet).
+  "services": [
+    { "binding": "STOCK", "service": "rosellestock", "entrypoint": "Notifications" }
   ]
   // Clés secrètes FIREBASE_SA, TURNSTILE_SECRET et TURNSTILE_SITE_KEY : ajoutées
   // à la main dans Cloudflare (Workers > rosellestore > Paramètres > Variables
