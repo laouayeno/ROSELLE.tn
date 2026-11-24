@@ -47,9 +47,9 @@ export default {
   async fetch(requete, env, ctx) {
     const url = new URL(requete.url);
     // V6.3 : photos des articles, servies depuis la mémoire de Cloudflare
-    if (url.pathname.startsWith('/img/')) return servirPhoto(requete, url, ctx);
+    if (url.pathname.startsWith('/img/')) return servirPhoto(requete, url, env, ctx);
     // V10.2 : vidéo d'accueil envoyée depuis le Stock, servie depuis la mémoire de Cloudflare
-    if (url.pathname.startsWith('/vid/')) return servirVideo(requete, url, ctx);
+    if (url.pathname.startsWith('/vid/')) return servirVideo(requete, url, env, ctx);
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env, ctx);
@@ -779,7 +779,7 @@ const REGLAGE_PHOTO_PERMIS = /^f_auto,q_auto:(good|best),(c_limit|c_lfill,ar_(?:
 // Fichier : numéro de version facultatif puis nom, sans « .. » ni caractères bizarres
 const FICHIER_PHOTO_PERMIS = /^(v\d+\/)?[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*(\.(jpe?g|png|webp|gif|avif|heic))?$/i;
 
-async function servirPhoto(requete, url, ctx) {
+async function servirPhoto(requete, url, env, ctx) {
   if (requete.method !== 'GET' && requete.method !== 'HEAD') {
     return new Response('Méthode refusée', { status: 405 });
   }
@@ -806,6 +806,14 @@ async function servirPhoto(requete, url, ctx) {
   const enMemoire = await cache.match(cle);
   if (enMemoire) return enMemoire;
 
+  // V12.5 : d'abord chez Cloudflare (original rangé dans R2, taille préparée par
+  // Cloudflare Images). Cloudinary n'est plus utilisé que si ce chemin échoue.
+  const parCloudflare = await photoDepuisR2(env, fichier, verif, format);
+  if (parCloudflare) {
+    ctx.waitUntil(cache.put(cle, parCloudflare.clone()));
+    return parCloudflare;
+  }
+
   const origine = await fetch(`https://res.cloudinary.com/${CLOUD_PHOTOS}/image/upload/${reglageFinal}/${fichier}`);
   if (!origine.ok) {
     // Erreur Cloudinary : rien n'est gardé, le site rechargera la photo directement
@@ -823,6 +831,81 @@ async function servirPhoto(requete, url, ctx) {
   });
   ctx.waitUntil(cache.put(cle, reponse.clone()));
   return reponse;
+}
+
+/* ---------- V12.5 : photos rangées chez Cloudflare (R2) ----------
+   But : ne plus dépendre de Cloudinary (25 crédits gratuits par mois, presque
+   tous partis en téléchargements), SANS baisser la qualité.
+     - PHOTOS (R2) garde l'ORIGINAL de chaque photo, octet pour octet. La 1re fois
+       qu'une photo est demandée, le Worker prend l'original chez Cloudinary (une
+       seule fois pour toujours) et le range dans R2 sous « cloudinary/<fichier> ».
+       Les adresses enregistrées dans Firestore ne changent donc pas.
+     - IMAGES (Cloudflare Images) fabrique la taille demandée à partir de cet
+       original : mêmes largeurs, même découpe et même format (AVIF / WebP / JPEG)
+       qu'avant, qualité 92 (« best ») ou 85 (« good »).
+   Prix : R2 gratuit jusqu'à 10 Go ; Images gratuit jusqu'à 5 000 tailles
+   différentes par mois (le format ne compte pas). Au-delà, rien n'est facturé :
+   Cloudflare refuse, et ce code renvoie null → la photo vient de Cloudinary
+   comme avant. Même chose si R2 ou Images n'est pas branché, ou en cas d'erreur.
+   Retour arrière : retirer les liaisons PHOTOS / IMAGES de wrangler.jsonc. */
+const QUALITE_PHOTO = { best: 92, good: 85 };
+const TYPE_PHOTO = { f_avif: 'image/avif', f_webp: 'image/webp', f_jpg: 'image/jpeg' };
+const TAILLE_MAX_ORIGINAL = 20 * 1024 * 1024; // limite de Cloudflare Images (20 Mo)
+
+// verif = résultat de REGLAGE_PHOTO_PERMIS : [1] good|best, [2] découpe, [3] largeur
+async function photoDepuisR2(env, fichier, verif, format) {
+  if (!env.PHOTOS || !env.IMAGES) return null;
+  try {
+    const octets = await originalDansR2(env, fichier);
+    if (!octets) return null;
+
+    // Même découpe que Cloudinary :
+    // - c_limit : réduite à la largeur demandée, jamais agrandie ;
+    // - c_lfill,ar_L:H,g_center : découpée au centre à la forme L:H, jamais agrandie.
+    const largeur = Number(verif[3]);
+    const forme = verif[2].match(/ar_(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)/);
+    const taille = forme
+      ? { width: largeur, height: Math.round(largeur * Number(forme[2]) / Number(forme[1])), fit: 'aspect-crop', gravity: 'center' }
+      : { width: largeur, fit: 'scale-down' };
+
+    const resultat = await env.IMAGES
+      .input(new Response(octets).body)
+      .transform(taille)
+      .output({ format: TYPE_PHOTO[format], quality: QUALITE_PHOTO[verif[1]] || 92 });
+    const brute = resultat.response();
+    if (!brute.ok) return null;
+    return new Response(brute.body, {
+      status: 200,
+      headers: {
+        'Content-Type': brute.headers.get('Content-Type') || TYPE_PHOTO[format],
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Vary': 'Accept',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Photo-Source': 'r2'   // pour vérifier d'où vient la photo
+      }
+    });
+  } catch (e) {
+    console.log('photo R2 indisponible, secours Cloudinary', fichier, String(e && e.message || e));
+    return null;
+  }
+}
+
+// Original de la photo : depuis R2 ; s'il n'y est pas encore, pris UNE fois chez
+// Cloudinary (adresse sans réglage = fichier envoyé, sans retouche) puis rangé dans R2.
+async function originalDansR2(env, fichier) {
+  const cleR2 = 'cloudinary/' + fichier;
+  const objet = await env.PHOTOS.get(cleR2);
+  if (objet) return await objet.arrayBuffer();
+  const rep = await fetch(`https://res.cloudinary.com/${CLOUD_PHOTOS}/image/upload/${fichier}`);
+  if (!rep.ok) return null;
+  const octets = await rep.arrayBuffer();
+  if (!octets.byteLength || octets.byteLength > TAILLE_MAX_ORIGINAL) return null;
+  try {
+    await env.PHOTOS.put(cleR2, octets.slice(0), {
+      httpMetadata: { contentType: rep.headers.get('Content-Type') || 'image/jpeg' }
+    });
+  } catch (e) { /* pas grave : on réessaiera à la prochaine demande */ }
+  return octets;
 }
 
 /* ---------- V10.2 : relais de la vidéo d'accueil ----------
@@ -857,7 +940,7 @@ function fichierVideoAccueil(adresse) {
   return m && m[1] === CLOUD_PHOTOS ? m[2] : '';
 }
 
-async function servirVideo(requete, url, ctx) {
+async function servirVideo(requete, url, env, ctx) {
   if (requete.method !== 'GET' && requete.method !== 'HEAD') {
     return new Response('Méthode refusée', { status: 405 });
   }
@@ -880,15 +963,47 @@ async function servirVideo(requete, url, ctx) {
   const enMemoire = await cache.match(morceau ? new Request(cle.url, { headers: { Range: morceau } }) : cle);
   if (enMemoire) return enMemoire;
 
-  // 2) Pas en mémoire : copie complète gardée en arrière-plan (une seule fois par
-  //    machine Cloudflare : l'iPhone demande plusieurs morceaux d'affilée)...
+  // V12.5 : 2) Déjà rangée chez Cloudflare (R2) : servie de là, sans Cloudinary.
+  //    En arrière-plan, la vidéo entière est remise dans la mémoire de ce centre
+  //    (les morceaux suivants ne coûtent alors même plus une lecture R2).
+  const cleR2 = 'video/' + reglage + '/' + fichier;
+  if (env.PHOTOS) {
+    try {
+      const objet = await env.PHOTOS.get(cleR2, morceau ? { range: requete.headers } : {});
+      if (objet && objet.body) {
+        if (!copiesEnCours.has(cle.url)) ctx.waitUntil((async () => {
+          copiesEnCours.add(cle.url);
+          try {
+            const entier = await env.PHOTOS.get(cleR2);
+            if (entier) await cache.put(cle, new Response(entier.body, { status: 200, headers: entetesVideoR2(entier, estVideo) }));
+          } catch (e) { /* pas grave */ }
+          finally { copiesEnCours.delete(cle.url); }
+        })());
+        return reponseVideoR2(objet, estVideo, !!morceau);
+      }
+    } catch (e) {
+      console.log('vidéo R2 indisponible, secours Cloudinary', fichier, String(e && e.message || e));
+    }
+  }
+
+  // 3) Pas encore chez Cloudflare : copie complète gardée en arrière-plan (une seule
+  //    fois par machine Cloudflare : l'iPhone demande plusieurs morceaux d'affilée),
+  //    V12.5 : dans R2 (pour toujours) ET dans la mémoire de ce centre...
   if (!copiesEnCours.has(cle.url)) ctx.waitUntil((async () => {
     copiesEnCours.add(cle.url);
     try {
       const complet = await fetch(adresseCloudinary);
       // Vidéo encore en préparation chez Cloudinary, ou erreur : rien n'est gardé
       if (!complet.ok || complet.status !== 200) return;
-      await cache.put(cle, new Response(complet.body, { status: 200, headers: entetesVideo(complet, estVideo) }));
+      const octets = await complet.arrayBuffer();
+      if (env.PHOTOS && octets.byteLength > 0 && octets.byteLength <= 100 * 1024 * 1024) {
+        try {
+          await env.PHOTOS.put(cleR2, octets.slice(0), {
+            httpMetadata: { contentType: complet.headers.get('Content-Type') || (estVideo ? 'video/mp4' : 'image/jpeg') }
+          });
+        } catch (e) { /* pas grave : on réessaiera à la prochaine visite */ }
+      }
+      await cache.put(cle, new Response(octets, { status: 200, headers: entetesVideo(complet, estVideo) }));
     } catch (e) { /* pas grave : on réessaiera à la prochaine visite */ }
     finally { copiesEnCours.delete(cle.url); }
   })());
@@ -905,6 +1020,28 @@ async function servirVideo(requete, url, ctx) {
     if (valeur) entetes.set(nom, valeur);
   }
   return new Response(origine.body, { status: origine.status, headers: entetes });
+}
+
+// V12.5 : réponse depuis R2, entière (200) ou morceau demandé par l'iPhone (206).
+function reponseVideoR2(objet, estVideo, morceauDemande) {
+  const entetes = entetesVideoR2(objet, estVideo);
+  const total = objet.size;
+  const r = objet.range;
+  if (morceauDemande && r && total) {
+    let debut, longueur;
+    if (r.suffix !== undefined) { longueur = Math.min(r.suffix, total); debut = total - longueur; }
+    else { debut = r.offset || 0; longueur = r.length !== undefined ? r.length : total - debut; }
+    entetes.set('Content-Range', `bytes ${debut}-${debut + longueur - 1}/${total}`);
+    entetes.set('Content-Length', String(longueur));
+    return new Response(objet.body, { status: 206, headers: entetes });
+  }
+  if (total) entetes.set('Content-Length', String(total));
+  return new Response(objet.body, { status: 200, headers: entetes });
+}
+
+function entetesVideoR2(objet, estVideo) {
+  const type = (objet.httpMetadata && objet.httpMetadata.contentType) || (estVideo ? 'video/mp4' : 'image/jpeg');
+  return entetesVideo({ headers: new Headers({ 'Content-Type': type }) }, estVideo);
 }
 
 // En-têtes communs : type du fichier, mémoire 1 an (une adresse Cloudinary ne change

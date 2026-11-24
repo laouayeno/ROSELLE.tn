@@ -20,6 +20,12 @@
   // lisibles dans le tableau de bord (Workers > rosellestore > Journaux) et par Claude.
   // Inclus dans l'offre payante 5 $ (20 millions de lignes par mois).
   "observability": { "enabled": true },
+  // V12.5 : photos et vidéo d'accueil rangées chez Cloudflare au lieu de Cloudinary.
+  // - PHOTOS : seau R2 « roselle-photos » (originaux, gratuit jusqu'à 10 Go) ;
+  // - IMAGES : Cloudflare Images, prépare les tailles (gratuit : 5 000 tailles / mois).
+  // Sans ces 2 lignes, le site reprend Cloudinary comme avant (retour arrière).
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "roselle-photos" }],
+  "images": { "binding": "IMAGES" },
   // V10.2 : /vid/ = vidéo d'accueil envoyée depuis le Stock (relais en mémoire, comme /img/).
   // Site statique : tous les fichiers du dossier public/ sont servis tels quels
   "assets": {
