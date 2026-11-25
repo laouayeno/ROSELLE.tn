@@ -23,7 +23,8 @@
    Clés secrètes, rangées dans Cloudflare (jamais dans ce code) :
      - FIREBASE_SA      : « clé de service » Firebase (fichier JSON) ;
      - TURNSTILE_SECRET : clé secrète Turnstile (sans elle, pas de contrôle) ;
-     - TURNSTILE_SITE_KEY : clé publique Turnstile (donnée à la page).
+     - TURNSTILE_SITE_KEY : clé publique Turnstile (donnée à la page) ;
+     - CHATBOT_SECRET   : clé du robot de messages (V12.9, /api/orders-from-chatbot).
    ============================================================ */
 
 const PROJET = 'roselle-stock';
@@ -53,6 +54,11 @@ export default {
     if (url.pathname === '/api/commande') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommande(requete, env, ctx);
+    }
+    // V12.9 : commande créée par un robot de messages (clé secrète CHATBOT_SECRET)
+    if (url.pathname === '/api/orders-from-chatbot') {
+      if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
+      return traiterCommandeChatbot(requete, env, ctx);
     }
     // V8.4 : test de charge, effacement des fausses commandes (clé secrète obligatoire).
     if (url.pathname === '/api/test-charge/nettoyer') {
@@ -507,6 +513,7 @@ async function enregistrerAvecTransaction(jeton, commande) {
         date: new Date().toISOString()
       };
       if (commande.gouvernorat) colis.gouvernorat = commande.gouvernorat; // V2.35
+      if (commande.source) colis.source = commande.source; // V12.9 : 'instagram' ou 'facebook' (robot DM)
       ecritures.push({
         update: { name: nomColis, fields: versFirestore(colis).mapValue.fields }, // V6.8 : nom = référence
         currentDocument: { exists: false }
@@ -1053,4 +1060,141 @@ function entetesVideo(origine, estVideo) {
   h.set('Accept-Ranges', 'bytes');
   h.set('X-Content-Type-Options', 'nosniff');
   return h;
+}
+
+/* ---------- Chatbot DM (V12.9) ----------
+   Route : POST /api/orders-from-chatbot
+   Sert à un robot de messages (ManyChat, ou notre propre robot) pour créer
+   une commande EXACTEMENT comme le site :
+     - même vérification des champs (verifierCommande) ;
+     - même transaction anti-survente et anti-doublon (enregistrerAvecTransaction) ;
+     - même limite « 1 commande par minute et par téléphone » ;
+     - même notification « Nouvelle commande » dans l'appli Stock.
+   Sécurité : pas de Turnstile (aucune page n'est affichée), mais une clé
+   secrète CHATBOT_SECRET (au moins 32 caractères, rangée dans Cloudflare),
+   envoyée dans l'en-tête « Authorization: Bearer <clé> ».
+   Sans la clé installée, la route est ÉTEINTE (réponse 404). */
+const CANAUX_CHATBOT = ['instagram', 'facebook'];
+
+async function traiterCommandeChatbot(requete, env, ctx) {
+  // Route éteinte tant que la clé n'est pas installée
+  if (typeof env.CHATBOT_SECRET !== 'string' || env.CHATBOT_SECRET.length < 32) {
+    return json({ ok: false, erreur: 'introuvable' }, 404);
+  }
+  if (!(await cleChatbotValable(requete, env))) return json({ ok: false, erreur: 'non-autorise' }, 401);
+
+  let corps;
+  try {
+    corps = await requete.json();
+  } catch (e) {
+    return json({ ok: false, erreur: 'invalide' }, 400);
+  }
+  const commande = await commandeDepuisChatbot(corps);
+  if (!commande) return json({ ok: false, erreur: 'invalide' }, 400);
+
+  const resultat = await creerCommandeChatbot(env, ctx, commande);
+  return json(resultat.reponse, resultat.statut);
+}
+
+// Compare la clé reçue à CHATBOT_SECRET par leur empreinte (SHA-256),
+// en temps constant (même méthode que cleTestValable).
+async function cleChatbotValable(requete, env) {
+  const entete = requete.headers.get('Authorization') || '';
+  const recue = entete.startsWith('Bearer ') ? entete.slice(7) : '';
+  if (!recue || recue.length > 200) return false;
+  const empreinte = async (texte) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texte)));
+  const [a, b] = await Promise.all([empreinte(env.CHATBOT_SECRET), empreinte(recue)]);
+  let difference = 0;
+  for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+  return difference === 0;
+}
+
+// Transforme le JSON du robot en commande au format du site, puis la fait
+// passer par verifierCommande (mêmes règles que le formulaire).
+// Renvoie la commande propre, ou null si quelque chose ne va pas.
+async function commandeDepuisChatbot(c) {
+  if (!c || typeof c !== 'object') return null;
+  if (!CANAUX_CHATBOT.includes(c.canal)) return null;
+  if (typeof c.idConversation !== 'string' || !/^[0-9A-Za-z_-]{1,200}$/.test(c.idConversation)) return null;
+  if (!Number.isInteger(c.numeroCommande) || c.numeroCommande < 1 || c.numeroCommande > 999) return null;
+  const client = c.client || {};
+  const livraison = c.livraison || {};
+
+  // Téléphone : on enlève espaces, points, tirets et l'indicatif +216 / 00216.
+  const telephone = String(client.telephone || '').replace(/[\s.\-]/g, '').replace(/^(\+216|00216)/, '');
+  const ville = typeof livraison.ville === 'string' ? livraison.ville.trim() : '';
+  const adresse = typeof livraison.adresse === 'string' ? livraison.adresse.trim() : '';
+  if (!ville || !adresse) return null;
+  // Gouvernorat OBLIGATOIRE ici (Bestway en a besoin) : un des 24 codes.
+  if (!CODES_GOUVERNORAT.includes(livraison.gouvernorat)) return null;
+
+  // ANTI-DOUBLON : la référence est calculée à partir du canal, de la
+  // conversation et du numéro de commande du robot. Si Meta ou le robot
+  // renvoie le même message, on retombe sur la même référence : pas de 2e colis.
+  // 18 chiffres (le site en utilise 16) : jamais la même qu'une commande du site.
+  const empreinte = new Uint8Array(await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(c.canal + '|' + c.idConversation + '|' + c.numeroCommande)));
+  let chiffres = '';
+  for (let i = 0; chiffres.length < 18; i++) chiffres += String(empreinte[i] % 10);
+  const ref = 'WEB-' + chiffres;
+
+  const remarqueRobot = c.canal === 'instagram' ? 'Commande DM Instagram' : 'Commande DM Facebook';
+  const remarqueCliente = typeof c.remarque === 'string' ? c.remarque.trim() : '';
+
+  const propre = verifierCommande({
+    ref,
+    clientName: client.nom,
+    phone: telephone,
+    // Comme le site : la ville au début de l'adresse (Bestway n'a pas de champ « ville »).
+    address: (ville + ', ' + adresse).slice(0, MAX_TEXTE),
+    remark: (remarqueRobot + (remarqueCliente ? ' : ' + remarqueCliente : '')).slice(0, MAX_TEXTE),
+    deliveryFee: 0, // ignoré : les vrais frais viennent de siteSettings dans la transaction
+    gouvernorat: livraison.gouvernorat,
+    items: c.articles
+  });
+  if (!propre) return null;
+  propre.source = c.canal; // gardé dans le colis pour reconnaître les commandes du robot
+  return propre;
+}
+
+// Crée la commande. Utilisée par la route ci-dessus ET, dans l'option A,
+// directement par le robot du webhook Meta (sans passer par Internet).
+// Renvoie { statut, reponse } ; reponse.ref = numéro à donner à la cliente.
+async function creerCommandeChatbot(env, ctx, commande) {
+  if (!env.FIREBASE_SA) return { statut: 503, reponse: { ok: false, erreur: 'non-configure' } };
+
+  // Même limite que le site : 1 commande par minute et par téléphone.
+  let telephoneTropRapide = false;
+  if (env.LIMITE_TELEPHONE) {
+    const { success } = await env.LIMITE_TELEPHONE.limit({ key: 'tel:' + commande.phone });
+    if (!success) telephoneTropRapide = true;
+  }
+
+  let jeton;
+  try {
+    jeton = await jetonGoogle(JSON.parse(env.FIREBASE_SA));
+  } catch (e) {
+    console.error('Chatbot : clé Google refusée :', e && e.message);
+    return { statut: 503, reponse: { ok: false, erreur: 'non-configure' } };
+  }
+
+  if (telephoneTropRapide) {
+    const deja = await colisExiste(jeton, commande.ref).catch(() => false);
+    if (deja) return { statut: 200, reponse: { ok: true, ref: commande.ref, dejaEnregistree: true } };
+    return { statut: 429, reponse: { ok: false, erreur: 'trop-de-commandes-telephone' } };
+  }
+
+  try {
+    const resultat = await enregistrerAvecTransaction(jeton, commande);
+    // Stock insuffisant : { ok:false, erreur:'stock', manquants:[{productId, variantId, reste}] }
+    if (!resultat.ok) return { statut: 409, reponse: resultat };
+    if (!resultat.dejaEnregistree) {
+      ctx.waitUntil(prevenirStock(env, commande, resultat.articles).catch(e => console.log('Notification commande :', e && e.message)));
+    }
+    console.log('Chatbot : commande', commande.ref, 'canal', commande.source);
+    return { statut: 200, reponse: { ok: true, ref: commande.ref, dejaEnregistree: !!resultat.dejaEnregistree } };
+  } catch (e) {
+    console.error('Chatbot : erreur commande :', e && e.message);
+    return { statut: 500, reponse: { ok: false, erreur: 'serveur' } };
+  }
 }
