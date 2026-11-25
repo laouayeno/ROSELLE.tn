@@ -8,6 +8,15 @@
 <!-- V5.9 : description affichée par Google sous le titre (français + anglais) -->
 <meta name="description" content="Elle روز (Roselle) : vêtements femme en Tunisie, paiement à la livraison. Women's clothing in Tunisia, cash on delivery. Boutique en ligne roselle site : rosellesite.com">
 
+<!-- V12.7 : icône du site (rose dorée) dans l'onglet, les favoris et les suggestions
+     de Chrome (avant : globe gris). apple-touch-icon = icône si une cliente ajoute le
+     site à l'écran d'accueil de son iPhone ; site.webmanifest = la même chose sur Android.
+     Pour changer l'icône : remplacer ces fichiers en gardant les mêmes noms. -->
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+
 <!-- Polices : serif éditoriale pour les titres, sans-serif discrète pour le texte.
      V5.9 : chargées SANS bloquer l'affichage. La feuille est d'abord demandée
      pour « print » (le navigateur ne l'attend pas), puis passe à « all » dès
@@ -1582,7 +1591,7 @@
     <a href="#" onclick="naviguerVers('apropos'); return false;">Contact</a>
   </div>
   <div>&copy; <span id="annee-courante"></span> <span id="marque-copyright">Elle روز</span> — Féminité, Élégance, Confiance</div>
-  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.6</div>
+  <div style="font-size:0.65rem; opacity:0.35; margin-top:6px;">V12.7</div>
 </footer>
 
 <div class="toast-panier" id="toast-panier"></div>
