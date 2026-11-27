@@ -47,9 +47,18 @@
   ],
   // V12.6 : liaison INTERNE vers le Worker du Stock, pour la notification
   // « Nouvelle commande » sur l'appli Stock (rien n'est ouvert sur Internet).
+  // V13.0 : robot des messages Instagram / Facebook (src/robot.js).
+  // - CHATBOT_ETAT : mémoire des conversations (fiche commande, 24 h), gratuite dans l'offre 5 $ ;
+  // - AI : Cloudflare Workers AI, transforme les vocaux en texte (Whisper).
+  // Le robot reste éteint tant que ses clés secrètes ne sont pas installées.
+  "kv_namespaces": [{ "binding": "CHATBOT_ETAT", "id": "4bb2249a6bcf4aab96570af95f8c8920" }],
+  "ai": { "binding": "AI" },
   "services": [
     { "binding": "STOCK", "service": "rosellestock", "entrypoint": "Notifications" }
   ]
+  // V13.0 : clés du robot META_APP_SECRET, META_PAGE_TOKEN, META_VERIFY_TOKEN, ANTHROPIC_API_KEY
+  // (secrets) et réglages ROBOT_TESTEURS, ROBOT_OUVERT, ROBOT_PLAFOND_JOUR, ROBOT_MESSAGE_CONFIRMATION
+  // (variables) : ajoutés à la main dans Cloudflare, jamais ici.
   // Clés secrètes FIREBASE_SA, TURNSTILE_SECRET et TURNSTILE_SITE_KEY : ajoutées
   // à la main dans Cloudflare (Workers > rosellestore > Paramètres > Variables
   // et secrets), jamais ici.

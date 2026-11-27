@@ -25,7 +25,11 @@
      - TURNSTILE_SECRET : clé secrète Turnstile (sans elle, pas de contrôle) ;
      - TURNSTILE_SITE_KEY : clé publique Turnstile (donnée à la page) ;
      - CHATBOT_SECRET   : clé du robot de messages (V12.9, /api/orders-from-chatbot).
+     - V13.0, robot des messages (src/robot.js, éteint sans elles) :
+       META_APP_SECRET, META_PAGE_TOKEN, META_VERIFY_TOKEN, ANTHROPIC_API_KEY.
    ============================================================ */
+
+import { traiterWebhookMeta } from './robot.js';
 
 const PROJET = 'roselle-stock';
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJET}/databases/(default)/documents`;
@@ -59,6 +63,15 @@ export default {
     if (url.pathname === '/api/orders-from-chatbot') {
       if (requete.method !== 'POST') return json({ ok: false, erreur: 'methode' }, 405);
       return traiterCommandeChatbot(requete, env, ctx);
+    }
+    // V13.0 : robot des messages Instagram / Facebook (adresse donnée à Meta)
+    if (url.pathname === '/api/meta/webhook') {
+      return traiterWebhookMeta(requete, env, ctx, {
+        lireCatalogue: () => lireCatalogueRobot(env),
+        photoReference: (lien) => photoPourRobot(lien, env, ctx),
+        commandeDepuisChatbot,
+        creerCommandeChatbot
+      });
     }
     // V8.4 : test de charge, effacement des fausses commandes (clé secrète obligatoire).
     if (url.pathname === '/api/test-charge/nettoyer') {
@@ -1197,4 +1210,76 @@ async function creerCommandeChatbot(env, ctx, commande) {
     console.error('Chatbot : erreur commande :', e && e.message);
     return { statut: 500, reponse: { ok: false, erreur: 'serveur' } };
   }
+}
+
+/* ============================================================
+   V13.0 : ce que le robot des messages lit (src/robot.js)
+   ============================================================ */
+
+// Catalogue pour le robot : articles numérotés (ordre de la référence G0001…),
+// couleurs, tailles et quantité disponible, + frais de livraison.
+// Lecture publique de Firestore (comme le site), gardée 60 s en mémoire du Worker.
+let catalogueRobot = null; // { date, valeur }
+async function lireCatalogueRobot(env) {
+  if (catalogueRobot && Date.now() - catalogueRobot.date < 60000) return catalogueRobot.valeur;
+  const [docs, reglages] = await Promise.all([
+    fetch(`${BASE}/publicCatalog?pageSize=300`).then(r => r.ok ? r.json() : { documents: [] }).catch(() => ({ documents: [] })),
+    fetch(`${BASE}/siteSettings/main`).then(r => r.ok ? r.json() : null).catch(() => null)
+  ]);
+  const produits = (docs.documents || []).map(d => {
+    const champs = {};
+    for (const [cle, val] of Object.entries(d.fields || {})) champs[cle] = depuisFirestore(val);
+    champs.id = d.name.split('/').pop();
+    return champs;
+  }).filter(p => p.name && Array.isArray(p.variants) && p.variants.length);
+  produits.sort((a, b) => String(a.ref || '').localeCompare(String(b.ref || '')) || String(a.name).localeCompare(String(b.name)));
+
+  const articles = produits.map((p, i) => {
+    const prixPromo = Number(p.promoPrix);
+    const prix = Number.isFinite(prixPromo) && prixPromo > 0 ? prixPromo : Number(p.price) || 0;
+    const couleurs = [];
+    for (const v of p.variants) {
+      if (!v || typeof v.color !== 'string' || typeof v.size !== 'string' || typeof v.id !== 'string') continue;
+      let c = couleurs.find(x => x.couleur === v.color);
+      if (!c) {
+        const photo = Array.isArray(v.photos) && v.photos.length ? String(v.photos[0]) : (typeof v.photo === 'string' ? v.photo : '');
+        c = { couleur: v.color, tailles: [], photo, photoGrande: lienPublicPhoto(photo, 800) };
+        couleurs.push(c);
+      }
+      c.tailles.push({
+        taille: v.size,
+        tailleCourte: v.size.split('(')[0].trim(),
+        variantId: v.id,
+        dispo: Math.max(0, Math.floor(Number(v.qty) || 0)),
+        maxCommande: Number(v.maxCommande) > 0 ? Math.floor(Number(v.maxCommande)) : 0
+      });
+    }
+    return { numero: i + 1, id: p.id, nom: String(p.name), categorie: String(p.cat || ''), prix, description: String(p.description || ''), couleurs };
+  });
+  const valeur = { articles, frais: fraisLivraison(reglages), gouvernorats: NOMS_GOUVERNORAT };
+  catalogueRobot = { date: Date.now(), valeur };
+  return valeur;
+}
+
+// Adresse publique d'une photo (relais /img/ du site), pour l'envoyer à la cliente
+function lienPublicPhoto(photo, largeur) {
+  const m = String(photo || '').match(/^https:\/\/res\.cloudinary\.com\/([^/]+)\/image\/upload\/(.+)$/i);
+  if (!m || m[1] !== CLOUD_PHOTOS || !FICHIER_PHOTO_PERMIS.test(m[2])) return '';
+  return `https://rosellesite.com/img/f_auto,q_auto:good,c_limit,w_${largeur}/${m[2]}`;
+}
+
+// Petite photo de référence (400 px, WebP) pour que l'IA reconnaisse les articles.
+// Passe par servirPhoto : même mémoire Cloudflare que le site, aucun coût Cloudinary en plus.
+async function photoPourRobot(photo, env, ctx) {
+  const lien = lienPublicPhoto(photo, 400);
+  if (!lien) return null;
+  const requete = new Request(lien, { headers: { 'Accept': 'image/webp' } });
+  const reponse = await servirPhoto(requete, new URL(lien), env, ctx);
+  if (!reponse.ok) return null;
+  const type = (reponse.headers.get('Content-Type') || '').split(';')[0].trim();
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return null;
+  const octets = new Uint8Array(await reponse.arrayBuffer());
+  let binaire = '';
+  for (let i = 0; i < octets.length; i += 0x8000) binaire += String.fromCharCode.apply(null, octets.subarray(i, i + 0x8000));
+  return { type, donnees: btoa(binaire) };
 }
