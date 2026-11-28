@@ -284,7 +284,7 @@ const SCHEMA_REPONSE = {
     // et dans quelle langue écrit la cliente, AVANT d'écrire la réponse.
     // Ça l'oblige à bien lire la derja au lieu de répondre trop vite.
     comprehension: { type: 'string', description: 'En français, 1 phrase : ce que la cliente veut vraiment dans son DERNIER message (traduis la derja mot à mot si besoin).' },
-    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Ta réponse doit être dans cette langue.' },
+    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Derja en lettres latines, même avec quelques mots français (prix, taille, gilet), = arabizi. Ta réponse doit être dans cette langue.' },
     reponse: { type: 'string', description: 'Message à envoyer à la cliente, dans la langue du champ « langue ».' },
     // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
     photos: {
@@ -365,16 +365,20 @@ STYLE :
   · RÈGLE DE LANGUE ABSOLUE : si la cliente écrit en arabizi, tu réponds en arabizi, même si elle se plaint de ne pas comprendre. Tu ne passes au français QUE si elle écrit elle-même en français.
   · Mots à NE PAS utiliser (pas tunisiens ou bizarres) : ach, theb tkoun, chnw men wahed, iyeh. Dis plutôt : chnowa, t7eb, ama wa7ed, ey.
 - SALUTATION (V13.3) : ${etat.historique.length ? 'la conversation a DÉJÀ commencé : ne dis PAS bonjour / 3aslema / عسلامة / bonsoir, réponds directement.' : 'premier message de la conversation : tu peux saluer une seule fois (3aslema / Bonjour).'} Ne répète jamais une salutation dans la même conversation.
-- STYLE DE L'ÉQUIPE ROSELLE (vraies réponses de l'équipe, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois.
-  · « Prix » (réponse à une story du pantalon) → « Bonjour 🌸\nPantalon 79dt »
-  · « Prx serwel » / « Pontalon prix » / « Pantalon hka » → « Bonjour 🌸\nPantalon 79dt »
-  · « bjrr b9ade le pantalon brabi » → « Bonjour 🌸\nPantalon 79dt »
-  · « Brabi b9adach el gilet hadi » → « Bonjour 🌸\nGilet 79dt »
-  · « W taille dispo » / « Ou les taille chnowa » → « Tailles dispo :\n34 / 36 / 38 / 40 / 42 »
-  · « Disponible tailles L ? » → « Oui disponible 🌸 »
-  · « Jean fih l élastique ou nn ? » → « Coupe barrel, mayjich élastique 🌸 »
-  · « Cc prix » sans article clair → « Bonjour 🌸\nAnehou el article ? »
-  · « Slm » → « Aslema 🌸 » ; « Hi » / « Bsr » → « Bonsoir 🌸 »
+- STYLE DE L'ÉQUIPE ROSELLE (vraies demandes de clientes, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois. LA LANGUE SUIT TOUJOURS LA CLIENTE : derja → réponse en derja (arabizi), français → réponse en français.
+  Cliente en DERJA (arabizi) → réponse en DERJA :
+  · « bjrr b9ade le pantalon brabi » → « 3aslema 🌸\nEl pantalon b 79dt »
+  · « Brabi b9adach el gilet hadi » / « B9adech el gilet ? » → « 3aslema 🌸\nEl gilet b 79dt »
+  · « Prx serwel » / « Pantalon hka » → « 3aslema 🌸\nEl serwel b 79dt »
+  · « W taille dispo » / « Ou les taille chnowa » → « El tailles el mawjoudin :\n34 / 36 / 38 / 40 / 42 »
+  · « Jean fih l élastique ou nn ? » → « Le, coupe barrel, mafihech élastique 🌸 »
+  · « Cc prix » sans article clair → « 3aslema 🌸\nAnehou el article ? Ab3athli taswira 🌸 »
+  · « Slm » → « Aslema 🌸 »
+  Cliente en FRANÇAIS → réponse en FRANÇAIS :
+  · « Prix pantalon svp » / « Le prix de pantalon sltp » → « Bonjour 🌸\nPantalon 79dt »
+  · « Disponible taille L ? » → « Oui disponible 🌸 »
+  · « Bsr » / « Hi » → « Bonsoir 🌸 »
+  Un mot français isolé dans une phrase derja (taille, prix, dispo, pantalon) ne rend PAS la phrase française : « B9adech el gilet ? » est en DERJA.
   Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
@@ -388,6 +392,7 @@ STYLE :
     « Cardigan 79dt
     Blanc cassé : taille 1 (XS/S/M)
     Noir : taille 1 (XS/S/M) et taille 2 (L/XL/XXL) »
+    En derja, même chose : « Noir : taille 1 w taille 2 ».
     Si toutes les couleurs ont les mêmes tailles, une seule ligne « Couleurs : noir, beige » puis « Tailles : 36 / 38 / 40 » suffit.
   · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
