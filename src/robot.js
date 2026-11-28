@@ -365,6 +365,17 @@ STYLE :
   · RÈGLE DE LANGUE ABSOLUE : si la cliente écrit en arabizi, tu réponds en arabizi, même si elle se plaint de ne pas comprendre. Tu ne passes au français QUE si elle écrit elle-même en français.
   · Mots à NE PAS utiliser (pas tunisiens ou bizarres) : ach, theb tkoun, chnw men wahed, iyeh. Dis plutôt : chnowa, t7eb, ama wa7ed, ey.
 - SALUTATION (V13.3) : ${etat.historique.length ? 'la conversation a DÉJÀ commencé : ne dis PAS bonjour / 3aslema / عسلامة / bonsoir, réponds directement.' : 'premier message de la conversation : tu peux saluer une seule fois (3aslema / Bonjour).'} Ne répète jamais une salutation dans la même conversation.
+- STYLE DE L'ÉQUIPE ROSELLE (vraies réponses de l'équipe, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois.
+  · « Prix » (réponse à une story du pantalon) → « Bonjour 🌸\nPantalon 79dt »
+  · « Prx serwel » / « Pontalon prix » / « Pantalon hka » → « Bonjour 🌸\nPantalon 79dt »
+  · « bjrr b9ade le pantalon brabi » → « Bonjour 🌸\nPantalon 79dt »
+  · « Brabi b9adach el gilet hadi » → « Bonjour 🌸\nGilet 79dt »
+  · « W taille dispo » / « Ou les taille chnowa » → « Tailles dispo :\n34 / 36 / 38 / 40 / 42 »
+  · « Disponible tailles L ? » → « Oui disponible 🌸 »
+  · « Jean fih l élastique ou nn ? » → « Coupe barrel, mayjich élastique 🌸 »
+  · « Cc prix » sans article clair → « Bonjour 🌸\nAnehou el article ? »
+  · « Slm » → « Aslema 🌸 » ; « Hi » / « Bsr » → « Bonsoir 🌸 »
+  Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
   · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
@@ -374,7 +385,7 @@ STYLE :
     📌 Pull Timeless : 89 DT
     T7eb nab3athlek tsawerhom ? »
   · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
-  · Termine par UNE question simple pour avancer (taille ? couleur ? commander ?).
+  · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
 - PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
@@ -467,7 +478,10 @@ async function demanderIA(env, catalogue, etat, entree) {
   }
   const bloc = (donnees.content || []).find(b => b.type === 'text');
   try {
-    return JSON.parse(bloc ? bloc.text : '');
+    const r = JSON.parse(bloc ? bloc.text : '');
+    // V13.3 : jamais de gros paragraphe, même si l'IA oublie les retours à la ligne
+    if (r && typeof r.reponse === 'string') r.reponse = aerer(r.reponse);
+    return r;
   } catch (e) {
     console.error('Robot : JSON IA illisible');
     return null;
@@ -478,6 +492,17 @@ async function demanderIA(env, catalogue, etat, entree) {
 // Préparées par le Worker (même relais /img/ que le site, en mémoire Cloudflare).
 let photosReferenceCache = null; // { cle, liste } gardé tant que le Worker reste chaud
 let outilsPhotos = null;
+// V13.3 : coupe un texte en lignes courtes (une phrase par ligne, une ligne par 📌).
+// Ne coupe pas les liens ni les nombres (« 79.5 », « https://… »).
+function aerer(texte) {
+  return String(texte || '')
+    .replace(/([.!?…])\s+(?=[^\s.!?])/g, '$1\n')   // fin de phrase → nouvelle ligne
+    .replace(/\s*(📌)/g, '\n$1')                       // chaque 📌 sur sa ligne
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 async function outils_photosReference(catalogue) {
   const cle = catalogue.articles.map(a => a.couleurs.map(c => c.photo).join(',')).join('|');
   if (photosReferenceCache && photosReferenceCache.cle === cle) return photosReferenceCache.liste;
