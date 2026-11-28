@@ -462,6 +462,10 @@ async function demanderIA(env, catalogue, etat, entree, insister) {
     for (const img of entree.images) contenu.push({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.donnees } });
   }
   contenu.push({ type: 'text', text: 'Message de la cliente :\n' + (entree.texte || '(photo)') });
+  // V13.9 : le code reconnaît le type d'article (marioul = pull…) et le dit à l'IA,
+  // qui se trompait encore (« ma3andnach mraywel » alors que le pull existe)
+  const noteType = noteTypeDemande(entree.texte, catalogue);
+  if (noteType) contenu.push({ type: 'text', text: noteType });
   // V13.6 : langue imposée par le code
   if (etat.langue) contenu.push({ type: 'text', text: CONSIGNE_LANGUE[etat.langue] + (insister ? ' ATTENTION : ta réponse précédente n\'était pas dans la bonne langue. Réécris-la entièrement dans cette langue.' : '') });
   const dernier = messages[messages.length - 1];
@@ -688,6 +692,19 @@ function photosDuBonType(texte, photos, catalogue) {
   if (gardees.length) return gardees;
   console.log('Robot : photos corrigées vers le type demandé', cat);
   return duType.map(a => ({ numero: a.numero, couleur: '' }));
+}
+
+// V13.9 : note pour l'IA quand la cliente nomme UN type d'article
+function noteTypeDemande(texte, catalogue) {
+  const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || '')));
+  if (types.length !== 1) return '';
+  const cat = types[0].categorie;
+  const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(cat) || sansAccents(a.nom).includes(cat));
+  if (!duType.length) {
+    return `NOTE DU SYSTÈME (sûre) : la cliente demande un ${cat.toUpperCase()}. Aucun ${cat} dans le catalogue : dis gentiment qu'on n'en a pas pour le moment (« ma3andnach tawa »), sans proposer d'autres articles, et photos = [].`;
+  }
+  const liste = duType.map(a => `Article n°${a.numero} (${a.nom})`).join(', ');
+  return `NOTE DU SYSTÈME (sûre) : la cliente demande un ${cat.toUpperCase()} (mot de la cliente = ${cat}). Les ${cat}s du catalogue sont : ${liste}. Ils EXISTENT : ne dis JAMAIS qu'on n'en a pas. Réponds seulement avec ces articles (nom + prix), et mets-les dans photos. Ne parle pas des autres types d'articles.`;
 }
 
 // V13.8 : la cliente redemande clairement des photos
