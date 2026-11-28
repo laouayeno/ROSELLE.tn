@@ -45,6 +45,12 @@ const MODELE_VOCAL = '@cf/openai/whisper-large-v3-turbo';
 
 const DUREE_CONVERSATION = 24 * 3600;       // fiche gardée 24 h après le dernier message
 const PAUSE_HUMAIN_MS = 12 * 3600 * 1000;   // robot muet 12 h après une reprise par l'équipe
+// V13.2 : texte d'accueil de Messenger (arabe par défaut, français pour les
+// téléphones en français). 160 caractères maximum chacun (règle de Meta).
+const TEXTES_ACCUEIL_MESSENGER = [
+  { locale: 'default', text: 'عسلامة بيك ومرحبا 🌹 الموديلات والأسعار الكل على https://rosellesite.com 📦 أكتبلنا هنا ونجاوبوك بكل فرحة 💕' },
+  { locale: 'fr_FR', text: 'Bonjour et bienvenue 🌹 Tous nos modèles et prix sur https://rosellesite.com 📦 Écrivez-nous ici, on vous répond avec plaisir 💕' }
+];
 const DELAI_ECHO_AUTO_MS = 20 * 1000;       // V13.1 : écho < 20 s après la cliente = réponse automatique de Meta
 const MAX_HISTORIQUE = 16;                  // messages gardés pour le contexte de l'IA
 const TAILLE_MAX_IMAGE = 4 * 1024 * 1024;   // 4 Mo (photo de cliente)
@@ -194,6 +200,15 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     return;
   }
 
+  // V13.2 : commande réservée aux testeurs, « #accueil » dans Messenger :
+  // installe le texte d'accueil de Messenger (affiché dans la discussion
+  // vide, AVANT que la cliente écrive). Meta limite ce texte à 160 caractères.
+  if (canal === 'facebook' && estTesteur(env, idCliente) && message && texteCourt(message.text, 20).toLowerCase() === '#accueil') {
+    const ok = await appelGraph(env, '/me/messenger_profile', { greeting: TEXTES_ACCUEIL_MESSENGER });
+    await envoyerTexte(env, idCliente, ok ? 'Texte d\'accueil installé ✅' : 'Meta a refusé le texte d\'accueil ❌ (voir le journal)');
+    return;
+  }
+
   if (!(await budgetDisponible(env))) {
     console.log('Robot : plafond IA du jour atteint, message laissé à l\'équipe');
     return;
@@ -215,7 +230,8 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
 
   // h) Historique (texte seulement, les photos deviennent « [photo] »)
   etat.historique.push({ role: 'user', texte: entree.resume.slice(0, 600) });
-  etat.historique.push({ role: 'assistant', texte: String(reponseIA.reponse || '').slice(0, 600) });
+  const nbPhotos = Array.isArray(reponseIA.photos) ? Math.min(reponseIA.photos.length, 3) : 0;
+  etat.historique.push({ role: 'assistant', texte: String(reponseIA.reponse || '').slice(0, 600) + (nbPhotos ? ' [photos envoyées]' : '') });
   etat.historique = etat.historique.slice(-MAX_HISTORIQUE);
   await ecrireEtat(env, cle, etat);
 }
@@ -262,9 +278,23 @@ async function lireContenuCliente(message, postback, env) {
 const SCHEMA_REPONSE = {
   type: 'object',
   additionalProperties: false,
-  required: ['reponse', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
+  required: ['reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
   properties: {
     reponse: { type: 'string', description: 'Message à envoyer à la cliente.' },
+    // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
+    photos: {
+      type: 'array',
+      description: 'Articles dont il faut envoyer la photo (cliente qui demande des photos, ou articles proposés). Vide sinon.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['numero', 'couleur'],
+        properties: {
+          numero: { type: 'integer' },
+          couleur: { type: 'string', description: 'Couleur voulue, ou vide pour la 1re couleur.' }
+        }
+      }
+    },
     action: { type: 'string', enum: ['discuter', 'demander_confirmation', 'confirmer', 'humain', 'annuler'] },
     articles: {
       type: 'array',
@@ -309,7 +339,35 @@ function consignesIA(catalogue, etat) {
 
 STYLE :
 - Écris EXACTEMENT comme la cliente : français si elle écrit en français, arabizi (derja en lettres latines avec 3, 7, 9…) si elle écrit en arabizi, arabe si elle écrit en arabe, mélange si elle mélange. Si c'est un vocal transcrit, réponds par écrit dans la langue du vocal.
-- Messages courts comme sur Instagram (1 à 3 lignes), chaleureux, naturels, un emoji de temps en temps (🌸 💕). Pas de longs paragraphes.
+- DERJA TUNISIENNE (V13.2) : quand la cliente écrit en arabizi ou en arabe, réponds en dialecte TUNISIEN de tous les jours, comme une vendeuse de Tunis sur Instagram. JAMAIS d'arabe littéraire (fus7a), JAMAIS de marocain (bzaf, wakha, dyal, daba, bghit), d'égyptien (ezzayek, 3ayza, keda) ou de libanais (shu, kifak).
+  Mots tunisiens à utiliser : 3aslema / ahla bik, mar7be bik, chnowa, 9adech (combien), b9adech, barcha, behi, ey (oui), le (non), mawjoud / mawjouda, famma (il y a), mafamech, 3andna, t7eb / t7ebi, nzidek, taw (maintenant), ya3tik essa7a, yaychek, n7ebbou, el 9ies (la taille), el lawn (la couleur), el livraison, n3aytoulek (on vous appelle), 7atta, kifech, win (où), 9oddech men 7aja.
+  Les clientes mélangent souvent derja et français (ex. « el taille M dispo ? ») : fais pareil, garde les mots français courants (taille, couleur, livraison, commande, dispo, modèle).
+  Exemples de bonnes réponses (style seulement : prix, tailles et couleurs viennent TOUJOURS de la liste ci-dessous) :
+  · Cliente « 9adech ? » → « 3aslema 🌸 el pantalon b 99dt, famma 36/38/40/42. T7eb tcommandi ? »
+  · Cliente « mawjoud fel noir ? » → « Ey mawjoud fel noir 💕 chnowa el taille mte3ek ? »
+  · Cliente « behi n7eb nchri » → « Behi 🌸 a3tini esmek w num telifounek bech n3aytoulek. »
+  · Cliente « بقداش ؟ » → « عسلامة 🌸 السروال ب 99 دينار، المقاسات 36/38/40/42. تحب تكوموندي ؟ »
+  · Cliente « yaychek » → « Bla mzeya 🌸 ena hna ken t7eb 7aja okhra. »
+  BIEN COMPRENDRE la derja (erreurs déjà vues, à ne plus faire) :
+  · « tnajem tab3ath li tsawer ? » / « ab3athli tsawer » / « warini » = la cliente DEMANDE qu'on lui envoie des photos → envoie les photos (champ « photos »), ne lui dis pas qu'elle peut envoyer des photos.
+  · « manahkich francais » / « ma nefhemch francais » / « ahki b tounsi » = elle ne parle pas français → à partir de là, réponds UNIQUEMENT en derja (arabizi), plus un seul mot de français à part taille, couleur, livraison.
+  · « chnowa 3andkom ? » / « chnowa famma ? » = qu'est-ce que vous avez → présente les articles en liste + photos.
+  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
+  · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
+  · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
+- MISE EN FORME (très important) :
+  · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
+  · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
+    « 3aslema 🌸 famma 3 modèles :
+    📌 Robe Santorini : 129 DT
+    📌 Pantalon Alba : 99 DT
+    📌 Pull Timeless : 89 DT
+    T7eb nab3athlek tsawerhom ? »
+  · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
+  · Termine par UNE question simple pour avancer (taille ? couleur ? commander ?).
+  · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
+- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message : écris par exemple « Hethom tsawer 👇 ». Ne dis jamais que tu ne peux pas envoyer de photos.
+- Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
 - Ne parle PAS du paiement à la livraison, sauf si la cliente pose la question (réponse : oui, paiement à la livraison).
 
@@ -376,7 +434,7 @@ async function demanderIA(env, catalogue, etat, entree) {
         max_tokens: 1500,
         // Réponses courtes de vendeuse : pas besoin de réflexion longue (moins cher, plus rapide)
         thinking: { type: 'disabled' },
-        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_REPONSE } },
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA_REPONSE } },
         system: consignesIA(catalogue, etat),
         messages
       })
@@ -455,12 +513,16 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   // Fiche modifiée après le récapitulatif : il faudra un nouveau récapitulatif
   if (etat.etape === 'attente_confirmation' && JSON.stringify(etat.fiche) !== ancienne) etat.etape = 'discussion';
 
+  const dejaEnvoyees = new Set(); // photos déjà envoyées pendant ce tour
   // Nouvel article reconnu : on envoie sa vraie photo pour que la cliente confirme
   for (const ligne of etat.fiche.articles) {
     if (anciensArticles.has(ligne.productId)) continue;
     const art = catalogue.articles.find(a => a.id === ligne.productId);
     const couleur = art && (art.couleurs.find(c => c.couleur === ligne.couleur) || art.couleurs[0]);
-    if (couleur && couleur.photoGrande) await envoyerImage(env, idCliente, couleur.photoGrande);
+    if (couleur && couleur.photoGrande && !dejaEnvoyees.has(couleur.photoGrande)) {
+      dejaEnvoyees.add(couleur.photoGrande);
+      await envoyerImage(env, idCliente, couleur.photoGrande);
+    }
   }
 
   const action = r.action;
@@ -490,6 +552,26 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     return;
   }
   await envoyerTexte(env, idCliente, r.reponse);
+  await envoyerPhotosDemandees(env, idCliente, r.photos, catalogue, dejaEnvoyees);
+}
+
+// V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
+// sans renvoyer une photo déjà envoyée dans ce même tour)
+async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
+  if (!Array.isArray(photos)) return;
+  let envoyees = 0;
+  for (const p of photos) {
+    if (envoyees >= 3) break;
+    if (!p || !Number.isInteger(p.numero)) continue;
+    const art = catalogue.articles.find(a => a.numero === p.numero);
+    if (!art) continue;
+    const voulue = String(p.couleur || '').trim().toLowerCase();
+    const couleur = (voulue && art.couleurs.find(c => String(c.couleur).toLowerCase() === voulue)) || art.couleurs[0];
+    if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
+    dejaEnvoyees.add(couleur.photoGrande);
+    await envoyerImage(env, idCliente, couleur.photoGrande);
+    envoyees++;
+  }
 }
 
 function verifierLigne(l, catalogue) {
@@ -791,6 +873,9 @@ async function compterDepense(env, usage) {
 
 /* ---------- Petits contrôles ---------- */
 function idValable(id) { return typeof id === 'string' && /^[0-9_]{1,40}$/.test(id); }
+function estTesteur(env, id) {
+  return String(env.ROBOT_TESTEURS || '').split(',').map(x => x.trim()).filter(Boolean).includes(id);
+}
 function clienteAutorisee(env, id) {
   if (env.ROBOT_OUVERT === 'oui') return true;
   const testeurs = String(env.ROBOT_TESTEURS || '').split(',').map(s => s.trim()).filter(Boolean);
