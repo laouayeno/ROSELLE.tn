@@ -885,12 +885,25 @@ const TEXTE_DELAI = {
   arabe: 'التوصيل في 48 ساعة 🌸 استنى المكالمة متاع التأكيد.',
   francais: "La livraison se fait en 48 h 🌸 Attendez l'appel de confirmation."
 };
+// Échange (règle d'Oussama, 28/11) : possible sous 15 jours, article neuf
+const MOTS_ECHANGE = /(?<![\p{L}])(échange|echange|échanger|echanger|exchange|n?t?badd?el|nbadlou|tbadlou|badd?el|retour|rajja3|nraja3|traja3)(?![\p{L}])|تبديل|نبدل|تبدل|نبدلو|بدّل|نرجع|ترجيع/iu;
+const TEXTE_ECHANGE = {
+  arabizi: "Ey, el échange possible fi 15 nhar 🌸 b chart el article ykoun jdid, ma tlebsetouch.",
+  arabe: 'إيه، التبديل ممكن في 15 يوم 🌸 بشرط الحاجة تكون جديدة، ما تلبستش.',
+  francais: "Oui, l'échange est possible sous 15 jours 🌸 à condition que l'article soit neuf, non porté."
+};
 function reponsesFixes(texte, r, etat) {
   const t = String(texte || '');
   if (!t || r.action === 'confirmer' || r.action === 'demander_confirmation' || r.action === 'annuler') return;
   if (MOTS_GROS.test(t)) {
     console.log('Robot : vente en gros → équipe');
     r.action = 'humain';
+    r.photos = [];
+    return;
+  }
+  if (r.action !== 'humain' && MOTS_ECHANGE.test(t)) {
+    console.log('Robot : échange → phrase fixe');
+    r.reponse = TEXTE_ECHANGE[etat.langue] || TEXTE_ECHANGE.arabizi;
     r.photos = [];
     return;
   }
