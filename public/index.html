@@ -2128,7 +2128,9 @@ const REGLAGE_VIDEO = 'q_auto:best,c_limit,w_1920,h_1920';
 // Le site les demande au relais /vid/ du Worker : Cloudflare les garde en mémoire,
 // Cloudinary ne les envoie qu'une fois (pas de dépassement du quota gratuit).
 const VIDEO_ACCUEIL = {
-  tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_90,br_4000k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
+  // Lancement (22/11) : version téléphone allégée (~1,1 Mbit/s, 10,7 Mo au lieu de 20,6 Mo)
+  // pour qu'elle tourne sans s'arrêter en 4G. Même cadrage 608×1080. PC inchangé.
+  tel: { video: 'c_crop,ar_9:16,g_center/ac_none,c_limit,h_1920,q_auto:good,br_1200k,vc_h264', image: 'so_0,c_crop,ar_9:16,g_center/c_limit,h_1920,q_auto:good' },
   pc: { video: 'ac_none,c_limit,w_1920,h_1080,q_90,br_5000k,vc_h264', image: 'so_0,c_limit,w_1920,h_1080,q_auto:good' }
 };
 
