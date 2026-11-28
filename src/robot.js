@@ -652,7 +652,9 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
 
   const action = r.action;
   if (action === 'humain') {
-    await envoyerTexte(env, idCliente, r.reponse);
+    // V14.3 : message de passage FIXE, écrit en vraie derja tunisienne (l'IA
+    // inventait des phrases bizarres, et même « on ne fait pas le gros »).
+    await envoyerTexte(env, idCliente, MESSAGE_PASSAGE_EQUIPE[etat.langue] || MESSAGE_PASSAGE_EQUIPE.arabizi);
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
     console.log('Robot : conversation passée à l\'équipe', canal, idCliente);
     // V14.1 : la discussion apparaît dans le Stock (« Discussions à traiter ») + notification
@@ -769,6 +771,13 @@ function photosDuBonType(texte, photos, catalogue) {
   console.log('Robot : photos corrigées vers le type demandé', cat);
   return duType.map(a => ({ numero: a.numero, couleur: '' }));
 }
+
+/* ---------- V14.3 : message fixe quand le robot passe la main à l'équipe ---------- */
+const MESSAGE_PASSAGE_EQUIPE = {
+  arabizi: 'Behi 🌸 wa7da mel équipe bech tjewbek houni, estanna chwaya.',
+  arabe: 'باهي 🌸 وحدة من الفريق باش تجاوبك هوني، استنى شوية.',
+  francais: "D'accord 🌸 une personne de l'équipe vous répond ici très vite."
+};
 
 /* ---------- V14.2 : derja TUNISIENNE seulement ----------
    L'IA glisse parfois des mots d'autres pays (« daba », « bzaf »…).
