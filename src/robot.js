@@ -233,6 +233,10 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     if (second) reponseIA = second;
   }
   if (!reponseIA) return; // erreur IA : silence, l'équipe répondra
+  // V13.8 : si la cliente nomme un type d'article (pull, pantalon, robe…),
+  // le code n'envoie QUE les photos de ce type (l'IA avait envoyé des
+  // pantalons pour « فما مراول ؟ » = vous avez des pulls ?).
+  reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
 
   // g) Le code vérifie et applique
   await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils);
@@ -388,7 +392,7 @@ STYLE :
   · « Disponible taille L ? » → « Oui disponible 🌸 »
   · « Bsr » / « Hi » → « Bonsoir 🌸 »
   Un mot français isolé dans une phrase derja (taille, prix, dispo, pantalon) ne rend PAS la phrase française : « B9adech el gilet ? » est en DERJA.
-  Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
+  Vocabulaire des clientes : serwel / pontalon / pantalon / سروال = pantalon ; djin / جين = jeans (pantalon) ; marioul / maryoul / mariol / مريول / مراول / ماريول = PULL (haut en maille), PAS un pantalon ; gilet / جيلي = cardigan ; rouba / روبة / robe = robe ; souriya / سورية / chemise = chemise ; Si la cliente demande un type d'article qui n'existe pas dans la liste, dis-le simplement (« ma3andnach tawa ») et ne propose pas autre chose à sa place ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
   · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
@@ -652,6 +656,29 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
 
 // V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
 // sans renvoyer une photo déjà envoyée dans ce même tour)
+/* ---------- V13.8 : type d'article demandé par la cliente ----------
+   Mots des clientes (français, arabizi, arabe) → mot-clé de catégorie du Stock. */
+const TYPES_ARTICLES = [
+  { categorie: 'pull', mots: /\b(pulls?|marioul|mariol|maryoul|mariyoul|mrawel|mrewel|sweat)\b|مريول|مراول|ماريول/i },
+  { categorie: 'pantalon', mots: /\b(pantalons?|pontalon|serwel|sarwel|srawel|jeans?|djin|jean)\b|سروال|سراول|جين/i },
+  { categorie: 'cardigan', mots: /\b(cardigans?|gilets?|jilet)\b|جيلي|جليكة/i },
+  { categorie: 'robe', mots: /\b(robes?|rouba|roba|rob)\b|روبة|روبات/i },
+  { categorie: 'chemise', mots: /\b(chemises?|souriya|sourya|swari)\b|سورية|سوري/i }
+];
+function photosDuBonType(texte, photos, catalogue) {
+  if (!Array.isArray(photos) || !photos.length) return photos;
+  const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || '')));
+  if (types.length !== 1) return photos; // aucun type, ou plusieurs : on laisse l'IA
+  const cat = types[0].categorie;
+  const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(cat) || sansAccents(a.nom).includes(cat));
+  if (!duType.length) return []; // ce type n'existe pas : aucune photo d'un autre article
+  const numeros = new Set(duType.map(a => a.numero));
+  const gardees = photos.filter(p => p && numeros.has(p.numero));
+  if (gardees.length) return gardees;
+  console.log('Robot : photos corrigées vers le type demandé', cat);
+  return duType.map(a => ({ numero: a.numero, couleur: '' }));
+}
+
 const MAX_PHOTOS_REPONSE = 6;
 async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
   if (!Array.isArray(photos)) return;
