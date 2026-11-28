@@ -305,7 +305,7 @@ const SCHEMA_REPONSE = {
         required: ['numero', 'couleur'],
         properties: {
           numero: { type: 'integer' },
-          couleur: { type: 'string', description: 'Couleur voulue, ou vide pour la 1re couleur.' }
+          couleur: { type: 'string', description: 'Couleur voulue. VIDE = toutes les couleurs disponibles de cet article (une photo par couleur).' }
         }
       }
     },
@@ -405,7 +405,7 @@ STYLE :
     Si toutes les couleurs ont les mêmes tailles, une seule ligne « Couleurs : noir, beige » puis « Tailles : 36 / 38 / 40 » suffit.
   · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
-- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
+- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur). Si la cliente demande les couleurs, ou ne précise pas de couleur, laisse « couleur » VIDE : le code envoie alors une photo de CHAQUE couleur disponible. Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
 - Ne parle PAS du paiement à la livraison, sauf si la cliente pose la question (réponse : oui, paiement à la livraison).
@@ -652,20 +652,28 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
 
 // V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
 // sans renvoyer une photo déjà envoyée dans ce même tour)
+const MAX_PHOTOS_REPONSE = 6;
 async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
   if (!Array.isArray(photos)) return;
+  // V13.7 : couleur vide (ou inconnue) = une photo de CHAQUE couleur encore
+  // disponible de l'article (Oussama : « je demande les couleurs dispo, il
+  // envoie une seule couleur »). 6 photos au maximum par réponse.
   let envoyees = 0;
   for (const p of photos) {
-    if (envoyees >= 3) break;
     if (!p || !Number.isInteger(p.numero)) continue;
     const art = catalogue.articles.find(a => a.numero === p.numero);
     if (!art) continue;
-    const voulue = String(p.couleur || '').trim().toLowerCase();
-    const couleur = (voulue && art.couleurs.find(c => String(c.couleur).toLowerCase() === voulue)) || art.couleurs[0];
-    if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
-    dejaEnvoyees.add(couleur.photoGrande);
-    await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
-    envoyees++;
+    const voulue = String(p.couleur || '').trim();
+    const choisie = voulue ? art.couleurs.find(c => egalSouple(c.couleur, voulue)) : null;
+    const disponibles = art.couleurs.filter(c => c.tailles.some(t => t.dispo > 0));
+    const liste = choisie ? [choisie] : (disponibles.length ? disponibles : art.couleurs.slice(0, 1));
+    for (const couleur of liste) {
+      if (envoyees >= MAX_PHOTOS_REPONSE) return;
+      if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
+      dejaEnvoyees.add(couleur.photoGrande);
+      await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
+      envoyees++;
+    }
   }
 }
 
