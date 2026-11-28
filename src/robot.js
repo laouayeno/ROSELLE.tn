@@ -239,7 +239,7 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
 
   // g) Le code vérifie et applique
-  await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils);
+  await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils, entree.texte);
 
   // h) Historique (texte seulement, les photos deviennent « [photo] »)
   etat.historique.push({ role: 'user', texte: entree.resume.slice(0, 600) });
@@ -409,6 +409,7 @@ STYLE :
     Si toutes les couleurs ont les mêmes tailles, une seule ligne « Couleurs : noir, beige » puis « Tailles : 36 / 38 / 40 » suffit.
   · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
+- NE RÉPÈTE JAMAIS ta réponse précédente mot pour mot. Si la cliente repose la même question, c'est que tu as mal compris : relis son message, réponds autrement ou pose UNE question courte pour comprendre.
 - PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur). Si la cliente demande les couleurs, ou ne précise pas de couleur, laisse « couleur » VIDE : le code envoie alors une photo de CHAQUE couleur disponible. Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
@@ -579,7 +580,7 @@ async function outils_photosReference(catalogue) {
 }
 
 /* ---------- Le code vérifie et applique ce que l'IA propose ---------- */
-async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx, outils) {
+async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx, outils, texteCliente) {
   const ancienne = JSON.stringify(etat.fiche);
   const anciensArticles = new Set(etat.fiche.articles.map(l => l.productId));
 
@@ -610,7 +611,15 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   // Fiche modifiée après le récapitulatif : il faudra un nouveau récapitulatif
   if (etat.etape === 'attente_confirmation' && JSON.stringify(etat.fiche) !== ancienne) etat.etape = 'discussion';
 
-  const dejaEnvoyees = new Set(); // photos déjà envoyées pendant ce tour
+  // V13.8 : on ne renvoie pas une photo déjà envoyée il y a moins de 2 h,
+  // sauf si la cliente redemande clairement des photos.
+  const dejaEnvoyees = new Set(); // photos déjà envoyées (ce tour + récemment)
+  const redemande = DEMANDE_PHOTOS.test(String(texteCliente || ''));
+  const maintenant = Date.now();
+  for (const [adresse, heure] of Object.entries(etat.photosEnvoyees || {})) {
+    if (maintenant - Number(heure) > 2 * 3600 * 1000) delete etat.photosEnvoyees[adresse];
+    else if (!redemande) dejaEnvoyees.add(adresse);
+  }
   // Nouvel article reconnu : on envoie sa vraie photo pour que la cliente confirme
   for (const ligne of etat.fiche.articles) {
     if (anciensArticles.has(ligne.productId)) continue;
@@ -652,6 +661,8 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   }
   await envoyerTexte(env, idCliente, r.reponse);
   await envoyerPhotosDemandees(env, idCliente, r.photos, catalogue, dejaEnvoyees);
+  // V13.8 : on retient l'heure des nouvelles photos envoyées
+  for (const adresse of dejaEnvoyees) if (!etat.photosEnvoyees[adresse]) etat.photosEnvoyees[adresse] = maintenant;
 }
 
 // V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
@@ -678,6 +689,9 @@ function photosDuBonType(texte, photos, catalogue) {
   console.log('Robot : photos corrigées vers le type demandé', cat);
   return duType.map(a => ({ numero: a.numero, couleur: '' }));
 }
+
+// V13.8 : la cliente redemande clairement des photos
+const DEMANDE_PHOTOS = /\b(photos?|tsawer|tsawir|taswira|tswira|swar|images?|ab3ath|ab3athli|ab3thli|nchouf|tchouf|warini|wariwni)\b|صور|تصاور|تصويرة|ابعث|ورّيني|وريني/i;
 
 const MAX_PHOTOS_REPONSE = 6;
 async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
@@ -1011,7 +1025,9 @@ async function lireEtat(env, cle) {
     session: typeof etat.session === 'string' && /^[0-9a-z]{1,12}$/.test(etat.session) ? etat.session : Date.now().toString(36),
     pauseJusqua: Number(etat.pauseJusqua) || 0,
     // V13.6 : langue de la cliente retenue pour toute la conversation
-    langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : ''
+    langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : '',
+    // V13.8 : photos déjà envoyées dans cette conversation (adresse → heure)
+    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {}
   };
 }
 async function ecrireEtat(env, cle, etat) {
