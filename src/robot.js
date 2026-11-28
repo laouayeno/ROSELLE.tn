@@ -233,9 +233,13 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     if (second) reponseIA = second;
   }
   if (!reponseIA) return; // erreur IA : silence, l'équipe répondra
+  // V13.8 : si la cliente nomme un type d'article (pull, pantalon, robe…),
+  // le code n'envoie QUE les photos de ce type (l'IA avait envoyé des
+  // pantalons pour « فما مراول ؟ » = vous avez des pulls ?).
+  reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
 
   // g) Le code vérifie et applique
-  await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils);
+  await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils, entree.texte);
 
   // h) Historique (texte seulement, les photos deviennent « [photo] »)
   etat.historique.push({ role: 'user', texte: entree.resume.slice(0, 600) });
@@ -388,7 +392,7 @@ STYLE :
   · « Disponible taille L ? » → « Oui disponible 🌸 »
   · « Bsr » / « Hi » → « Bonsoir 🌸 »
   Un mot français isolé dans une phrase derja (taille, prix, dispo, pantalon) ne rend PAS la phrase française : « B9adech el gilet ? » est en DERJA.
-  Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
+  Vocabulaire des clientes : serwel / pontalon / pantalon / سروال = pantalon ; djin / جين = jeans (pantalon) ; marioul / maryoul / mariol / مريول / مراول / ماريول = PULL (haut en maille), PAS un pantalon ; gilet / جيلي = cardigan ; rouba / روبة / robe = robe ; souriya / سورية / chemise = chemise ; Si la cliente demande un type d'article qui n'existe pas dans la liste, dis-le simplement (« ma3andnach tawa ») et ne propose pas autre chose à sa place ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
   · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
@@ -405,6 +409,7 @@ STYLE :
     Si toutes les couleurs ont les mêmes tailles, une seule ligne « Couleurs : noir, beige » puis « Tailles : 36 / 38 / 40 » suffit.
   · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
+- NE RÉPÈTE JAMAIS ta réponse précédente mot pour mot. Si la cliente repose la même question, c'est que tu as mal compris : relis son message, réponds autrement ou pose UNE question courte pour comprendre.
 - PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur). Si la cliente demande les couleurs, ou ne précise pas de couleur, laisse « couleur » VIDE : le code envoie alors une photo de CHAQUE couleur disponible. Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
@@ -575,7 +580,7 @@ async function outils_photosReference(catalogue) {
 }
 
 /* ---------- Le code vérifie et applique ce que l'IA propose ---------- */
-async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx, outils) {
+async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx, outils, texteCliente) {
   const ancienne = JSON.stringify(etat.fiche);
   const anciensArticles = new Set(etat.fiche.articles.map(l => l.productId));
 
@@ -606,7 +611,15 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   // Fiche modifiée après le récapitulatif : il faudra un nouveau récapitulatif
   if (etat.etape === 'attente_confirmation' && JSON.stringify(etat.fiche) !== ancienne) etat.etape = 'discussion';
 
-  const dejaEnvoyees = new Set(); // photos déjà envoyées pendant ce tour
+  // V13.8 : on ne renvoie pas une photo déjà envoyée il y a moins de 2 h,
+  // sauf si la cliente redemande clairement des photos.
+  const dejaEnvoyees = new Set(); // photos déjà envoyées (ce tour + récemment)
+  const redemande = DEMANDE_PHOTOS.test(String(texteCliente || ''));
+  const maintenant = Date.now();
+  for (const [adresse, heure] of Object.entries(etat.photosEnvoyees || {})) {
+    if (maintenant - Number(heure) > 2 * 3600 * 1000) delete etat.photosEnvoyees[adresse];
+    else if (!redemande) dejaEnvoyees.add(adresse);
+  }
   // Nouvel article reconnu : on envoie sa vraie photo pour que la cliente confirme
   for (const ligne of etat.fiche.articles) {
     if (anciensArticles.has(ligne.productId)) continue;
@@ -648,10 +661,38 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   }
   await envoyerTexte(env, idCliente, r.reponse);
   await envoyerPhotosDemandees(env, idCliente, r.photos, catalogue, dejaEnvoyees);
+  // V13.8 : on retient l'heure des nouvelles photos envoyées
+  for (const adresse of dejaEnvoyees) if (!etat.photosEnvoyees[adresse]) etat.photosEnvoyees[adresse] = maintenant;
 }
 
 // V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
 // sans renvoyer une photo déjà envoyée dans ce même tour)
+/* ---------- V13.8 : type d'article demandé par la cliente ----------
+   Mots des clientes (français, arabizi, arabe) → mot-clé de catégorie du Stock. */
+const TYPES_ARTICLES = [
+  { categorie: 'pull', mots: /\b(pulls?|marioul|mariol|maryoul|mariyoul|mrawel|mrewel|sweat)\b|مريول|مراول|ماريول/i },
+  { categorie: 'pantalon', mots: /\b(pantalons?|pontalon|serwel|sarwel|srawel|jeans?|djin|jean)\b|سروال|سراول|جين/i },
+  { categorie: 'cardigan', mots: /\b(cardigans?|gilets?|jilet)\b|جيلي|جليكة/i },
+  { categorie: 'robe', mots: /\b(robes?|rouba|roba|rob)\b|روبة|روبات/i },
+  { categorie: 'chemise', mots: /\b(chemises?|souriya|sourya|swari)\b|سورية|سوري/i }
+];
+function photosDuBonType(texte, photos, catalogue) {
+  if (!Array.isArray(photos) || !photos.length) return photos;
+  const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || '')));
+  if (types.length !== 1) return photos; // aucun type, ou plusieurs : on laisse l'IA
+  const cat = types[0].categorie;
+  const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(cat) || sansAccents(a.nom).includes(cat));
+  if (!duType.length) return []; // ce type n'existe pas : aucune photo d'un autre article
+  const numeros = new Set(duType.map(a => a.numero));
+  const gardees = photos.filter(p => p && numeros.has(p.numero));
+  if (gardees.length) return gardees;
+  console.log('Robot : photos corrigées vers le type demandé', cat);
+  return duType.map(a => ({ numero: a.numero, couleur: '' }));
+}
+
+// V13.8 : la cliente redemande clairement des photos
+const DEMANDE_PHOTOS = /\b(photos?|tsawer|tsawir|taswira|tswira|swar|images?|ab3ath|ab3athli|ab3thli|nchouf|tchouf|warini|wariwni)\b|صور|تصاور|تصويرة|ابعث|ورّيني|وريني/i;
+
 const MAX_PHOTOS_REPONSE = 6;
 async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
   if (!Array.isArray(photos)) return;
@@ -984,7 +1025,9 @@ async function lireEtat(env, cle) {
     session: typeof etat.session === 'string' && /^[0-9a-z]{1,12}$/.test(etat.session) ? etat.session : Date.now().toString(36),
     pauseJusqua: Number(etat.pauseJusqua) || 0,
     // V13.6 : langue de la cliente retenue pour toute la conversation
-    langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : ''
+    langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : '',
+    // V13.8 : photos déjà envoyées dans cette conversation (adresse → heure)
+    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {}
   };
 }
 async function ecrireEtat(env, cle, etat) {
