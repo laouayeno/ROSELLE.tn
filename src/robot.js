@@ -228,7 +228,7 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
 
   // e) Ce que la cliente a envoyé : texte, photos, vocal, réponse à une story
   const entree = await lireContenuCliente(message, postback, env);
-  if (!entree.texte && !entree.images.length) return;
+  if (!entree.texte && !entree.images.length && !entree.vocalIncompris) return;
 
   const catalogue = await outils.lireCatalogue();
   if (!catalogue.articles.length) return;
@@ -238,7 +238,15 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   // parfois et passait au français). Si l'IA répond quand même dans une autre
   // langue, on lui redemande une seule fois.
   etat.langue = langueDeLaCliente(entree.texte, etat.langue);
-  let reponseIA = await demanderIA(env, catalogue, etat, entree);
+  // V14.6 (Oussama) : vocal pas compris → on demande d'écrire ; si elle
+  // renvoie un vocal qu'on ne comprend toujours pas → l'équipe prend la main.
+  // (Vocal illisible seul : pas d'appel à l'IA, rien à lui faire lire.)
+  let reponseIA;
+  if (entree.vocalIncompris && !entree.texte && !entree.images.length) {
+    reponseIA = reponseDuCode(etat, 'discuter', '');
+  } else {
+    reponseIA = await demanderIA(env, catalogue, etat, entree);
+  }
   if (reponseIA && CONSIGNE_LANGUE[reponseIA.langue] && reponseIA.langue !== etat.langue) {
     console.log('Robot : mauvaise langue', reponseIA.langue, '→ nouvel essai en', etat.langue);
     const second = await demanderIA(env, catalogue, etat, entree, true);
@@ -252,6 +260,9 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   // le code n'envoie QUE les photos de ce type (l'IA avait envoyé des
   // pantalons pour « فما مراول ؟ » = vous avez des pulls ?).
   reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
+  // V14.6 : questions fréquentes où l'IA parlait mal ou inventait : réponse du CODE
+  reponsesFixes(entree.texte, reponseIA, etat);
+  vocalPasCompris(entree, reponseIA, etat);
 
   // g) Le code vérifie et applique
   await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils, entree.texte);
@@ -269,6 +280,7 @@ async function lireContenuCliente(message, postback, env) {
   const morceaux = [];
   const resume = [];
   const images = [];
+  let aVocal = false, vocalIncompris = false;
   if (postback && postback.title) { morceaux.push(String(postback.title)); resume.push(String(postback.title)); }
   if (message && typeof message.text === 'string' && message.text.trim()) {
     morceaux.push(message.text.trim().slice(0, 1000));
@@ -288,8 +300,9 @@ async function lireContenuCliente(message, postback, env) {
     if (!lien) continue;
     if (piece.type === 'audio') {
       const texte = await transcrireVocal(lien, env);
+      aVocal = true;
       if (texte) { morceaux.push('[Vocal transcrit] ' + texte); resume.push('[vocal] ' + texte.slice(0, 300)); }
-      else { morceaux.push('[Vocal impossible à comprendre]'); resume.push('[vocal incompris]'); }
+      else { vocalIncompris = true; resume.push('[vocal incompris]'); }
     } else if (piece.type === 'image' || piece.type === 'share' || piece.type === 'ig_reel' || piece.type === 'story_mention') {
       const img = await telechargerImage(lien);
       if (img) { images.push(img); resume.push('[photo]'); }
@@ -298,7 +311,7 @@ async function lireContenuCliente(message, postback, env) {
     }
   }
   if (images.length && !morceaux.length) morceaux.push('(Photo envoyée sans texte.)');
-  return { texte: morceaux.join('\n'), images: images.slice(0, 3), resume: resume.join(' ') || '[message]' };
+  return { texte: morceaux.join('\n'), images: images.slice(0, 3), resume: resume.join(' ') || '[message]', aVocal, vocalIncompris };
 }
 
 /* ---------- L'IA ---------- */
@@ -385,7 +398,7 @@ STYLE :
   · « tnajem tab3ath li tsawer ? » / « ab3athli tsawer » / « warini » = la cliente DEMANDE qu'on lui envoie des photos → envoie les photos (champ « photos »), ne lui dis pas qu'elle peut envoyer des photos.
   · « manahkich francais » / « ma nefhemch francais » / « ahki b tounsi » = elle ne parle pas français → à partir de là, réponds UNIQUEMENT en derja (arabizi), plus un seul mot de français à part taille, couleur, livraison.
   · « chnowa 3andkom ? » / « chnowa famma ? » = qu'est-ce que vous avez → présente les articles en liste + photos.
-  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
+  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (48 h, après l'appel de confirmation).
   · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
   · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
   · « klem mech mafhoum » / « mafhemtekch » / « ma fhemtch » = elle n'a pas compris ta phrase → redis-le PLUS SIMPLEMENT EN DERJA (phrases plus courtes), JAMAIS en passant au français.
@@ -452,13 +465,13 @@ STYLE :
 
 RÈGLES (très importantes) :
 - Prix, couleurs, tailles et disponibilités : UNIQUEMENT ceux de la liste ci-dessous. N'invente jamais. Taille « épuisée » = pas disponible.
-- Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
+- Livraison partout en Tunisie : ${catalogue.frais} DT. Délai : livraison en 48 h, après l'appel de confirmation de l'équipe (« El livraison fi 48 se3a, estanna el moukelma mta3 el confirmation »).
 - Site avec tous les modèles : https://rosellesite.com
 - Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet Cardigan Céleste 79dt\n📌 Pantalon The Céleste Barrel Jeans 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon Céleste Barrel Jeans, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
 - NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. En lettres arabes : جيلي، سروال (جين = سروال جين)، مريول، روبة، سورية ; JAMAIS « بنطلون » (pas tunisien). Si la cliente demande un JEAN, ne propose que les jeans, pas les autres pantalons. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
 - BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
-- Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
+- Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste ; DÉDUIS-LE de la ville sans le demander quand c'est évident : Moknine → Monastir, Hammamet → Nabeul, La Marsa → Tunis, Msaken → Sousse), ville ou délégation, adresse. Ne dis JAMAIS que la commande est confirmée ou enregistrée : c'est le code qui le dit quand elle l'est vraiment. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
 - Quand la cliente dit oui / je confirme / ok après le récapitulatif : action « confirmer ».
 - Action « humain » (une personne de l'équipe reprendra) : vente en gros, travail ou partenariat, réclamation, échange ou retour, colis déjà commandé, question que tu ne sais pas, cliente fâchée, ou si elle demande une vraie personne. Dis-lui CLAIREMENT et gentiment qu'une personne de l'équipe va lui répondre ici très vite (pas « je peux appeler l'équipe ») ; ne pose pas de question à la fin et ne demande ni son nom ni son numéro (l'équipe lui répondra dans cette même conversation).
@@ -649,7 +662,7 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   const telephone = String(r.telephone || '').replace(/[\s.\-]/g, '').replace(/^(\+216|00216)/, '');
   etat.fiche.telephone = /^[2-9][0-9]{7}$/.test(telephone) ? telephone : '';
   etat.fiche.nom = texteCourt(r.nom, 80);
-  etat.fiche.gouvernorat = catalogue.gouvernorats[r.gouvernorat] ? r.gouvernorat : '';
+  etat.fiche.gouvernorat = codeGouvernorat(r.gouvernorat, catalogue);
   etat.fiche.ville = texteCourt(r.ville, 80);
   etat.fiche.adresse = texteCourt(r.adresse, 200);
 
@@ -676,7 +689,14 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     }
   }
 
-  const action = r.action;
+  let action = r.action;
+  // V14.5 : l'IA écrit parfois « commande confirmée » sans passer par l'action
+  // de confirmation : on traite ce texte comme une demande de confirmation
+  // (récapitulatif du code si tout est rempli, sinon ce qui manque).
+  if (action !== 'humain' && action !== 'annuler' && action !== 'confirmer' && PHRASE_CONFIRMEE.test(String(r.reponse || ''))) {
+    console.log('Robot : « commande confirmée » écrit par l\'IA, remplacé', canal, idCliente);
+    action = 'demander_confirmation';
+  }
   if (action === 'humain') {
     // V14.3 : message de passage FIXE, écrit en vraie derja tunisienne (l'IA
     // inventait des phrases bizarres, et même « on ne fait pas le gros »).
@@ -700,12 +720,21 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     return;
   }
   if ((action === 'demander_confirmation' || action === 'confirmer') && ficheComplete(etat.fiche)) {
-    if (r.reponse && r.reponse.trim()) await envoyerTexte(env, idCliente, r.reponse);
+    if (r.reponse && r.reponse.trim() && !PHRASE_CONFIRMEE.test(r.reponse)) await envoyerTexte(env, idCliente, r.reponse);
     await envoyerTexte(env, idCliente, recapitulatif(etat.fiche, catalogue), [
       { content_type: 'text', title: 'Oui ✅', payload: 'CONFIRMER' },
       { content_type: 'text', title: 'Modifier ✏️', payload: 'MODIFIER' }
     ]);
     etat.etape = 'attente_confirmation';
+    return;
+  }
+  // V14.5 : l'IA veut confirmer mais la fiche n'est pas complète (ex. pas de
+  // gouvernorat) : on n'envoie PAS son texte (elle a déjà dit « commande
+  // confirmée » sans qu'aucune commande soit créée) mais ce qui manque.
+  if (action === 'demander_confirmation' || action === 'confirmer') {
+    console.log('Robot : confirmation demandée mais fiche incomplète', canal, idCliente);
+    if (etat.etape === 'attente_confirmation') etat.etape = 'discussion';
+    await envoyerTexte(env, idCliente, messageManque(etat.fiche, etat.langue));
     return;
   }
   await envoyerTexte(env, idCliente, r.reponse);
@@ -854,6 +883,80 @@ function motSimple(nom, categorie) {
   return '';
 }
 
+// V14.6 (Oussama : « la langue est grave ») : pour les questions fréquentes,
+// le CODE écrit la réponse, en vrai tunisien, sans rien inventer.
+//  - vente en gros → toujours l'équipe (l'IA avait répondu « on ne vend pas en gros ») ;
+//  - délai de livraison → phrase fixe, aucun délai promis.
+const MOTS_GROS = /(?<![\p{L}])(gros|grossiste|grossistes|jomla|jumla|bel ?jomla|en gros)(?![\p{L}])|بالجملة|الجملة|جملة/iu;
+const MOTS_DELAI = /(wa9tech|wa9teh|wakteh|waktech|wa9t?ach|9adeh men nhar|9adech men nhar|quand|délai|delai|combien de (jours|temps)|وقتاش|وقتاه|قداش من نهار)/iu;
+const MOTS_LIVRAISON = /(tousel|tosel|twosel|youssel|yousel|yosel|ywosel|tji|yji|arriv|livr|colis|kolis|commande|توصل|يوصل|تجي|يجي|الكوليس|الكومند|الكوموند|التوصيل)/iu;
+const TEXTE_DELAI = {
+  // Texte voulu par Oussama (28/11) : livraison en 48 h + attendre l'appel de confirmation
+  arabizi: 'El livraison fi 48 se3a 🌸 Estanna el moukelma mta3 el confirmation.',
+  arabe: 'التوصيل في 48 ساعة 🌸 استنى المكالمة متاع التأكيد.',
+  francais: "La livraison se fait en 48 h 🌸 Attendez l'appel de confirmation."
+};
+// V14.6 : réponse fabriquée par le code (sans IA), fiche inchangée
+function reponseDuCode(etat, action, texte) {
+  const f = etat.fiche;
+  return { comprehension: 'réponse du code', langue: etat.langue || 'arabizi', reponse: texte, photos: [], action,
+    articles: null, nom: f.nom, telephone: f.telephone, gouvernorat: f.gouvernorat, ville: f.ville, adresse: f.adresse };
+}
+
+// V14.6 (Oussama) : vocal pas compris → « tnajem tekteb ? », 2e fois → équipe
+const TEXTE_ECRIRE = {
+  arabizi: "Sorry 🌸 ma fhemtch el vocal. Tnajem tekteb brabi ?",
+  arabe: 'سامحني 🌸 ما فهمتش الفوكال. تنجم تكتب بربي ؟',
+  francais: "Désolée 🌸 je n'ai pas bien compris le vocal. Pouvez-vous l'écrire s'il vous plaît ?"
+};
+const PHRASE_PAS_COMPRIS = /ma ?fhemt|mafhemt|ما فهمت|مافهمت|pas (bien )?compris|n'ai pas compris/i;
+function vocalPasCompris(entree, r, etat) {
+  if (!entree.aVocal) { etat.vocauxIncompris = 0; return; }
+  const incompris = (entree.vocalIncompris && !entree.texte && !entree.images.length) ||
+    (r.action !== 'humain' && PHRASE_PAS_COMPRIS.test(String(r.reponse || '')));
+  if (!incompris) { etat.vocauxIncompris = 0; return; }
+  etat.vocauxIncompris = (etat.vocauxIncompris || 0) + 1;
+  r.photos = [];
+  if (etat.vocauxIncompris >= 2) {
+    console.log('Robot : 2e vocal pas compris → équipe');
+    r.action = 'humain';
+    etat.vocauxIncompris = 0;
+  } else {
+    console.log('Robot : vocal pas compris → on demande d\'écrire');
+    r.action = 'discuter';
+    r.reponse = TEXTE_ECRIRE[etat.langue] || TEXTE_ECRIRE.arabizi;
+  }
+}
+
+// Échange (règle d'Oussama, 28/11) : possible sous 15 jours, article neuf
+const MOTS_ECHANGE = /(?<![\p{L}])(échange|echange|échanger|echanger|exchange|n?t?badd?el|nbadlou|tbadlou|badd?el|retour|rajja3|nraja3|traja3)(?![\p{L}])|تبديل|نبدل|تبدل|نبدلو|بدّل|نرجع|ترجيع/iu;
+const TEXTE_ECHANGE = {
+  arabizi: "Ey, el échange possible fi 15 nhar 🌸 b chart el article ykoun jdid, ma tlebsetouch.",
+  arabe: 'إيه، التبديل ممكن في 15 يوم 🌸 بشرط الحاجة تكون جديدة، ما تلبستش.',
+  francais: "Oui, l'échange est possible sous 15 jours 🌸 à condition que l'article soit neuf, non porté."
+};
+function reponsesFixes(texte, r, etat) {
+  const t = String(texte || '');
+  if (!t || r.action === 'confirmer' || r.action === 'demander_confirmation' || r.action === 'annuler') return;
+  if (MOTS_GROS.test(t)) {
+    console.log('Robot : vente en gros → équipe');
+    r.action = 'humain';
+    r.photos = [];
+    return;
+  }
+  if (r.action !== 'humain' && MOTS_ECHANGE.test(t)) {
+    console.log('Robot : échange → phrase fixe');
+    r.reponse = TEXTE_ECHANGE[etat.langue] || TEXTE_ECHANGE.arabizi;
+    r.photos = [];
+    return;
+  }
+  if (r.action !== 'humain' && MOTS_DELAI.test(t) && MOTS_LIVRAISON.test(t)) {
+    console.log('Robot : délai de livraison → phrase fixe');
+    r.reponse = TEXTE_DELAI[etat.langue] || TEXTE_DELAI.arabizi;
+    r.photos = [];
+  }
+}
+
 // V13.9 : note pour l'IA quand la cliente nomme UN type d'article
 function noteTypeDemande(texte, catalogue) {
   const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || ''))).slice(0, 3);
@@ -920,6 +1023,37 @@ function verifierLigne(l, catalogue) {
 function ficheVide() {
   return { articles: [], nom: '', telephone: '', gouvernorat: '', ville: '', adresse: '' };
 }
+// V14.5 : l'IA renvoie parfois le NOM du gouvernorat (« Monastir ») au lieu
+// du code : on accepte les deux.
+// Phrases qui annoncent une commande confirmée (seul le code a le droit de le dire)
+const PHRASE_CONFIRMEE = /تم\s*تأكيد|تأكدت|تسجلت\s*الكوموند|commande\s+(est\s+)?(bien\s+)?(confirmée|enregistrée|validée)|t2akd(et|it)|tconfirm(at|et)|tsajlet/i;
+
+function codeGouvernorat(valeur, catalogue) {
+  const v = String(valeur || '').trim();
+  if (catalogue.gouvernorats[v]) return v;
+  const cherche = sansAccents(v).replace(/[^a-z]/g, '');
+  if (!cherche) return '';
+  for (const [code, nom] of Object.entries(catalogue.gouvernorats)) {
+    if (sansAccents(String(nom)).replace(/[^a-z]/g, '') === cherche) return code;
+  }
+  return '';
+}
+
+// V14.5 : ce qui manque encore pour commander, écrit par le CODE
+// (jamais l'IA qui dirait « commande confirmée » alors qu'elle ne l'est pas)
+const TEXTES_MANQUE = {
+  arabizi: { articles: 'el article (couleur w taille)', nom: 'esmek w la9bek', telephone: 'noumrou mte3ek (8 ar9am)', gouvernorat: 'el wileya', ville: 'el mdina', adresse: 'el adresse', debut: 'Bech nkammel el commande, 9olli ', fin: ' brabi 🌸' },
+  arabe: { articles: 'الموديل (اللون و القياس)', nom: 'اسمك و لقبك', telephone: 'نومرو التليفون (8 أرقام)', gouvernorat: 'الولاية', ville: 'المدينة', adresse: 'العنوان', debut: 'باش نكمل الكوموند، قلّي ', fin: ' بربي 🌸' },
+  francais: { articles: "l'article (couleur et taille)", nom: 'votre nom et prénom', telephone: 'votre numéro (8 chiffres)', gouvernorat: 'votre gouvernorat', ville: 'votre ville', adresse: 'votre adresse', debut: 'Pour finir la commande, il me manque ', fin: ' 🌸' }
+};
+function messageManque(f, langue) {
+  const t = TEXTES_MANQUE[langue] || TEXTES_MANQUE.arabizi;
+  const manque = [];
+  if (!f.articles.length || !f.articles.every(l => l.variantId && l.qty > 0)) manque.push(t.articles);
+  for (const champ of ['nom', 'telephone', 'gouvernorat', 'ville', 'adresse']) if (!f[champ]) manque.push(t[champ]);
+  return t.debut + manque.join(', ') + t.fin;
+}
+
 function ficheComplete(f) {
   return f.articles.length > 0 && f.articles.every(l => l.variantId && l.qty > 0) &&
     !!f.nom && !!f.telephone && !!f.gouvernorat && !!f.ville && !!f.adresse;
@@ -1263,7 +1397,9 @@ async function lireEtat(env, cle) {
     // V13.6 : langue de la cliente retenue pour toute la conversation
     langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : '',
     // V13.8 : photos déjà envoyées dans cette conversation (adresse → heure)
-    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {}
+    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {},
+    // V14.6 : vocaux pas compris d'affilée (au 2e, la discussion passe à l'équipe)
+    vocauxIncompris: Number.isInteger(etat.vocauxIncompris) ? etat.vocauxIncompris : 0
   };
 }
 async function ecrireEtat(env, cle, etat) {
