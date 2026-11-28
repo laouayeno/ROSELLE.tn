@@ -392,7 +392,7 @@ STYLE :
   · « Disponible taille L ? » → « Oui disponible 🌸 »
   · « Bsr » / « Hi » → « Bonsoir 🌸 »
   Un mot français isolé dans une phrase derja (taille, prix, dispo, pantalon) ne rend PAS la phrase française : « B9adech el gilet ? » est en DERJA.
-  Vocabulaire des clientes : serwel / pontalon / pantalon / سروال = pantalon ; djin / جين = jeans (pantalon) ; marioul / maryoul / mariol / مريول / مراول / ماريول = PULL (haut en maille), PAS un pantalon ; gilet / جيلي = cardigan ; rouba / روبة / robe = robe ; souriya / سورية / chemise = chemise ; Si la cliente demande un type d'article qui n'existe pas dans la liste, dis-le simplement (« ma3andnach tawa ») et ne propose pas autre chose à sa place ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
+  Vocabulaire des clientes : serwel / pontalon / pantalon / سروال = pantalon ; djin / جين = jeans (pantalon) ; marioul / maryoul / mariol / مريول / مراول / ماريول = PULL (haut en maille), PAS un pantalon ; gilet / جيلي = cardigan ; rouba / روبة / robe = robe ; souriya / سورية / chemise = chemise ; Le code t'ajoute parfois une NOTE DU SYSTÈME qui dit quel type d'article la cliente demande : elle est sûre, suis-la. Si la cliente demande un type d'article qui n'existe pas dans la liste, dis-le simplement (« ma3andnach tawa ») et ne propose pas autre chose à sa place ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
   · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
@@ -462,6 +462,10 @@ async function demanderIA(env, catalogue, etat, entree, insister) {
     for (const img of entree.images) contenu.push({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.donnees } });
   }
   contenu.push({ type: 'text', text: 'Message de la cliente :\n' + (entree.texte || '(photo)') });
+  // V13.9 : le code reconnaît le type d'article (marioul = pull…) et le dit à l'IA,
+  // qui se trompait encore (« ma3andnach mraywel » alors que le pull existe)
+  const noteType = noteTypeDemande(entree.texte, catalogue);
+  if (noteType) contenu.push({ type: 'text', text: noteType });
   // V13.6 : langue imposée par le code
   if (etat.langue) contenu.push({ type: 'text', text: CONSIGNE_LANGUE[etat.langue] + (insister ? ' ATTENTION : ta réponse précédente n\'était pas dans la bonne langue. Réécris-la entièrement dans cette langue.' : '') });
   const dernier = messages[messages.length - 1];
@@ -669,25 +673,98 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
 // sans renvoyer une photo déjà envoyée dans ce même tour)
 /* ---------- V13.8 : type d'article demandé par la cliente ----------
    Mots des clientes (français, arabizi, arabe) → mot-clé de catégorie du Stock. */
+// Fabrique une expression qui trouve ces mots comme mots entiers :
+//  - écriture latine (français / arabizi) : « s » final permis (pulls, robes) ;
+//  - écriture arabe : petits mots collés devant permis (و ف ب ل + ال),
+//    et terminaisons courantes derrière (ات ة ه ي ين ك و).
+// Ainsi « جين » trouve « الجين » mais PAS « جينا » (= on est venus).
+function motsVersRegex(latins, arabes) {
+  const parties = [];
+  if (latins.length) parties.push('(?<![\\p{L}\\p{N}])(?:' + latins.join('|') + ')s?(?![\\p{L}\\p{N}])');
+  if (arabes.length) parties.push('(?<![\\p{L}\\p{N}])(?:[وفبل])?(?:ال)?(?:' + arabes.join('|') + ')(?:ات|ة|ه|ي|ين|ك|و)?(?![\\p{L}\\p{N}])');
+  return new RegExp(parties.join('|'), 'iu');
+}
+
+// V13.9 : dictionnaire des vêtements en derja (Oussama : « apprends-lui tous
+// les mots tunisiens, en arabe et en arabizi »). On garde aussi les types que
+// la boutique ne vend pas : le robot peut alors dire « ma3andnach tawa ».
+// « categorie » = mot cherché dans la catégorie ou le nom de l'article du Stock.
 const TYPES_ARTICLES = [
-  { categorie: 'pull', mots: /\b(pulls?|marioul|mariol|maryoul|mariyoul|mrawel|mrewel|sweat)\b|مريول|مراول|ماريول/i },
-  { categorie: 'pantalon', mots: /\b(pantalons?|pontalon|serwel|sarwel|srawel|jeans?|djin|jean)\b|سروال|سراول|جين/i },
-  { categorie: 'cardigan', mots: /\b(cardigans?|gilets?|jilet)\b|جيلي|جليكة/i },
-  { categorie: 'robe', mots: /\b(robes?|rouba|roba|rob)\b|روبة|روبات/i },
-  { categorie: 'chemise', mots: /\b(chemises?|souriya|sourya|swari)\b|سورية|سوري/i }
+  { categorie: 'pull', mots: motsVersRegex(
+    ['pull', 'pul', 'marioul', 'mariol', 'maryoul', 'mariyoul', 'maryol', 'mrioul', 'mraywel', 'mrawel', 'mrewel', 'mrawl', 'tricot', 'triko', 'tricou', 'sweat', 'sweet', 'swit', 'hoodie', 'hoody', 'capuche', 'kapuchon', 'capuchon'],
+    ['مريول', 'ماريول', 'مراول', 'مراويل', 'مريويل', 'تريكو', 'تريكوه', 'بول', 'سويت', 'هودي', 'كابوشون']) },
+  { categorie: 'pantalon', mots: motsVersRegex(
+    ['pantalon', 'pontalon', 'pantalo', 'pantalone', 'serwel', 'sarwel', 'sirwel', 'srawel', 'sraweil', 'sourwel', 'srewel', 'jean', 'jeans', 'djin', 'djean', 'jin', 'jinz', 'jogging', 'joging', 'jogingue', 'cargo', 'palazzo', 'flare', 'barrel', 'chino'],
+    ['سروال', 'سراول', 'سراويل', 'سرويل', 'جين', 'جينز', 'دجين', 'بنطلون', 'بنطال', 'بانطالون', 'جوقينق', 'جوغينغ', 'كارقو', 'كارغو']) },
+  { categorie: 'cardigan', mots: motsVersRegex(
+    ['cardigan', 'cardi', 'kardigan', 'gilet', 'jilet', 'jileh', 'jile', 'jlika', 'jliga'],
+    ['كارديغان', 'كارديقان', 'كاردجان', 'جيلي', 'جيليه', 'جليكة', 'جليقة', 'صدرية']) },
+  { categorie: 'robe', mots: motsVersRegex(
+    ['robe', 'rouba', 'roba', 'rouab', 'rob', 'roub', 'robet', 'keswa', 'kaswa', 'kiswa', 'fostan', 'fustan', 'foustan'],
+    ['روبة', 'روبه', 'روب', 'روبات', 'كسوة', 'كساوي', 'فستان', 'فساتين', 'فسطان']) },
+  { categorie: 'chemise', mots: motsVersRegex(
+    ['chemise', 'chmiz', 'chmise', 'souriya', 'sourya', 'souria', 'souriyet', 'swari', 'swaria', 'blouse', 'blouza', 'bluza'],
+    ['سورية', 'سوريه', 'سوريات', 'سواري', 'شميز', 'قميص', 'قمصان', 'بلوزة', 'بلوزه']) },
+  { categorie: 'jupe', mots: motsVersRegex(
+    ['jupe', 'jupa', 'jupon', 'jiba', 'jipa', 'jibba', 'jup'],
+    ['جيبة', 'جيبه', 'جوبة', 'جوبه', 'جوب', 'جيبات', 'تنورة', 'تنوره']) },
+  { categorie: 'short', mots: motsVersRegex(
+    ['short', 'chort', 'shorte', 'bermuda'],
+    ['شورت', 'شورط', 'برمودا']) },
+  { categorie: 'veste', mots: motsVersRegex(
+    ['veste', 'vesta', 'vest', 'manteau', 'manto', 'mantou', 'blouson', 'blouzon', 'jacket', 'jaket', 'jakit', 'doudoune', 'doudoun', 'parka', 'trench', 'kabbout', 'kabbot', 'kabout', 'kabbouta', 'blazer', 'perfecto'],
+    ['فيستة', 'فيسته', 'فيست', 'مونطو', 'منطو', 'مانطو', 'مانطوات', 'بلوزون', 'جاكيت', 'جاكت', 'دودون', 'باركا', 'كبوط', 'كبّوط', 'بلايزر', 'معطف']) },
+  { categorie: 't-shirt', mots: motsVersRegex(
+    ['t-shirt', 'tshirt', 'tichirt', 'ticheurt', 'tishirt', 'ti-shirt', 'debardeur', 'débardeur', 'crop', 'croptop', 'crop-top', 'body', 'bodie'],
+    ['تيشيرت', 'تيشرت', 'تيشورت', 'ديباردور', 'دباردور', 'كروب', 'بودي']) },
+  { categorie: 'ensemble', mots: motsVersRegex(
+    ['ensemble', 'ansonbl', 'ansombl', 'ensembl', 'combinaison', 'combi', 'kombinizon', 'salopette', 'salopet', 'survetement', 'survêtement', 'survet'],
+    ['أنسمبل', 'انسمبل', 'انسامبل', 'أنسامبل', 'كومبيناز', 'كومبينيزون', 'صالوبات', 'سالوبات', 'سورفات', 'سورفيتمون']) },
+  { categorie: 'pyjama', mots: motsVersRegex(
+    ['pyjama', 'pijama', 'pyjema', 'nuisette', 'peignoir'],
+    ['بيجامة', 'بيجامه', 'بيجاما', 'نويزات', 'بنوار']) },
+  { categorie: 'legging', mots: motsVersRegex(
+    ['legging', 'leggings', 'leging', 'collant', 'kolon', 'colon'],
+    ['ليقينق', 'ليغينغ', 'لقينق', 'كولون', 'كولان']) },
+  { categorie: 'abaya', mots: motsVersRegex(
+    ['abaya', 'abaye', '3abaya', 'caftan', 'kaftan', 'qaftan', '9aftan', 'jebba', 'jebbah', 'djellaba', 'jellaba', 'kachabia', 'sefsari', 'kimono'],
+    ['عباية', 'عبايات', 'عبايه', 'قفطان', 'جبة', 'جبّة', 'جلابة', 'جلابية', 'قشابية', 'سفساري', 'كيمونو']) },
+  { categorie: 'foulard', mots: motsVersRegex(
+    ['foulard', 'foulara', 'fulara', 'hijab', '7ijab', 'echarpe', 'écharpe', 'charpe', 'cheich', 'bandana'],
+    ['فولارة', 'فولاره', 'فولار', 'حجاب', 'شارب', 'إشارب', 'اشارب', 'شاش', 'خمار']) },
+  { categorie: 'chaussure', mots: motsVersRegex(
+    ['chaussure', 'sabbat', 'sebbat', 'sabat', 'basket', 'baskets', 'sneakers', 'sandale', 'sandal', 'botte', 'bottine', 'escarpin', 'mocassin', 'chlaka', 'chleka', 'claquette'],
+    ['صباط', 'صبابط', 'سباط', 'بسكات', 'باسكات', 'صندالة', 'صندل', 'بوط', 'بوطات', 'شلاكة', 'شلايك', 'كلاكات']) },
+  { categorie: 'sac', mots: motsVersRegex(
+    ['sac', 'sak', 'sacoche', 'sakoche', 'pochette', 'portefeuille', 'chkara'],
+    ['ساك', 'صاك', 'صاكوش', 'ساكوش', 'بوشات', 'شكارة', 'جزدان']) }
 ];
 function photosDuBonType(texte, photos, catalogue) {
   if (!Array.isArray(photos) || !photos.length) return photos;
   const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || '')));
   if (types.length !== 1) return photos; // aucun type, ou plusieurs : on laisse l'IA
   const cat = types[0].categorie;
-  const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(cat) || sansAccents(a.nom).includes(cat));
+  const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(sansAccents(cat)) || sansAccents(a.nom).includes(sansAccents(cat)));
   if (!duType.length) return []; // ce type n'existe pas : aucune photo d'un autre article
   const numeros = new Set(duType.map(a => a.numero));
   const gardees = photos.filter(p => p && numeros.has(p.numero));
   if (gardees.length) return gardees;
   console.log('Robot : photos corrigées vers le type demandé', cat);
   return duType.map(a => ({ numero: a.numero, couleur: '' }));
+}
+
+// V13.9 : note pour l'IA quand la cliente nomme UN type d'article
+function noteTypeDemande(texte, catalogue) {
+  const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || ''))).slice(0, 3);
+  if (!types.length) return '';
+  const lignes = types.map(t => {
+    const cat = t.categorie;
+    const duType = catalogue.articles.filter(a => sansAccents(a.categorie).includes(sansAccents(cat)) || sansAccents(a.nom).includes(sansAccents(cat)));
+    if (!duType.length) return `- ${cat.toUpperCase()} : aucun dans le catalogue → dis gentiment qu'on n'en a pas pour le moment (« ma3andnach tawa »), sans proposer d'autres articles à la place.`;
+    return `- ${cat.toUpperCase()} : ${duType.map(a => `Article n°${a.numero} (${a.nom})`).join(', ')}. Ils EXISTENT : ne dis JAMAIS qu'on n'en a pas.`;
+  });
+  return 'NOTE DU SYSTÈME (sûre, le code a reconnu les mots de la cliente) : elle parle de ces types d\'articles :\n' + lignes.join('\n') +
+    '\nRéponds seulement avec ces articles-là (nom + prix) et mets dans photos ceux dont elle veut voir les photos. Ne parle pas des autres types.';
 }
 
 // V13.8 : la cliente redemande clairement des photos
