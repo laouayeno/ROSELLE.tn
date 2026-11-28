@@ -402,6 +402,26 @@ STYLE :
   · « Jean fih l élastique ou nn ? » → « Le, coupe barrel, mafihech élastique 🌸 »
   · « Cc prix » sans article clair → « 3aslema 🌸\nAnehou el article ? Ab3athli taswira 🌸 »
   · « Slm » → « Aslema 🌸 »
+  (V14.3, autres situations, même ton simple de vendeuse tunisienne)
+  · « Livraison 9adech ? » → « El livraison b ${catalogue.frais}dt 🌸 »
+  · « Taille L famma ? » (épuisée) → « Sorry, el L kmelet 😔 famma S w M ken t7eb »
+  · « Nheb nekhou wa7ed » → « Behi 🌸 9olli el couleur w el taille ken t7eb »
+  · « Merci » / « Ya3tik essa7a » → « Bla jmil 🌸 » / « W enti ya3tik essa7a 🌸 »
+  · « Nkhamem w nraja3lek » → « Behi, ena houni ki t7eb 🌸 »
+  · « Aslema, labes ? » → « Aslema 🌸 labes el 7amdoulah, kifech nnajem n3awnek ? »
+  · « Famma men lawn e5er ? » → « Ey 🌸 famma noir w beige » (seulement les couleurs vraiment en stock)
+  · « Kifech n3adi commande ? » → « Sahla 🌸 9olli chnowa t7eb (article, couleur, taille) w ena n3adilek el commande houni »
+  · « Najem nbadel ken ma jatnich ? » → « Ey 🌸 el équipe tfahmek kifech »
+  · « Ywosel l Sfax ? » → « Ey, nwasslou l tounes lkol 🌸 »
+  · « Mazelt ma jatnich el commande » → « Sorry 🌸 taw wa7da mel équipe tchouf m3ak »
+  · « Fih stock ? » (rupture totale) → « Sorry, kmel 😔 »
+  · « Ok » / « Behi » (fin de discussion) → « 🌸 »
+  · Réponds avec des phrases courtes comme celles-ci ; ne traduis JAMAIS mot à mot depuis le français ou l'arabe littéraire.
+  Cliente en ARABE (lettres arabes) → réponse en derja tunisienne en lettres arabes :
+  · « بقداش السروال ؟ » → « عسلامة 🌸\nالسروال ب 79 دينار »
+  · « فما تاي L ؟ » → « إيه موجود 🌸 »
+  · « قداش التوصيل ؟ » → « التوصيل ب ${catalogue.frais} دينار 🌸 »
+  · « يعطيك الصحة » → « وانتي يعطيك الصحة 🌸 »
   Cliente en FRANÇAIS → réponse en FRANÇAIS :
   · « Prix pantalon svp » / « Le prix de pantalon sltp » → « Bonjour 🌸\nPantalon 79dt »
   · « Disponible taille L ? » → « Oui disponible 🌸 »
@@ -652,7 +672,9 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
 
   const action = r.action;
   if (action === 'humain') {
-    await envoyerTexte(env, idCliente, r.reponse);
+    // V14.3 : message de passage FIXE, écrit en vraie derja tunisienne (l'IA
+    // inventait des phrases bizarres, et même « on ne fait pas le gros »).
+    await envoyerTexte(env, idCliente, MESSAGE_PASSAGE_EQUIPE[etat.langue] || MESSAGE_PASSAGE_EQUIPE.arabizi);
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
     console.log('Robot : conversation passée à l\'équipe', canal, idCliente);
     // V14.1 : la discussion apparaît dans le Stock (« Discussions à traiter ») + notification
@@ -769,6 +791,13 @@ function photosDuBonType(texte, photos, catalogue) {
   console.log('Robot : photos corrigées vers le type demandé', cat);
   return duType.map(a => ({ numero: a.numero, couleur: '' }));
 }
+
+/* ---------- V14.3 : message fixe quand le robot passe la main à l'équipe ---------- */
+const MESSAGE_PASSAGE_EQUIPE = {
+  arabizi: 'Behi 🌸 wa7da mel équipe bech tjewbek houni, estanna chwaya.',
+  arabe: 'باهي 🌸 وحدة من الفريق باش تجاوبك هوني، استنى شوية.',
+  francais: "D'accord 🌸 une personne de l'équipe vous répond ici très vite."
+};
 
 /* ---------- V14.2 : derja TUNISIENNE seulement ----------
    L'IA glisse parfois des mots d'autres pays (« daba », « bzaf »…).
