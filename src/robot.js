@@ -454,8 +454,9 @@ RÈGLES (très importantes) :
 - Prix, couleurs, tailles et disponibilités : UNIQUEMENT ceux de la liste ci-dessous. N'invente jamais. Taille « épuisée » = pas disponible.
 - Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
 - Site avec tous les modèles : https://rosellesite.com
-- Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. Article absent de la liste = « pas disponible pour le moment ».
+- Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet Cardigan Céleste 79dt\n📌 Pantalon The Céleste Barrel Jeans 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon Céleste Barrel Jeans, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
+- NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
 - BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
 - Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
@@ -490,10 +491,15 @@ async function demanderIA(env, catalogue, etat, entree, insister) {
   if (entree.images.length) {
     const references = await outils_photosReference(catalogue);
     for (const ref of references) {
-      contenu.push({ type: 'text', text: `Photo de référence : Article n°${ref.numero} (${ref.nom}, ${ref.couleur})` });
+      // V14.4 : le mannequin porte souvent une tenue complète (cardigan + jean…) :
+      // on précise QUEL vêtement de la photo est l'article, pour éviter de
+      // prendre un jean bleu pour le cardigan porté avec.
+      const art = catalogue.articles.find(a => a.numero === ref.numero);
+      const typeArt = art && art.categorie ? art.categorie : 'vêtement';
+      contenu.push({ type: 'text', text: `Photo de référence : Article n°${ref.numero} = ${ref.nom} (type : ${typeArt}, couleur ${ref.couleur}). Sur cette photo, SEUL le vêtement de type « ${typeArt} » est cet article ; les autres vêtements portés avec ne comptent pas.` });
       contenu.push({ type: 'image', source: { type: 'base64', media_type: ref.type, data: ref.donnees } });
     }
-    contenu.push({ type: 'text', text: 'Photo(s) envoyée(s) par la cliente :' });
+    contenu.push({ type: 'text', text: 'Photo(s) envoyée(s) par la cliente. Regarde QUEL vêtement elle montre (souvent celui au centre, ou celui qu\'elle nomme) et sa COULEUR, puis cherche l\'article du même type et de la même couleur :' });
     for (const img of entree.images) contenu.push({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.donnees } });
   }
   contenu.push({ type: 'text', text: 'Message de la cliente :\n' + (entree.texte || '(photo)') });
@@ -809,7 +815,7 @@ const MOTS_TUNISIENS = [
   ['wakha', 'behi'], ['wakhkha', 'behi'], ['bghit', 'nheb'], ['bghiti', 't7eb'], ['mzyan', 'behi'], ['mzyen', 'behi'], ['mezyan', 'behi'],
   ['dyal', 'mta3'], ['dial', 'mta3'], ['dyali', 'mte3i'], ['dyalek', 'mte3ek'], ['kayn', 'famma'], ['kayna', 'famma'], ['kaynin', 'famma'],
   ['makaynch', 'ma famech'], ['makaynach', 'ma famech'], ['chhal', '9adech'], ['ch7al', '9adech'], ['safi', 'behi'],
-  ['delwa2ti', 'tawa'], ['dilwa2ti', 'tawa'], ['keda', 'haka'], ['kida', 'haka'], ['3ayza', 't7eb'], ['ezzayek', 'chniya a7walek'],
+  ['delwa2ti', 'tawa'], ['dilwa2ti', 'tawa'], ['keda', 'haka'], ['kida', 'haka'], ['3ayza', 't7eb'], ['ezzayek', 'chniya a7walek'], ['smah fi', 'sorry'], ['smahli fi', 'sorry'],
   // (lettres arabes)
   ['دابا', 'توا'], ['بزاف', 'برشا'], ['بزّاف', 'برشا'], ['واخا', 'باهي'], ['بغيت', 'نحب'], ['بغيتي', 'تحب'],
   ['مزيان', 'باهي'], ['ديال', 'متاع'], ['ديالك', 'متاعك'], ['ديالي', 'متاعي'], ['كاين', 'فما'], ['كاينة', 'فما'], ['كاينين', 'فما'],
@@ -827,6 +833,27 @@ function tunisianiser(texte) {
   return sortie;
 }
 
+// V14.4 (Oussama) : les clientes ne comprennent pas toujours le nom exact
+// (« The Léonie Barrel Jeans ») : dans les messages écrits par le code, on
+// dit le mot simple du type (Pantalon, Gilet, Pull…). Sinon, le nom exact.
+const MOT_SIMPLE = { pull: 'Pull', pantalon: 'Pantalon', cardigan: 'Gilet', robe: 'Robe', chemise: 'Chemise', jupe: 'Jupe', short: 'Short', veste: 'Veste', 't-shirt': 'T-shirt', ensemble: 'Ensemble', pyjama: 'Pyjama', legging: 'Legging', abaya: 'Abaya', foulard: 'Foulard', chaussure: 'Chaussures', sac: 'Sac' };
+function nomSimple(nom, categorie) {
+  // V14.4 (Oussama : « je préfère dire les deux ») : mot simple + nom exact,
+  // ex. « Gilet Cardigan Céleste ». Pas de doublon si le nom commence déjà
+  // par ce mot (« Robe Rosa » reste « Robe Rosa »).
+  const nomExact = String(nom || '');
+  const mot = motSimple(nomExact, categorie);
+  if (!mot || sansAccents(nomExact).startsWith(sansAccents(mot))) return nomExact;
+  return mot + ' ' + nomExact;
+}
+function motSimple(nom, categorie) {
+  const cat = sansAccents(String(categorie || ''));
+  for (const t of TYPES_ARTICLES) if (cat && cat.includes(sansAccents(t.categorie)) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
+  for (const t of TYPES_ARTICLES) if (t.mots.test(String(categorie || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
+  for (const t of TYPES_ARTICLES) if (t.mots.test(String(nom || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
+  return '';
+}
+
 // V13.9 : note pour l'IA quand la cliente nomme UN type d'article
 function noteTypeDemande(texte, catalogue) {
   const types = TYPES_ARTICLES.filter(t => t.mots.test(String(texte || ''))).slice(0, 3);
@@ -838,7 +865,7 @@ function noteTypeDemande(texte, catalogue) {
     return `- ${cat.toUpperCase()} : ${duType.map(a => `Article n°${a.numero} (${a.nom})`).join(', ')}. Ils EXISTENT : ne dis JAMAIS qu'on n'en a pas.`;
   });
   return 'NOTE DU SYSTÈME (sûre, le code a reconnu les mots de la cliente) : elle parle de ces types d\'articles :\n' + lignes.join('\n') +
-    '\nRéponds seulement avec ces articles-là (nom + prix) et mets dans photos ceux dont elle veut voir les photos. Ne parle pas des autres types.';
+    '\nRéponds seulement avec ces articles-là (mot simple du type + nom exact + prix) et mets dans photos ceux dont elle veut voir les photos. Ne parle pas des autres types.';
 }
 
 // V13.8 : la cliente redemande clairement des photos
@@ -874,7 +901,7 @@ async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnv
 async function envoyerPhotoAvecPrix(env, idCliente, art, couleur) {
   await envoyerImage(env, idCliente, couleur.photoGrande);
   const nomCouleur = art.couleurs.length > 1 && couleur.couleur ? ' (' + couleur.couleur + ')' : '';
-  await envoyerTexte(env, idCliente, '📌 ' + art.nom + nomCouleur + ' : ' + art.prix + ' DT');
+  await envoyerTexte(env, idCliente, '📌 ' + nomSimple(art.nom, art.categorie) + nomCouleur + ' : ' + art.prix + ' DT');
 }
 
 function verifierLigne(l, catalogue) {
@@ -900,7 +927,7 @@ function ficheComplete(f) {
 
 // Récapitulatif écrit par le CODE (prix exacts), jamais par l'IA
 function recapitulatif(f, catalogue) {
-  const lignes = f.articles.map(l => `📌 ${l.nom} : ${l.couleur}, ${l.taille}${l.qty > 1 ? ' ×' + l.qty : ''} : ${l.prix * l.qty} DT`);
+  const lignes = f.articles.map(l => `📌 ${nomSimple(l.nom, ((catalogue && catalogue.articles) || []).find(a => a.id === l.productId)?.categorie)} : ${l.couleur}, ${l.taille}${l.qty > 1 ? ' ×' + l.qty : ''} : ${l.prix * l.qty} DT`);
   const sousTotal = f.articles.reduce((s, l) => s + l.prix * l.qty, 0);
   return [
     'Récapitulatif 🌸',
@@ -1025,7 +1052,7 @@ async function traiterCommentaire(canal, idCompte, changement, env, ctx, outils)
   if (articles.length) {
     prive = 'Bonjour 🌸\n' + articles.map(a => {
       const tailles = [...new Set(a.couleurs.flatMap(c => c.tailles.filter(t => t.dispo > 0).map(t => t.taille)))];
-      return `📌 ${a.nom} : ${a.prix} DT` + (tailles.length ? `\nTailles : ${tailles.join(' / ')}` : '\n(épuisé pour le moment)');
+      return `📌 ${nomSimple(a.nom, a.categorie)} : ${a.prix} DT` + (tailles.length ? `\nTailles : ${tailles.join(' / ')}` : '\n(épuisé pour le moment)');
     }).join('\n') + '\nVous voulez commander ? Écrivez-moi ici 💕';
   } else {
     prive = 'Bonjour 🌸 Tous nos modèles et prix sont sur https://rosellesite.com\nDites-moi quel article vous intéresse, je vous réponds ici 💕';
