@@ -490,6 +490,10 @@ async function demanderIA(env, catalogue, etat, entree) {
     const r = JSON.parse(bloc ? bloc.text : '');
     // V13.3 : jamais de gros paragraphe, même si l'IA oublie les retours à la ligne
     if (r && typeof r.reponse === 'string') r.reponse = aerer(r.reponse);
+    // V13.5 : une seule salutation par conversation. Si la conversation a déjà
+    // commencé, le code retire lui-même un « 3aslema / Bonjour » au début,
+    // même si l'IA l'a écrit quand même.
+    if (r && typeof r.reponse === 'string' && etat.historique.length) r.reponse = retirerSalutation(r.reponse);
     return r;
   } catch (e) {
     console.error('Robot : JSON IA illisible');
@@ -503,6 +507,15 @@ let photosReferenceCache = null; // { cle, liste } gardé tant que le Worker res
 let outilsPhotos = null;
 // V13.3 : coupe un texte en lignes courtes (une phrase par ligne, une ligne par 📌).
 // Ne coupe pas les liens ni les nombres (« 79.5 », « https://… »).
+// V13.5 : retire la salutation au début de la réponse (3aslema, عسلامة, Bonjour…),
+// avec l'émoji et la ponctuation qui la suivent. Si la réponse ne contenait
+// qu'une salutation, on la garde telle quelle (pour ne pas envoyer un message vide).
+const SALUTATIONS = /^\s*(3aslema|3aslemaa+|aslema|asslema|عسلامة|عسلامه|السلام عليكم|salam|slm|ahla|ahlan|marhba|مرحبا|اهلا|أهلا|bonjour|bonsoir|bjr|salut|coucou|hello|hi)(?![\p{L}\p{N}])[^\n\p{L}\p{N}]*/iu;
+function retirerSalutation(texte) {
+  const propre = String(texte || '').replace(SALUTATIONS, '').trim();
+  return propre || String(texte || '').trim();
+}
+
 function aerer(texte) {
   return String(texte || '')
     .replace(/([.!?…])\s+(?=[^\s.!?])/g, '$1\n')   // fin de phrase → nouvelle ligne
