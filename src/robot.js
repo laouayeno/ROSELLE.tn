@@ -45,6 +45,12 @@ const MODELE_VOCAL = '@cf/openai/whisper-large-v3-turbo';
 
 const DUREE_CONVERSATION = 24 * 3600;       // fiche gardée 24 h après le dernier message
 const PAUSE_HUMAIN_MS = 12 * 3600 * 1000;   // robot muet 12 h après une reprise par l'équipe
+// V13.2 : texte d'accueil de Messenger (arabe par défaut, français pour les
+// téléphones en français). 160 caractères maximum chacun (règle de Meta).
+const TEXTES_ACCUEIL_MESSENGER = [
+  { locale: 'default', text: 'عسلامة بيك ومرحبا 🌹 الموديلات والأسعار الكل على https://rosellesite.com 📦 أكتبلنا هنا ونجاوبوك بكل فرحة 💕' },
+  { locale: 'fr_FR', text: 'Bonjour et bienvenue 🌹 Tous nos modèles et prix sur https://rosellesite.com 📦 Écrivez-nous ici, on vous répond avec plaisir 💕' }
+];
 const DELAI_ECHO_AUTO_MS = 20 * 1000;       // V13.1 : écho < 20 s après la cliente = réponse automatique de Meta
 const MAX_HISTORIQUE = 16;                  // messages gardés pour le contexte de l'IA
 const TAILLE_MAX_IMAGE = 4 * 1024 * 1024;   // 4 Mo (photo de cliente)
@@ -191,6 +197,15 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     await confirmerCommande(canal, idCliente, etat, env, ctx, outils);
     etat.historique.push({ role: 'user', texte: 'Oui, je confirme' });
     await ecrireEtat(env, cle, etat);
+    return;
+  }
+
+  // V13.2 : commande réservée aux testeurs, « #accueil » dans Messenger :
+  // installe le texte d'accueil de Messenger (affiché dans la discussion
+  // vide, AVANT que la cliente écrive). Meta limite ce texte à 160 caractères.
+  if (canal === 'facebook' && estTesteur(env, idCliente) && message && texteCourt(message.text, 20).toLowerCase() === '#accueil') {
+    const ok = await appelGraph(env, '/me/messenger_profile', { greeting: TEXTES_ACCUEIL_MESSENGER });
+    await envoyerTexte(env, idCliente, ok ? 'Texte d\'accueil installé ✅' : 'Meta a refusé le texte d\'accueil ❌ (voir le journal)');
     return;
   }
 
@@ -800,6 +815,9 @@ async function compterDepense(env, usage) {
 
 /* ---------- Petits contrôles ---------- */
 function idValable(id) { return typeof id === 'string' && /^[0-9_]{1,40}$/.test(id); }
+function estTesteur(env, id) {
+  return String(env.ROBOT_TESTEURS || '').split(',').map(x => x.trim()).filter(Boolean).includes(id);
+}
 function clienteAutorisee(env, id) {
   if (env.ROBOT_OUVERT === 'oui') return true;
   const testeurs = String(env.ROBOT_TESTEURS || '').split(',').map(s => s.trim()).filter(Boolean);
