@@ -458,7 +458,7 @@ RÈGLES (très importantes) :
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
 - NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. En lettres arabes : جيلي، سروال (جين = سروال جين)، مريول، روبة، سورية ; JAMAIS « بنطلون » (pas tunisien). Si la cliente demande un JEAN, ne propose que les jeans, pas les autres pantalons. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
 - BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
-- Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
+- Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste ; DÉDUIS-LE de la ville sans le demander quand c'est évident : Moknine → Monastir, Hammamet → Nabeul, La Marsa → Tunis, Msaken → Sousse), ville ou délégation, adresse. Ne dis JAMAIS que la commande est confirmée ou enregistrée : c'est le code qui le dit quand elle l'est vraiment. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
 - Quand la cliente dit oui / je confirme / ok après le récapitulatif : action « confirmer ».
 - Action « humain » (une personne de l'équipe reprendra) : vente en gros, travail ou partenariat, réclamation, échange ou retour, colis déjà commandé, question que tu ne sais pas, cliente fâchée, ou si elle demande une vraie personne. Dis-lui CLAIREMENT et gentiment qu'une personne de l'équipe va lui répondre ici très vite (pas « je peux appeler l'équipe ») ; ne pose pas de question à la fin et ne demande ni son nom ni son numéro (l'équipe lui répondra dans cette même conversation).
@@ -649,7 +649,7 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   const telephone = String(r.telephone || '').replace(/[\s.\-]/g, '').replace(/^(\+216|00216)/, '');
   etat.fiche.telephone = /^[2-9][0-9]{7}$/.test(telephone) ? telephone : '';
   etat.fiche.nom = texteCourt(r.nom, 80);
-  etat.fiche.gouvernorat = catalogue.gouvernorats[r.gouvernorat] ? r.gouvernorat : '';
+  etat.fiche.gouvernorat = codeGouvernorat(r.gouvernorat, catalogue);
   etat.fiche.ville = texteCourt(r.ville, 80);
   etat.fiche.adresse = texteCourt(r.adresse, 200);
 
@@ -676,7 +676,14 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     }
   }
 
-  const action = r.action;
+  let action = r.action;
+  // V14.5 : l'IA écrit parfois « commande confirmée » sans passer par l'action
+  // de confirmation : on traite ce texte comme une demande de confirmation
+  // (récapitulatif du code si tout est rempli, sinon ce qui manque).
+  if (action !== 'humain' && action !== 'annuler' && action !== 'confirmer' && PHRASE_CONFIRMEE.test(String(r.reponse || ''))) {
+    console.log('Robot : « commande confirmée » écrit par l\'IA, remplacé', canal, idCliente);
+    action = 'demander_confirmation';
+  }
   if (action === 'humain') {
     // V14.3 : message de passage FIXE, écrit en vraie derja tunisienne (l'IA
     // inventait des phrases bizarres, et même « on ne fait pas le gros »).
@@ -700,12 +707,21 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     return;
   }
   if ((action === 'demander_confirmation' || action === 'confirmer') && ficheComplete(etat.fiche)) {
-    if (r.reponse && r.reponse.trim()) await envoyerTexte(env, idCliente, r.reponse);
+    if (r.reponse && r.reponse.trim() && !PHRASE_CONFIRMEE.test(r.reponse)) await envoyerTexte(env, idCliente, r.reponse);
     await envoyerTexte(env, idCliente, recapitulatif(etat.fiche, catalogue), [
       { content_type: 'text', title: 'Oui ✅', payload: 'CONFIRMER' },
       { content_type: 'text', title: 'Modifier ✏️', payload: 'MODIFIER' }
     ]);
     etat.etape = 'attente_confirmation';
+    return;
+  }
+  // V14.5 : l'IA veut confirmer mais la fiche n'est pas complète (ex. pas de
+  // gouvernorat) : on n'envoie PAS son texte (elle a déjà dit « commande
+  // confirmée » sans qu'aucune commande soit créée) mais ce qui manque.
+  if (action === 'demander_confirmation' || action === 'confirmer') {
+    console.log('Robot : confirmation demandée mais fiche incomplète', canal, idCliente);
+    if (etat.etape === 'attente_confirmation') etat.etape = 'discussion';
+    await envoyerTexte(env, idCliente, messageManque(etat.fiche, etat.langue));
     return;
   }
   await envoyerTexte(env, idCliente, r.reponse);
@@ -920,6 +936,37 @@ function verifierLigne(l, catalogue) {
 function ficheVide() {
   return { articles: [], nom: '', telephone: '', gouvernorat: '', ville: '', adresse: '' };
 }
+// V14.5 : l'IA renvoie parfois le NOM du gouvernorat (« Monastir ») au lieu
+// du code : on accepte les deux.
+// Phrases qui annoncent une commande confirmée (seul le code a le droit de le dire)
+const PHRASE_CONFIRMEE = /تم\s*تأكيد|تأكدت|تسجلت\s*الكوموند|commande\s+(est\s+)?(bien\s+)?(confirmée|enregistrée|validée)|t2akd(et|it)|tconfirm(at|et)|tsajlet/i;
+
+function codeGouvernorat(valeur, catalogue) {
+  const v = String(valeur || '').trim();
+  if (catalogue.gouvernorats[v]) return v;
+  const cherche = sansAccents(v).replace(/[^a-z]/g, '');
+  if (!cherche) return '';
+  for (const [code, nom] of Object.entries(catalogue.gouvernorats)) {
+    if (sansAccents(String(nom)).replace(/[^a-z]/g, '') === cherche) return code;
+  }
+  return '';
+}
+
+// V14.5 : ce qui manque encore pour commander, écrit par le CODE
+// (jamais l'IA qui dirait « commande confirmée » alors qu'elle ne l'est pas)
+const TEXTES_MANQUE = {
+  arabizi: { articles: 'el article (couleur w taille)', nom: 'esmek w la9bek', telephone: 'noumrou mte3ek (8 ar9am)', gouvernorat: 'el wileya', ville: 'el mdina', adresse: 'el adresse', debut: 'Bech nkammel el commande, 9olli ', fin: ' brabi 🌸' },
+  arabe: { articles: 'الموديل (اللون و القياس)', nom: 'اسمك و لقبك', telephone: 'نومرو التليفون (8 أرقام)', gouvernorat: 'الولاية', ville: 'المدينة', adresse: 'العنوان', debut: 'باش نكمل الكوموند، قلّي ', fin: ' بربي 🌸' },
+  francais: { articles: "l'article (couleur et taille)", nom: 'votre nom et prénom', telephone: 'votre numéro (8 chiffres)', gouvernorat: 'votre gouvernorat', ville: 'votre ville', adresse: 'votre adresse', debut: 'Pour finir la commande, il me manque ', fin: ' 🌸' }
+};
+function messageManque(f, langue) {
+  const t = TEXTES_MANQUE[langue] || TEXTES_MANQUE.arabizi;
+  const manque = [];
+  if (!f.articles.length || !f.articles.every(l => l.variantId && l.qty > 0)) manque.push(t.articles);
+  for (const champ of ['nom', 'telephone', 'gouvernorat', 'ville', 'adresse']) if (!f[champ]) manque.push(t[champ]);
+  return t.debut + manque.join(', ') + t.fin;
+}
+
 function ficheComplete(f) {
   return f.articles.length > 0 && f.articles.every(l => l.variantId && l.qty > 0) &&
     !!f.nom && !!f.telephone && !!f.gouvernorat && !!f.ville && !!f.adresse;
