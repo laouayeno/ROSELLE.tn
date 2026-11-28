@@ -278,9 +278,14 @@ async function lireContenuCliente(message, postback, env) {
 const SCHEMA_REPONSE = {
   type: 'object',
   additionalProperties: false,
-  required: ['reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
+  required: ['comprehension', 'langue', 'reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
   properties: {
-    reponse: { type: 'string', description: 'Message à envoyer à la cliente.' },
+    // V13.3 : l'IA dit d'abord (en français, pour elle-même) ce qu'elle a compris
+    // et dans quelle langue écrit la cliente, AVANT d'écrire la réponse.
+    // Ça l'oblige à bien lire la derja au lieu de répondre trop vite.
+    comprehension: { type: 'string', description: 'En français, 1 phrase : ce que la cliente veut vraiment dans son DERNIER message (traduis la derja mot à mot si besoin).' },
+    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Ta réponse doit être dans cette langue.' },
+    reponse: { type: 'string', description: 'Message à envoyer à la cliente, dans la langue du champ « langue ».' },
     // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
     photos: {
       type: 'array',
@@ -355,6 +360,10 @@ STYLE :
   · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
   · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
   · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
+  · « klem mech mafhoum » / « mafhemtekch » / « ma fhemtch » = elle n'a pas compris ta phrase → redis-le PLUS SIMPLEMENT EN DERJA (phrases plus courtes), JAMAIS en passant au français.
+  · « ekteb be 3arbi » / « ahki b 3arbi » = parle en derja (comme elle écrit, en lettres latines si elle écrit en arabizi). « ma3adech X ? » = vous n'avez plus de X ? « 9adeh / 9adech » = combien.
+  · RÈGLE DE LANGUE ABSOLUE : si la cliente écrit en arabizi, tu réponds en arabizi, même si elle se plaint de ne pas comprendre. Tu ne passes au français QUE si elle écrit elle-même en français.
+  · Mots à NE PAS utiliser (pas tunisiens ou bizarres) : ach, theb tkoun, chnw men wahed, iyeh. Dis plutôt : chnowa, t7eb, ama wa7ed, ey.
 - SALUTATION (V13.3) : ${etat.historique.length ? 'la conversation a DÉJÀ commencé : ne dis PAS bonjour / 3aslema / عسلامة / bonsoir, réponds directement.' : 'premier message de la conversation : tu peux saluer une seule fois (3aslema / Bonjour).'} Ne répète jamais une salutation dans la même conversation.
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
