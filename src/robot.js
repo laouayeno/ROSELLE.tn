@@ -576,6 +576,8 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     await envoyerTexte(env, idCliente, r.reponse);
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
     console.log('Robot : conversation passée à l\'équipe', canal, idCliente);
+    // V13.4 : étiquette dans la boîte de réception pour que l'équipe la trouve vite
+    if (canal === 'facebook') await etiqueterPourEquipe(env, idCliente);
     return;
   }
   if (action === 'annuler') {
@@ -843,6 +845,33 @@ async function appelGraph(env, chemin, corps) {
   } catch (e) {
     console.error('Robot : Meta injoignable', e && e.message);
     return null;
+  }
+}
+
+// V13.4 : étiquette « À traiter par l'équipe » (Messenger seulement : Meta ne
+// propose pas d'étiquettes par l'API pour Instagram). L'identifiant de
+// l'étiquette est cherché une fois (ou créé), puis gardé en mémoire KV 30 jours.
+// En cas de refus de Meta : simple ligne dans le journal, la cliente n'est pas gênée.
+const NOM_ETIQUETTE_EQUIPE = 'Robot : à traiter par l\'équipe';
+async function etiqueterPourEquipe(env, idCliente) {
+  try {
+    let idEtiquette = await env.CHATBOT_ETAT.get('etiquette:equipe');
+    if (!idEtiquette) {
+      const liste = await appelGraph(env, '/me/custom_labels?fields=page_label_name&limit=100');
+      const trouvee = liste && Array.isArray(liste.data) && liste.data.find(l => l.page_label_name === NOM_ETIQUETTE_EQUIPE);
+      if (trouvee) idEtiquette = trouvee.id;
+      else {
+        const creee = await appelGraph(env, '/me/custom_labels?page_label_name=' + encodeURIComponent(NOM_ETIQUETTE_EQUIPE), {});
+        idEtiquette = creee && creee.id;
+      }
+      if (!idEtiquette) return;
+      await env.CHATBOT_ETAT.put('etiquette:equipe', String(idEtiquette), { expirationTtl: 30 * 86400 });
+    }
+    const ok = await appelGraph(env, '/' + encodeURIComponent(idEtiquette) + '/label?user=' + encodeURIComponent(idCliente), {});
+    if (ok) console.log('Robot : étiquette équipe posée', idCliente);
+    else await env.CHATBOT_ETAT.delete('etiquette:equipe'); // étiquette peut-être supprimée : on la recherchera
+  } catch (e) {
+    console.error('Robot : étiquette impossible', e && e.message);
   }
 }
 
