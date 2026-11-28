@@ -278,9 +278,14 @@ async function lireContenuCliente(message, postback, env) {
 const SCHEMA_REPONSE = {
   type: 'object',
   additionalProperties: false,
-  required: ['reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
+  required: ['comprehension', 'langue', 'reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
   properties: {
-    reponse: { type: 'string', description: 'Message à envoyer à la cliente.' },
+    // V13.3 : l'IA dit d'abord (en français, pour elle-même) ce qu'elle a compris
+    // et dans quelle langue écrit la cliente, AVANT d'écrire la réponse.
+    // Ça l'oblige à bien lire la derja au lieu de répondre trop vite.
+    comprehension: { type: 'string', description: 'En français, 1 phrase : ce que la cliente veut vraiment dans son DERNIER message (traduis la derja mot à mot si besoin).' },
+    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Ta réponse doit être dans cette langue.' },
+    reponse: { type: 'string', description: 'Message à envoyer à la cliente, dans la langue du champ « langue ».' },
     // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
     photos: {
       type: 'array',
@@ -343,10 +348,10 @@ STYLE :
   Mots tunisiens à utiliser : 3aslema / ahla bik, mar7be bik, chnowa, 9adech (combien), b9adech, barcha, behi, ey (oui), le (non), mawjoud / mawjouda, famma (il y a), mafamech, 3andna, t7eb / t7ebi, nzidek, taw (maintenant), ya3tik essa7a, yaychek, n7ebbou, el 9ies (la taille), el lawn (la couleur), el livraison, n3aytoulek (on vous appelle), 7atta, kifech, win (où), 9oddech men 7aja.
   Les clientes mélangent souvent derja et français (ex. « el taille M dispo ? ») : fais pareil, garde les mots français courants (taille, couleur, livraison, commande, dispo, modèle).
   Exemples de bonnes réponses (style seulement : prix, tailles et couleurs viennent TOUJOURS de la liste ci-dessous) :
-  · Cliente « 9adech ? » → « 3aslema 🌸 el pantalon b 99dt, famma 36/38/40/42. T7eb tcommandi ? »
+  · Cliente « 9adech el pantalon ? » (un seul pantalon en vente) → « El pantalon b 99dt, famma 36/38/40/42. T7eb tcommandi ? »
   · Cliente « mawjoud fel noir ? » → « Ey mawjoud fel noir 💕 chnowa el taille mte3ek ? »
   · Cliente « behi n7eb nchri » → « Behi 🌸 a3tini esmek w num telifounek bech n3aytoulek. »
-  · Cliente « بقداش ؟ » → « عسلامة 🌸 السروال ب 99 دينار، المقاسات 36/38/40/42. تحب تكوموندي ؟ »
+  · Cliente « بقداش السروال ؟ » → « السروال ب 99 دينار، المقاسات 36/38/40/42. تحب تكوموندي ؟ »
   · Cliente « yaychek » → « Bla mzeya 🌸 ena hna ken t7eb 7aja okhra. »
   BIEN COMPRENDRE la derja (erreurs déjà vues, à ne plus faire) :
   · « tnajem tab3ath li tsawer ? » / « ab3athli tsawer » / « warini » = la cliente DEMANDE qu'on lui envoie des photos → envoie les photos (champ « photos »), ne lui dis pas qu'elle peut envoyer des photos.
@@ -355,18 +360,34 @@ STYLE :
   · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
   · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
   · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
+  · « klem mech mafhoum » / « mafhemtekch » / « ma fhemtch » = elle n'a pas compris ta phrase → redis-le PLUS SIMPLEMENT EN DERJA (phrases plus courtes), JAMAIS en passant au français.
+  · « ekteb be 3arbi » / « ahki b 3arbi » = parle en derja (comme elle écrit, en lettres latines si elle écrit en arabizi). « ma3adech X ? » = vous n'avez plus de X ? « 9adeh / 9adech » = combien.
+  · RÈGLE DE LANGUE ABSOLUE : si la cliente écrit en arabizi, tu réponds en arabizi, même si elle se plaint de ne pas comprendre. Tu ne passes au français QUE si elle écrit elle-même en français.
+  · Mots à NE PAS utiliser (pas tunisiens ou bizarres) : ach, theb tkoun, chnw men wahed, iyeh. Dis plutôt : chnowa, t7eb, ama wa7ed, ey.
+- SALUTATION (V13.3) : ${etat.historique.length ? 'la conversation a DÉJÀ commencé : ne dis PAS bonjour / 3aslema / عسلامة / bonsoir, réponds directement.' : 'premier message de la conversation : tu peux saluer une seule fois (3aslema / Bonjour).'} Ne répète jamais une salutation dans la même conversation.
+- STYLE DE L'ÉQUIPE ROSELLE (vraies réponses de l'équipe, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois.
+  · « Prix » (réponse à une story du pantalon) → « Bonjour 🌸\nPantalon 79dt »
+  · « Prx serwel » / « Pontalon prix » / « Pantalon hka » → « Bonjour 🌸\nPantalon 79dt »
+  · « bjrr b9ade le pantalon brabi » → « Bonjour 🌸\nPantalon 79dt »
+  · « Brabi b9adach el gilet hadi » → « Bonjour 🌸\nGilet 79dt »
+  · « W taille dispo » / « Ou les taille chnowa » → « Tailles dispo :\n34 / 36 / 38 / 40 / 42 »
+  · « Disponible tailles L ? » → « Oui disponible 🌸 »
+  · « Jean fih l élastique ou nn ? » → « Coupe barrel, mayjich élastique 🌸 »
+  · « Cc prix » sans article clair → « Bonjour 🌸\nAnehou el article ? »
+  · « Slm » → « Aslema 🌸 » ; « Hi » / « Bsr » → « Bonsoir 🌸 »
+  Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
   · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
-    « 3aslema 🌸 famma 3 modèles :
+    « Famma 3 modèles 🌸 :
     📌 Robe Santorini : 129 DT
     📌 Pantalon Alba : 99 DT
     📌 Pull Timeless : 89 DT
     T7eb nab3athlek tsawerhom ? »
   · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
-  · Termine par UNE question simple pour avancer (taille ? couleur ? commander ?).
+  · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
-- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message : écris par exemple « Hethom tsawer 👇 ». Ne dis jamais que tu ne peux pas envoyer de photos.
+- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
 - Ne parle PAS du paiement à la livraison, sauf si la cliente pose la question (réponse : oui, paiement à la livraison).
@@ -376,6 +397,8 @@ RÈGLES (très importantes) :
 - Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
 - Site avec tous les modèles : https://rosellesite.com
 - Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. Article absent de la liste = « pas disponible pour le moment ».
+- PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
+- BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
 - Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
 - Quand la cliente dit oui / je confirme / ok après le récapitulatif : action « confirmer ».
@@ -455,7 +478,10 @@ async function demanderIA(env, catalogue, etat, entree) {
   }
   const bloc = (donnees.content || []).find(b => b.type === 'text');
   try {
-    return JSON.parse(bloc ? bloc.text : '');
+    const r = JSON.parse(bloc ? bloc.text : '');
+    // V13.3 : jamais de gros paragraphe, même si l'IA oublie les retours à la ligne
+    if (r && typeof r.reponse === 'string') r.reponse = aerer(r.reponse);
+    return r;
   } catch (e) {
     console.error('Robot : JSON IA illisible');
     return null;
@@ -466,6 +492,17 @@ async function demanderIA(env, catalogue, etat, entree) {
 // Préparées par le Worker (même relais /img/ que le site, en mémoire Cloudflare).
 let photosReferenceCache = null; // { cle, liste } gardé tant que le Worker reste chaud
 let outilsPhotos = null;
+// V13.3 : coupe un texte en lignes courtes (une phrase par ligne, une ligne par 📌).
+// Ne coupe pas les liens ni les nombres (« 79.5 », « https://… »).
+function aerer(texte) {
+  return String(texte || '')
+    .replace(/([.!?…])\s+(?=[^\s.!?])/g, '$1\n')   // fin de phrase → nouvelle ligne
+    .replace(/\s*(📌)/g, '\n$1')                       // chaque 📌 sur sa ligne
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 async function outils_photosReference(catalogue) {
   const cle = catalogue.articles.map(a => a.couleurs.map(c => c.photo).join(',')).join('|');
   if (photosReferenceCache && photosReferenceCache.cle === cle) return photosReferenceCache.liste;
@@ -521,7 +558,7 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     const couleur = art && (art.couleurs.find(c => c.couleur === ligne.couleur) || art.couleurs[0]);
     if (couleur && couleur.photoGrande && !dejaEnvoyees.has(couleur.photoGrande)) {
       dejaEnvoyees.add(couleur.photoGrande);
-      await envoyerImage(env, idCliente, couleur.photoGrande);
+      await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
     }
   }
 
@@ -569,9 +606,17 @@ async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnv
     const couleur = (voulue && art.couleurs.find(c => String(c.couleur).toLowerCase() === voulue)) || art.couleurs[0];
     if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
     dejaEnvoyees.add(couleur.photoGrande);
-    await envoyerImage(env, idCliente, couleur.photoGrande);
+    await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
     envoyees++;
   }
+}
+
+// V13.3 (demande d'Oussama) : chaque photo est suivie, juste en dessous,
+// du nom de l'article, de sa couleur et de son prix (prix toujours tiré du catalogue)
+async function envoyerPhotoAvecPrix(env, idCliente, art, couleur) {
+  await envoyerImage(env, idCliente, couleur.photoGrande);
+  const nomCouleur = art.couleurs.length > 1 && couleur.couleur ? ' (' + couleur.couleur + ')' : '';
+  await envoyerTexte(env, idCliente, '📌 ' + art.nom + nomCouleur + ' : ' + art.prix + ' DT');
 }
 
 function verifierLigne(l, catalogue) {
