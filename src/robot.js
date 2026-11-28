@@ -230,7 +230,8 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
 
   // h) Historique (texte seulement, les photos deviennent « [photo] »)
   etat.historique.push({ role: 'user', texte: entree.resume.slice(0, 600) });
-  etat.historique.push({ role: 'assistant', texte: String(reponseIA.reponse || '').slice(0, 600) });
+  const nbPhotos = Array.isArray(reponseIA.photos) ? Math.min(reponseIA.photos.length, 3) : 0;
+  etat.historique.push({ role: 'assistant', texte: String(reponseIA.reponse || '').slice(0, 600) + (nbPhotos ? ' [photos envoyées]' : '') });
   etat.historique = etat.historique.slice(-MAX_HISTORIQUE);
   await ecrireEtat(env, cle, etat);
 }
@@ -277,9 +278,23 @@ async function lireContenuCliente(message, postback, env) {
 const SCHEMA_REPONSE = {
   type: 'object',
   additionalProperties: false,
-  required: ['reponse', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
+  required: ['reponse', 'photos', 'action', 'articles', 'nom', 'telephone', 'gouvernorat', 'ville', 'adresse'],
   properties: {
     reponse: { type: 'string', description: 'Message à envoyer à la cliente.' },
+    // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
+    photos: {
+      type: 'array',
+      description: 'Articles dont il faut envoyer la photo (cliente qui demande des photos, ou articles proposés). Vide sinon.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['numero', 'couleur'],
+        properties: {
+          numero: { type: 'integer' },
+          couleur: { type: 'string', description: 'Couleur voulue, ou vide pour la 1re couleur.' }
+        }
+      }
+    },
     action: { type: 'string', enum: ['discuter', 'demander_confirmation', 'confirmer', 'humain', 'annuler'] },
     articles: {
       type: 'array',
@@ -333,7 +348,26 @@ STYLE :
   · Cliente « behi n7eb nchri » → « Behi 🌸 a3tini esmek w num telifounek bech n3aytoulek. »
   · Cliente « بقداش ؟ » → « عسلامة 🌸 السروال ب 99 دينار، المقاسات 36/38/40/42. تحب تكوموندي ؟ »
   · Cliente « yaychek » → « Bla mzeya 🌸 ena hna ken t7eb 7aja okhra. »
-- Messages courts comme sur Instagram (1 à 3 lignes), chaleureux, naturels, un emoji de temps en temps (🌸 💕). Pas de longs paragraphes.
+  BIEN COMPRENDRE la derja (erreurs déjà vues, à ne plus faire) :
+  · « tnajem tab3ath li tsawer ? » / « ab3athli tsawer » / « warini » = la cliente DEMANDE qu'on lui envoie des photos → envoie les photos (champ « photos »), ne lui dis pas qu'elle peut envoyer des photos.
+  · « manahkich francais » / « ma nefhemch francais » / « ahki b tounsi » = elle ne parle pas français → à partir de là, réponds UNIQUEMENT en derja (arabizi), plus un seul mot de français à part taille, couleur, livraison.
+  · « chnowa 3andkom ? » / « chnowa famma ? » = qu'est-ce que vous avez → présente les articles en liste + photos.
+  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
+  · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
+  · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
+- MISE EN FORME (très important) :
+  · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
+  · Pour présenter des articles : une ligne par article, qui commence par 📌, avec le nom et le prix. Exemple :
+    « 3aslema 🌸 famma 3 modèles :
+    📌 Robe Santorini : 129 DT
+    📌 Pantalon Alba : 99 DT
+    📌 Pull Timeless : 89 DT
+    T7eb nab3athlek tsawerhom ? »
+  · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
+  · Termine par UNE question simple pour avancer (taille ? couleur ? commander ?).
+  · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
+- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message : écris par exemple « Hethom tsawer 👇 ». Ne dis jamais que tu ne peux pas envoyer de photos.
+- Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
 - Ne parle PAS du paiement à la livraison, sauf si la cliente pose la question (réponse : oui, paiement à la livraison).
 
@@ -400,7 +434,7 @@ async function demanderIA(env, catalogue, etat, entree) {
         max_tokens: 1500,
         // Réponses courtes de vendeuse : pas besoin de réflexion longue (moins cher, plus rapide)
         thinking: { type: 'disabled' },
-        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_REPONSE } },
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA_REPONSE } },
         system: consignesIA(catalogue, etat),
         messages
       })
@@ -479,12 +513,16 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
   // Fiche modifiée après le récapitulatif : il faudra un nouveau récapitulatif
   if (etat.etape === 'attente_confirmation' && JSON.stringify(etat.fiche) !== ancienne) etat.etape = 'discussion';
 
+  const dejaEnvoyees = new Set(); // photos déjà envoyées pendant ce tour
   // Nouvel article reconnu : on envoie sa vraie photo pour que la cliente confirme
   for (const ligne of etat.fiche.articles) {
     if (anciensArticles.has(ligne.productId)) continue;
     const art = catalogue.articles.find(a => a.id === ligne.productId);
     const couleur = art && (art.couleurs.find(c => c.couleur === ligne.couleur) || art.couleurs[0]);
-    if (couleur && couleur.photoGrande) await envoyerImage(env, idCliente, couleur.photoGrande);
+    if (couleur && couleur.photoGrande && !dejaEnvoyees.has(couleur.photoGrande)) {
+      dejaEnvoyees.add(couleur.photoGrande);
+      await envoyerImage(env, idCliente, couleur.photoGrande);
+    }
   }
 
   const action = r.action;
@@ -514,6 +552,26 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     return;
   }
   await envoyerTexte(env, idCliente, r.reponse);
+  await envoyerPhotosDemandees(env, idCliente, r.photos, catalogue, dejaEnvoyees);
+}
+
+// V13.2 : photos demandées par l'IA (3 maximum, seulement des articles qui existent,
+// sans renvoyer une photo déjà envoyée dans ce même tour)
+async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
+  if (!Array.isArray(photos)) return;
+  let envoyees = 0;
+  for (const p of photos) {
+    if (envoyees >= 3) break;
+    if (!p || !Number.isInteger(p.numero)) continue;
+    const art = catalogue.articles.find(a => a.numero === p.numero);
+    if (!art) continue;
+    const voulue = String(p.couleur || '').trim().toLowerCase();
+    const couleur = (voulue && art.couleurs.find(c => String(c.couleur).toLowerCase() === voulue)) || art.couleurs[0];
+    if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
+    dejaEnvoyees.add(couleur.photoGrande);
+    await envoyerImage(env, idCliente, couleur.photoGrande);
+    envoyees++;
+  }
 }
 
 function verifierLigne(l, catalogue) {
