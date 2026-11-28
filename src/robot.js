@@ -537,9 +537,11 @@ async function demanderIA(env, catalogue, etat, entree, insister) {
       },
       body: JSON.stringify({
         model: MODELE_IA,
-        max_tokens: 1500,
-        // Réponses courtes de vendeuse : pas besoin de réflexion longue (moins cher, plus rapide)
-        thinking: { type: 'disabled' },
+        max_tokens: 6000,
+        // V14.7 : réflexion rallumée (adaptative). Sans elle, le robot comprenait
+        // mal (« Nheb el 2 » → photos en boucle, robe vue à la place d'un gilet).
+        // Coût : quelques centaines de jetons de sortie en plus (~0,0005 $).
+        thinking: { type: 'adaptive' },
         output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA_REPONSE } },
         system: consignesIA(catalogue, etat),
         messages
@@ -737,6 +739,15 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     await envoyerTexte(env, idCliente, messageManque(etat.fiche, etat.langue));
     return;
   }
+  // V14.7 : l'IA annonce des photos (« hethom tsawer 👇 ») alors qu'elles ont
+  // TOUTES déjà été envoyées : au lieu de tourner en rond, on pose une
+  // question claire pour avancer vers la commande.
+  if (Array.isArray(r.photos) && r.photos.length && nbNouvellesPhotos(r.photos, catalogue, dejaEnvoyees) === 0 &&
+      ANNONCE_PHOTOS.test(String(r.reponse || ''))) {
+    console.log('Robot : photos déjà envoyées, question claire à la place', canal, idCliente);
+    r.reponse = TEXTE_PRECISER[etat.langue] || TEXTE_PRECISER.arabizi;
+    r.photos = [];
+  }
   await envoyerTexte(env, idCliente, r.reponse);
   await envoyerPhotosDemandees(env, idCliente, r.photos, catalogue, dejaEnvoyees);
   // V13.8 : on retient l'heure des nouvelles photos envoyées
@@ -896,6 +907,14 @@ const TEXTE_DELAI = {
   arabe: 'التوصيل في 48 ساعة 🌸 استنى المكالمة متاع التأكيد.',
   francais: "La livraison se fait en 48 h 🌸 Attendez l'appel de confirmation."
 };
+// V14.7 : photos déjà envoyées → question claire au lieu de « hethom tsawer » en boucle
+const ANNONCE_PHOTOS = /tsawer|tsawir|taswira|👇|صور|تصاور|photo/i;
+const TEXTE_PRECISER = {
+  arabizi: 'Tsawer b3aththomlek fou9 🌸 Anehou t7eb ? 9olli el couleur w el taille.',
+  arabe: 'الصور بعثتهملك الفوق 🌸 آناهو تحب ؟ قلّي اللون و القياس.',
+  francais: 'Les photos sont juste au-dessus 🌸 Lequel vous plaît ? Dites-moi la couleur et la taille.'
+};
+
 // V14.6 : réponse fabriquée par le code (sans IA), fiche inchangée
 function reponseDuCode(etat, action, texte) {
   const f = etat.fiche;
@@ -975,6 +994,24 @@ function noteTypeDemande(texte, catalogue) {
 const DEMANDE_PHOTOS = /\b(photos?|tsawer|tsawir|taswira|tswira|swar|images?|ab3ath|ab3athli|ab3thli|nchouf|tchouf|warini|wariwni)\b|صور|تصاور|تصويرة|ابعث|ورّيني|وريني/i;
 
 const MAX_PHOTOS_REPONSE = 6;
+// V14.7 : nombre de NOUVELLES photos que la demande enverrait (sans rien envoyer)
+function nbNouvellesPhotos(photos, catalogue, dejaEnvoyees) {
+  if (!Array.isArray(photos)) return 0;
+  const vues = new Set(dejaEnvoyees);
+  let n = 0;
+  for (const p of photos) {
+    if (!p || !Number.isInteger(p.numero)) continue;
+    const art = catalogue.articles.find(a => a.numero === p.numero);
+    if (!art) continue;
+    const voulue = String(p.couleur || '').trim();
+    const choisie = voulue ? art.couleurs.find(c => egalSouple(c.couleur, voulue)) : null;
+    const disponibles = art.couleurs.filter(c => c.tailles.some(t => t.dispo > 0));
+    const liste = choisie ? [choisie] : (disponibles.length ? disponibles : art.couleurs.slice(0, 1));
+    for (const c of liste) if (c && c.photoGrande && !vues.has(c.photoGrande)) { vues.add(c.photoGrande); n++; }
+  }
+  return n;
+}
+
 async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnvoyees) {
   if (!Array.isArray(photos)) return;
   // V13.7 : couleur vide (ou inconnue) = une photo de CHAQUE couleur encore
