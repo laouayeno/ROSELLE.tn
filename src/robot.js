@@ -45,12 +45,29 @@ const MODELE_VOCAL = '@cf/openai/whisper-large-v3-turbo';
 
 const DUREE_CONVERSATION = 24 * 3600;       // fiche gardée 24 h après le dernier message
 const PAUSE_HUMAIN_MS = 12 * 3600 * 1000;   // robot muet 12 h après une reprise par l'équipe
-// V13.2 : texte d'accueil de Messenger (arabe par défaut, français pour les
-// téléphones en français). 160 caractères maximum chacun (règle de Meta).
-const TEXTES_ACCUEIL_MESSENGER = [
-  { locale: 'default', text: 'عسلامة بيك ومرحبا 🌹 الموديلات والأسعار الكل على https://rosellesite.com 📦 أكتبلنا هنا ونجاوبوك بكل فرحة 💕' },
-  { locale: 'fr_FR', text: 'Bonjour et bienvenue 🌹 Tous nos modèles et prix sur https://rosellesite.com 📦 Écrivez-nous ici, on vous répond avec plaisir 💕' }
+// V13.3 : Meta n'accepte plus le « texte d'accueil » (greeting) par l'API.
+// À la place : des « questions d'accueil » (ice breakers), des boutons
+// affichés dans la discussion vide, AVANT que la cliente écrive.
+// 4 questions maximum par langue. Quand la cliente touche une question,
+// le robot envoie d'abord le message de bienvenue (avec le lien du site),
+// puis l'IA répond à la question.
+const QUESTIONS_ACCUEIL = [
+  { locale: 'default', call_to_actions: [
+    { question: 'Chnowa famma jdid ? 🌸', payload: 'ACCUEIL_AR_1' },
+    { question: '9adech el prix ? 💰', payload: 'ACCUEIL_AR_2' },
+    { question: 'N7eb ncommandi 🛍️', payload: 'ACCUEIL_AR_3' },
+    { question: '9adech el livraison ? 📦', payload: 'ACCUEIL_AR_4' }
+  ] },
+  { locale: 'fr_FR', call_to_actions: [
+    { question: 'Voir les nouveautés 🌸', payload: 'ACCUEIL_FR_1' },
+    { question: 'Quels sont les prix ? 💰', payload: 'ACCUEIL_FR_2' },
+    { question: 'Je veux commander 🛍️', payload: 'ACCUEIL_FR_3' },
+    { question: 'Combien coûte la livraison ? 📦', payload: 'ACCUEIL_FR_4' }
+  ] }
 ];
+// Message de bienvenue envoyé quand la cliente touche une question d'accueil
+const BIENVENUE_AR = 'عسلامة بيك ومرحبا 🌹\nالموديلات والأسعار الكل على https://rosellesite.com 📦\nأكتبلنا هنا ونجاوبوك بكل فرحة 💕';
+const BIENVENUE_FR = 'Bonjour et bienvenue 🌹\nTous nos modèles et prix sur https://rosellesite.com 📦\nÉcrivez-nous ici, on vous répond avec plaisir 💕';
 const DELAI_ECHO_AUTO_MS = 20 * 1000;       // V13.1 : écho < 20 s après la cliente = réponse automatique de Meta
 const MAX_HISTORIQUE = 16;                  // messages gardés pour le contexte de l'IA
 const TAILLE_MAX_IMAGE = 4 * 1024 * 1024;   // 4 Mo (photo de cliente)
@@ -200,13 +217,18 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     return;
   }
 
-  // V13.2 : commande réservée aux testeurs, « #accueil » dans Messenger :
-  // installe le texte d'accueil de Messenger (affiché dans la discussion
-  // vide, AVANT que la cliente écrive). Meta limite ce texte à 160 caractères.
+  // V13.3 : commande réservée aux testeurs, « #accueil » dans Messenger :
+  // installe les questions d'accueil (boutons affichés dans la discussion
+  // vide, AVANT que la cliente écrive).
   if (canal === 'facebook' && estTesteur(env, idCliente) && message && texteCourt(message.text, 20).toLowerCase() === '#accueil') {
-    const ok = await appelGraph(env, '/me/messenger_profile', { greeting: TEXTES_ACCUEIL_MESSENGER });
-    await envoyerTexte(env, idCliente, ok ? 'Texte d\'accueil installé ✅' : 'Meta a refusé le texte d\'accueil ❌ (voir le journal)');
+    const ok = await appelGraph(env, '/me/messenger_profile', { ice_breakers: QUESTIONS_ACCUEIL });
+    await envoyerTexte(env, idCliente, ok ? 'Questions d\'accueil installées ✅' : 'Meta a refusé les questions d\'accueil ❌ (voir le journal)');
     return;
+  }
+
+  // V13.3 : question d'accueil touchée → message de bienvenue avec le lien du site
+  if (/^ACCUEIL_(AR|FR)_\d$/.test(charge)) {
+    await envoyerTexte(env, idCliente, charge.startsWith('ACCUEIL_FR') ? BIENVENUE_FR : BIENVENUE_AR);
   }
 
   if (!(await budgetDisponible(env))) {
