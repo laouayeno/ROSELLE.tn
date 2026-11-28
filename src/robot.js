@@ -652,6 +652,8 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     await envoyerTexte(env, idCliente, r.reponse);
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
     console.log('Robot : conversation passée à l\'équipe', canal, idCliente);
+    // V14.1 : la discussion apparaît dans le Stock (« Discussions à traiter ») + notification
+    ctx.waitUntil(signalerDiscussion(env, canal, idCliente, texteCliente, r.comprehension).catch(e => console.log('Robot : discussion non signalée', e && e.message)));
     // V13.4 : étiquette dans la boîte de réception pour que l'équipe la trouve vite
     if (canal === 'facebook') await etiqueterPourEquipe(env, idCliente);
     return;
@@ -870,6 +872,7 @@ async function confirmerCommande(canal, idCliente, etat, env, ctx, outils) {
   if (!commande) {
     await envoyerTexte(env, idCliente, 'Petit souci avec votre commande 🙏 Notre équipe vous répond très vite.');
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
+    ctx.waitUntil(signalerDiscussion(env, canal, idCliente, '', 'Commande pas terminée : fiche de commande refusée. À finir à la main.').catch(() => {}));
     return;
   }
   const resultat = await outils.creerCommandeChatbot(env, ctx, commande);
@@ -889,6 +892,45 @@ async function confirmerCommande(canal, idCliente, etat, env, ctx, outils) {
   // Autre erreur (Firebase, limite téléphone…) : l'équipe reprend
   await envoyerTexte(env, idCliente, 'Petit souci technique 🙏 Notre équipe vous répond très vite pour finir la commande.');
   etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
+  ctx.waitUntil(signalerDiscussion(env, canal, idCliente, '', 'Commande pas terminée : souci technique. À finir à la main.').catch(() => {}));
+}
+
+/* ---------- V14.1 : discussion passée à l'équipe → appli Stock ----------
+   Liaison de service STOCK (même porte interne que les commandes, V12.6) :
+   la discussion est rangée dans la liste « Discussions à traiter » du Stock
+   et une notification part vers les téléphones de l'équipe.
+   On envoie : le canal, l'identifiant Meta de la cliente (pour ouvrir la
+   conversation), son prénom ou pseudo si Meta le donne, sa dernière
+   question et la raison comprise par le robot. Rien d'autre. */
+async function signalerDiscussion(env, canal, idCliente, question, pourquoi) {
+  if (!env.STOCK || typeof env.STOCK.nouvelleDiscussion !== 'function') return;
+  const nom = await nomCliente(env, canal, idCliente);
+  await env.STOCK.nouvelleDiscussion({
+    canal,
+    idCliente,
+    nom,
+    question: texteCourt(question, 300),
+    pourquoi: texteCourt(pourquoi, 200)
+  });
+}
+
+// Prénom (Messenger) ou pseudo (Instagram) de la cliente, si Meta veut bien le donner.
+async function nomCliente(env, canal, idCliente) {
+  try {
+    const champs = canal === 'instagram' ? 'username,name' : 'first_name,last_name';
+    const rep = await fetch(`${GRAPH}/${encodeURIComponent(idCliente)}?fields=${champs}`, {
+      headers: { Authorization: 'Bearer ' + env.META_PAGE_TOKEN },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!rep.ok) return '';
+    const d = await rep.json();
+    const nom = canal === 'instagram'
+      ? (d.username ? '@' + d.username : d.name)
+      : [d.first_name, d.last_name].filter(Boolean).join(' ');
+    return texteCourt(nom || '', 60);
+  } catch (e) {
+    return '';
+  }
 }
 
 /* ============================================================
