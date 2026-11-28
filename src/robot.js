@@ -284,7 +284,7 @@ const SCHEMA_REPONSE = {
     // et dans quelle langue écrit la cliente, AVANT d'écrire la réponse.
     // Ça l'oblige à bien lire la derja au lieu de répondre trop vite.
     comprehension: { type: 'string', description: 'En français, 1 phrase : ce que la cliente veut vraiment dans son DERNIER message (traduis la derja mot à mot si besoin).' },
-    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Ta réponse doit être dans cette langue.' },
+    langue: { type: 'string', enum: ['arabizi', 'arabe', 'francais'], description: 'Langue du DERNIER message de la cliente. Derja en lettres latines, même avec quelques mots français (prix, taille, gilet), = arabizi. Ta réponse doit être dans cette langue.' },
     reponse: { type: 'string', description: 'Message à envoyer à la cliente, dans la langue du champ « langue ».' },
     // V13.2 : photos d'articles à envoyer après le message (le code en envoie 3 au maximum)
     photos: {
@@ -365,16 +365,20 @@ STYLE :
   · RÈGLE DE LANGUE ABSOLUE : si la cliente écrit en arabizi, tu réponds en arabizi, même si elle se plaint de ne pas comprendre. Tu ne passes au français QUE si elle écrit elle-même en français.
   · Mots à NE PAS utiliser (pas tunisiens ou bizarres) : ach, theb tkoun, chnw men wahed, iyeh. Dis plutôt : chnowa, t7eb, ama wa7ed, ey.
 - SALUTATION (V13.3) : ${etat.historique.length ? 'la conversation a DÉJÀ commencé : ne dis PAS bonjour / 3aslema / عسلامة / bonsoir, réponds directement.' : 'premier message de la conversation : tu peux saluer une seule fois (3aslema / Bonjour).'} Ne répète jamais une salutation dans la même conversation.
-- STYLE DE L'ÉQUIPE ROSELLE (vraies réponses de l'équipe, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois.
-  · « Prix » (réponse à une story du pantalon) → « Bonjour 🌸\nPantalon 79dt »
-  · « Prx serwel » / « Pontalon prix » / « Pantalon hka » → « Bonjour 🌸\nPantalon 79dt »
-  · « bjrr b9ade le pantalon brabi » → « Bonjour 🌸\nPantalon 79dt »
-  · « Brabi b9adach el gilet hadi » → « Bonjour 🌸\nGilet 79dt »
-  · « W taille dispo » / « Ou les taille chnowa » → « Tailles dispo :\n34 / 36 / 38 / 40 / 42 »
-  · « Disponible tailles L ? » → « Oui disponible 🌸 »
-  · « Jean fih l élastique ou nn ? » → « Coupe barrel, mayjich élastique 🌸 »
-  · « Cc prix » sans article clair → « Bonjour 🌸\nAnehou el article ? »
-  · « Slm » → « Aslema 🌸 » ; « Hi » / « Bsr » → « Bonsoir 🌸 »
+- STYLE DE L'ÉQUIPE ROSELLE (vraies demandes de clientes, à imiter) : très court, direct, pas de longues phrases, pas de question à chaque fois. LA LANGUE SUIT TOUJOURS LA CLIENTE : derja → réponse en derja (arabizi), français → réponse en français.
+  Cliente en DERJA (arabizi) → réponse en DERJA :
+  · « bjrr b9ade le pantalon brabi » → « 3aslema 🌸\nEl pantalon b 79dt »
+  · « Brabi b9adach el gilet hadi » / « B9adech el gilet ? » → « 3aslema 🌸\nEl gilet b 79dt »
+  · « Prx serwel » / « Pantalon hka » → « 3aslema 🌸\nEl serwel b 79dt »
+  · « W taille dispo » / « Ou les taille chnowa » → « El tailles el mawjoudin :\n34 / 36 / 38 / 40 / 42 »
+  · « Jean fih l élastique ou nn ? » → « Le, coupe barrel, mafihech élastique 🌸 »
+  · « Cc prix » sans article clair → « 3aslema 🌸\nAnehou el article ? Ab3athli taswira 🌸 »
+  · « Slm » → « Aslema 🌸 »
+  Cliente en FRANÇAIS → réponse en FRANÇAIS :
+  · « Prix pantalon svp » / « Le prix de pantalon sltp » → « Bonjour 🌸\nPantalon 79dt »
+  · « Disponible taille L ? » → « Oui disponible 🌸 »
+  · « Bsr » / « Hi » → « Bonsoir 🌸 »
+  Un mot français isolé dans une phrase derja (taille, prix, dispo, pantalon) ne rend PAS la phrase française : « B9adech el gilet ? » est en DERJA.
   Vocabulaire des clientes : serwel / pontalon / pantalon = pantalon ; gilet = cardigan ; hka / hedha / hadi = ce modèle-là ; brabi = s'il te plaît ; dispo = disponible ; b9adech / b9ade / 9adech = combien ; « A répondu à la story » + « Prix » = elle demande le prix de l'article de la story (regarde la photo de la story).
 - MISE EN FORME (très important) :
   · Jamais un seul gros paragraphe. Des phrases courtes, chacune sur sa ligne (retour à la ligne \n).
@@ -384,7 +388,12 @@ STYLE :
     📌 Pantalon Alba : 99 DT
     📌 Pull Timeless : 89 DT
     T7eb nab3athlek tsawerhom ? »
-  · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
+  · COULEURS ET TAILLES (V13.4) : UNE LIGNE PAR COULEUR, qui commence par la couleur avec une majuscule, puis SEULEMENT les tailles disponibles de cette couleur. Jamais le mot « épuisée » ni de remarque entre parenthèses sur le stock : une taille épuisée n'est simplement pas écrite. Exemple pour un cardigan :
+    « Cardigan 79dt
+    Blanc cassé : taille 1 (XS/S/M)
+    Noir : taille 1 (XS/S/M) et taille 2 (L/XL/XXL) »
+    En derja, même chose : « Noir : taille 1 w taille 2 ».
+    Si toutes les couleurs ont les mêmes tailles, une seule ligne « Couleurs : noir, beige » puis « Tailles : 36 / 38 / 40 » suffit.
   · Pose une question seulement si elle aide vraiment à avancer (taille ? couleur ?). Pas de question à chaque message.
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
 - PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
@@ -567,6 +576,8 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     await envoyerTexte(env, idCliente, r.reponse);
     etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
     console.log('Robot : conversation passée à l\'équipe', canal, idCliente);
+    // V13.4 : étiquette dans la boîte de réception pour que l'équipe la trouve vite
+    if (canal === 'facebook') await etiqueterPourEquipe(env, idCliente);
     return;
   }
   if (action === 'annuler') {
@@ -834,6 +845,33 @@ async function appelGraph(env, chemin, corps) {
   } catch (e) {
     console.error('Robot : Meta injoignable', e && e.message);
     return null;
+  }
+}
+
+// V13.4 : étiquette « À traiter par l'équipe » (Messenger seulement : Meta ne
+// propose pas d'étiquettes par l'API pour Instagram). L'identifiant de
+// l'étiquette est cherché une fois (ou créé), puis gardé en mémoire KV 30 jours.
+// En cas de refus de Meta : simple ligne dans le journal, la cliente n'est pas gênée.
+const NOM_ETIQUETTE_EQUIPE = 'Robot : à traiter par l\'équipe';
+async function etiqueterPourEquipe(env, idCliente) {
+  try {
+    let idEtiquette = await env.CHATBOT_ETAT.get('etiquette:equipe');
+    if (!idEtiquette) {
+      const liste = await appelGraph(env, '/me/custom_labels?fields=page_label_name&limit=100');
+      const trouvee = liste && Array.isArray(liste.data) && liste.data.find(l => l.page_label_name === NOM_ETIQUETTE_EQUIPE);
+      if (trouvee) idEtiquette = trouvee.id;
+      else {
+        const creee = await appelGraph(env, '/me/custom_labels?page_label_name=' + encodeURIComponent(NOM_ETIQUETTE_EQUIPE), {});
+        idEtiquette = creee && creee.id;
+      }
+      if (!idEtiquette) return;
+      await env.CHATBOT_ETAT.put('etiquette:equipe', String(idEtiquette), { expirationTtl: 30 * 86400 });
+    }
+    const ok = await appelGraph(env, '/' + encodeURIComponent(idEtiquette) + '/label?user=' + encodeURIComponent(idCliente), {});
+    if (ok) console.log('Robot : étiquette équipe posée', idCliente);
+    else await env.CHATBOT_ETAT.delete('etiquette:equipe'); // étiquette peut-être supprimée : on la recherchera
+  } catch (e) {
+    console.error('Robot : étiquette impossible', e && e.message);
   }
 }
 
