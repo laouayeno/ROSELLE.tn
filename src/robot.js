@@ -252,6 +252,8 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   // le code n'envoie QUE les photos de ce type (l'IA avait envoyé des
   // pantalons pour « فما مراول ؟ » = vous avez des pulls ?).
   reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
+  // V14.6 : questions fréquentes où l'IA parlait mal ou inventait : réponse du CODE
+  reponsesFixes(entree.texte, reponseIA, etat);
 
   // g) Le code vérifie et applique
   await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils, entree.texte);
@@ -385,7 +387,7 @@ STYLE :
   · « tnajem tab3ath li tsawer ? » / « ab3athli tsawer » / « warini » = la cliente DEMANDE qu'on lui envoie des photos → envoie les photos (champ « photos »), ne lui dis pas qu'elle peut envoyer des photos.
   · « manahkich francais » / « ma nefhemch francais » / « ahki b tounsi » = elle ne parle pas français → à partir de là, réponds UNIQUEMENT en derja (arabizi), plus un seul mot de français à part taille, couleur, livraison.
   · « chnowa 3andkom ? » / « chnowa famma ? » = qu'est-ce que vous avez → présente les articles en liste + photos.
-  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (pas de délai promis : l'équipe appelle).
+  · « 9adech el livraison ? » = combien coûte la livraison. « wa9tech twosel ? » = quand ça arrive (48 h, après l'appel de confirmation).
   · « n7eb nchouf » = je veux voir → photos. « mte3i » / « mte3ek » = le mien / le tien. « 3andi » = j'ai. « ma3andich » = je n'ai pas.
   · « theb » est tunisien pour « tu veux » (t7eb) ; ne réponds jamais avec du marocain comme « ach ».
   · « klem mech mafhoum » / « mafhemtekch » / « ma fhemtch » = elle n'a pas compris ta phrase → redis-le PLUS SIMPLEMENT EN DERJA (phrases plus courtes), JAMAIS en passant au français.
@@ -452,7 +454,7 @@ STYLE :
 
 RÈGLES (très importantes) :
 - Prix, couleurs, tailles et disponibilités : UNIQUEMENT ceux de la liste ci-dessous. N'invente jamais. Taille « épuisée » = pas disponible.
-- Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
+- Livraison partout en Tunisie : ${catalogue.frais} DT. Délai : livraison en 48 h, après l'appel de confirmation de l'équipe (« El livraison fi 48 se3a, estanna el moukelma mta3 el confirmation »).
 - Site avec tous les modèles : https://rosellesite.com
 - Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet Cardigan Céleste 79dt\n📌 Pantalon The Céleste Barrel Jeans 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon Céleste Barrel Jeans, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
@@ -868,6 +870,35 @@ function motSimple(nom, categorie) {
   for (const t of TYPES_ARTICLES) if (t.mots.test(String(categorie || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
   for (const t of TYPES_ARTICLES) if (t.mots.test(String(nom || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
   return '';
+}
+
+// V14.6 (Oussama : « la langue est grave ») : pour les questions fréquentes,
+// le CODE écrit la réponse, en vrai tunisien, sans rien inventer.
+//  - vente en gros → toujours l'équipe (l'IA avait répondu « on ne vend pas en gros ») ;
+//  - délai de livraison → phrase fixe, aucun délai promis.
+const MOTS_GROS = /(?<![\p{L}])(gros|grossiste|grossistes|jomla|jumla|bel ?jomla|en gros)(?![\p{L}])|بالجملة|الجملة|جملة/iu;
+const MOTS_DELAI = /(wa9tech|wa9teh|wakteh|waktech|wa9t?ach|9adeh men nhar|9adech men nhar|quand|délai|delai|combien de (jours|temps)|وقتاش|وقتاه|قداش من نهار)/iu;
+const MOTS_LIVRAISON = /(tousel|tosel|twosel|youssel|yousel|yosel|ywosel|tji|yji|arriv|livr|colis|kolis|commande|توصل|يوصل|تجي|يجي|الكوليس|الكومند|الكوموند|التوصيل)/iu;
+const TEXTE_DELAI = {
+  // Texte voulu par Oussama (28/11) : livraison en 48 h + attendre l'appel de confirmation
+  arabizi: 'El livraison fi 48 se3a 🌸 Estanna el moukelma mta3 el confirmation.',
+  arabe: 'التوصيل في 48 ساعة 🌸 استنى المكالمة متاع التأكيد.',
+  francais: "La livraison se fait en 48 h 🌸 Attendez l'appel de confirmation."
+};
+function reponsesFixes(texte, r, etat) {
+  const t = String(texte || '');
+  if (!t || r.action === 'confirmer' || r.action === 'demander_confirmation' || r.action === 'annuler') return;
+  if (MOTS_GROS.test(t)) {
+    console.log('Robot : vente en gros → équipe');
+    r.action = 'humain';
+    r.photos = [];
+    return;
+  }
+  if (r.action !== 'humain' && MOTS_DELAI.test(t) && MOTS_LIVRAISON.test(t)) {
+    console.log('Robot : délai de livraison → phrase fixe');
+    r.reponse = TEXTE_DELAI[etat.langue] || TEXTE_DELAI.arabizi;
+    r.photos = [];
+  }
 }
 
 // V13.9 : note pour l'IA quand la cliente nomme UN type d'article
