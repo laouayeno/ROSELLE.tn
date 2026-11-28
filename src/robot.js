@@ -456,7 +456,7 @@ RÈGLES (très importantes) :
 - Site avec tous les modèles : https://rosellesite.com
 - Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet Cardigan Céleste 79dt\n📌 Pantalon The Céleste Barrel Jeans 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon Céleste Barrel Jeans, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
-- NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
+- NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. En lettres arabes : جيلي، سروال (جين = سروال جين)، مريول، روبة، سورية ; JAMAIS « بنطلون » (pas tunisien). Si la cliente demande un JEAN, ne propose que les jeans, pas les autres pantalons. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
 - BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
 - Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
@@ -817,7 +817,7 @@ const MOTS_TUNISIENS = [
   ['makaynch', 'ma famech'], ['makaynach', 'ma famech'], ['chhal', '9adech'], ['ch7al', '9adech'], ['safi', 'behi'],
   ['delwa2ti', 'tawa'], ['dilwa2ti', 'tawa'], ['keda', 'haka'], ['kida', 'haka'], ['3ayza', 't7eb'], ['ezzayek', 'chniya a7walek'], ['smah fi', 'sorry'], ['smahli fi', 'sorry'],
   // (lettres arabes)
-  ['دابا', 'توا'], ['بزاف', 'برشا'], ['بزّاف', 'برشا'], ['واخا', 'باهي'], ['بغيت', 'نحب'], ['بغيتي', 'تحب'],
+  ['دابا', 'توا'], ['البنطلون', 'السروال'], ['بنطلون', 'سروال'], ['البنطلونات', 'السراول'], ['تمام', 'باهي'], ['مليح', 'باهي'], ['بزاف', 'برشا'], ['بزّاف', 'برشا'], ['واخا', 'باهي'], ['بغيت', 'نحب'], ['بغيتي', 'تحب'],
   ['مزيان', 'باهي'], ['ديال', 'متاع'], ['ديالك', 'متاعك'], ['ديالي', 'متاعي'], ['كاين', 'فما'], ['كاينة', 'فما'], ['كاينين', 'فما'],
   ['ماكاينش', 'ما فماش'], ['شحال', 'قداش'], ['دلوقتي', 'توا'], ['كده', 'هكا'], ['عايزة', 'تحب'], ['ازيك', 'شنية أحوالك']
 ];
@@ -1213,13 +1213,31 @@ async function transcrireVocal(lien, env) {
     if (!r.ok) return null;
     const octets = new Uint8Array(await r.arrayBuffer());
     if (!octets.length || octets.length > TAILLE_MAX_VOCAL) return null;
-    const resultat = await env.AI.run(MODELE_VOCAL, { audio: enBase64(octets) });
-    const texte = resultat && typeof resultat.text === 'string' ? resultat.text.trim() : '';
-    return texte ? texte.slice(0, 1000) : null;
+    const audio = enBase64(octets);
+    let resultat = await env.AI.run(MODELE_VOCAL, { audio });
+    let texte = resultat && typeof resultat.text === 'string' ? resultat.text.trim() : '';
+    // V14.5 : Whisper croit parfois entendre de l'islandais ou du bulgare quand
+    // la cliente parle derja (« Það með það í karóndt », « Тайка е рънт »).
+    // Si la langue trouvée n'est ni arabe, ni français, ni anglais, ou si le
+    // texte contient d'autres alphabets, on retranscrit en forçant l'arabe.
+    const langue = resultat && resultat.transcription_info && resultat.transcription_info.language;
+    if (texte && (vocalBizarre(texte) || (langue && !['ar', 'fr', 'en'].includes(langue)))) {
+      console.log('Robot : vocal retranscrit en arabe (langue trouvée : ' + (langue || '?') + ')');
+      resultat = await env.AI.run(MODELE_VOCAL, { audio, language: 'ar' });
+      texte = resultat && typeof resultat.text === 'string' ? resultat.text.trim() : '';
+    }
+    if (!texte || vocalBizarre(texte)) return null;
+    return texte.slice(0, 1000);
   } catch (e) {
     console.error('Robot : transcription vocale', e && e.message);
     return null;
   }
+}
+
+// V14.5 : texte avec des lettres qui ne sont ni latines (français, arabizi)
+// ni arabes = transcription ratée (cyrillique, grec, þ ð æ ø…)
+function vocalBizarre(texte) {
+  return /[\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF\u0900-\u0DFF\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]|[þðæøåÞÐÆØÅ]/.test(String(texte || ''));
 }
 
 function enBase64(octets) {
