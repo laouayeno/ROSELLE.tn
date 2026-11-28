@@ -454,9 +454,9 @@ RÈGLES (très importantes) :
 - Prix, couleurs, tailles et disponibilités : UNIQUEMENT ceux de la liste ci-dessous. N'invente jamais. Taille « épuisée » = pas disponible.
 - Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
 - Site avec tous les modèles : https://rosellesite.com
-- Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet 79dt\n📌 Pantalon 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
+- Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. V14.4 : si la photo de la cliente montre DEUX articles qu'on vend (ex. cardigan + jean), donne les deux avec leurs prix (« 📌 Gilet Cardigan Céleste 79dt\n📌 Pantalon The Céleste Barrel Jeans 99dt ») puis demande si elle veut l'un ou les deux (« T7eb el zouz walla wa7ed ? »). Si la cliente demandait le prix, donne le prix dans la même réponse que le nom (ex. « Hedha el pantalon Céleste Barrel Jeans, b 99dt 🌸 Hedha howa ? »). V14.4 : si la cliente dit une couleur que l'article reconnu n'a PAS (ex. « bleu » pour un cardigan blanc cassé/noir), tu t'es sûrement trompée d'article : cherche un autre article de cette couleur (ex. bleu = un jean) et propose-le avec sa photo (« Ah, el jean ? Hedha ? 👇 »), au lieu de dire « ma3andnach ». Article absent de la liste = « pas disponible pour le moment ».
 - PRIX SEULEMENT POUR LE BON ARTICLE (V13.3, demande d'Oussama, règle n°1) : ne donne JAMAIS un prix tant que tu ne sais pas EXACTEMENT de quel article parle la cliente. Si elle demande « prix ? », « 9adech ? », « بقداش ؟ » sans que l'article soit clair (pas de photo, pas de story, pas de nom précis, pas d'article déjà confirmé dans la conversation), ne donne aucun prix : demande-lui gentiment quel article l'intéresse, par exemple « Anahou l'article ? Ab3athli taswira walla capture 🌸 » / « Quel article vous intéresse ? Envoyez-moi une photo ou une capture 🌸 ». Ne donne pas non plus la liste de tous les prix à la place. Quand l'article est sûr, donne SON prix seulement.
-- NOMS SIMPLES (V14.4, demandé par Oussama) : en parlant à la cliente, N'UTILISE PAS le nom exact de l'article (« Cardigan Céleste », « The Léonie Barrel Jeans »…) : beaucoup de clientes ne le comprennent pas. Dis le mot simple du type : gilet (cardigan), pantalon (pantalon ET jean), pull / marioul, robe / rouba, chemise / souriya, en derja avec « el » (« el gilet », « el pantalon »). Si deux articles du même type existent, distingue-les par la couleur ou un détail simple (« el pantalon el bleu foncé ») et envoie leurs photos. Le nom exact ne sert que dans la fiche (champ articles).
+- NOMS CLAIRS (V14.4, demandé par Oussama) : beaucoup de clientes ne comprennent pas le nom exact seul. Dis TOUJOURS le mot simple du type PUIS le nom exact : « el gilet Cardigan Céleste », « el pantalon Timeless Pants », « el marioul Pull Eline ». Mots simples : gilet (cardigan), pantalon (pantalon ET jean), marioul / pull, rouba / robe, souriya / chemise. Si le nom commence déjà par ce mot (« Robe Rosa »), ne le répète pas.
 - BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
 - Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
@@ -838,11 +838,20 @@ function tunisianiser(texte) {
 // dit le mot simple du type (Pantalon, Gilet, Pull…). Sinon, le nom exact.
 const MOT_SIMPLE = { pull: 'Pull', pantalon: 'Pantalon', cardigan: 'Gilet', robe: 'Robe', chemise: 'Chemise', jupe: 'Jupe', short: 'Short', veste: 'Veste', 't-shirt': 'T-shirt', ensemble: 'Ensemble', pyjama: 'Pyjama', legging: 'Legging', abaya: 'Abaya', foulard: 'Foulard', chaussure: 'Chaussures', sac: 'Sac' };
 function nomSimple(nom, categorie) {
+  // V14.4 (Oussama : « je préfère dire les deux ») : mot simple + nom exact,
+  // ex. « Gilet Cardigan Céleste ». Pas de doublon si le nom commence déjà
+  // par ce mot (« Robe Rosa » reste « Robe Rosa »).
+  const nomExact = String(nom || '');
+  const mot = motSimple(nomExact, categorie);
+  if (!mot || sansAccents(nomExact).startsWith(sansAccents(mot))) return nomExact;
+  return mot + ' ' + nomExact;
+}
+function motSimple(nom, categorie) {
   const cat = sansAccents(String(categorie || ''));
   for (const t of TYPES_ARTICLES) if (cat && cat.includes(sansAccents(t.categorie)) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
   for (const t of TYPES_ARTICLES) if (t.mots.test(String(categorie || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
   for (const t of TYPES_ARTICLES) if (t.mots.test(String(nom || '')) && MOT_SIMPLE[t.categorie]) return MOT_SIMPLE[t.categorie];
-  return String(nom || '');
+  return '';
 }
 
 // V13.9 : note pour l'IA quand la cliente nomme UN type d'article
@@ -856,7 +865,7 @@ function noteTypeDemande(texte, catalogue) {
     return `- ${cat.toUpperCase()} : ${duType.map(a => `Article n°${a.numero} (${a.nom})`).join(', ')}. Ils EXISTENT : ne dis JAMAIS qu'on n'en a pas.`;
   });
   return 'NOTE DU SYSTÈME (sûre, le code a reconnu les mots de la cliente) : elle parle de ces types d\'articles :\n' + lignes.join('\n') +
-    '\nRéponds seulement avec ces articles-là (mot simple du type + prix, pas le nom exact) et mets dans photos ceux dont elle veut voir les photos. Ne parle pas des autres types.';
+    '\nRéponds seulement avec ces articles-là (mot simple du type + nom exact + prix) et mets dans photos ceux dont elle veut voir les photos. Ne parle pas des autres types.';
 }
 
 // V13.8 : la cliente redemande clairement des photos
