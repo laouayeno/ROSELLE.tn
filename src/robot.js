@@ -222,7 +222,16 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   if (!catalogue.articles.length) return;
 
   // f) L'IA lit tout et propose sa réponse + la fiche
-  const reponseIA = await demanderIA(env, catalogue, etat, entree);
+  // V13.6 : c'est le CODE qui décide la langue de la réponse (l'IA se trompait
+  // parfois et passait au français). Si l'IA répond quand même dans une autre
+  // langue, on lui redemande une seule fois.
+  etat.langue = langueDeLaCliente(entree.texte, etat.langue);
+  let reponseIA = await demanderIA(env, catalogue, etat, entree);
+  if (reponseIA && CONSIGNE_LANGUE[reponseIA.langue] && reponseIA.langue !== etat.langue) {
+    console.log('Robot : mauvaise langue', reponseIA.langue, '→ nouvel essai en', etat.langue);
+    const second = await demanderIA(env, catalogue, etat, entree, true);
+    if (second) reponseIA = second;
+  }
   if (!reponseIA) return; // erreur IA : silence, l'équipe répondra
 
   // g) Le code vérifie et applique
@@ -425,7 +434,7 @@ FICHE ACTUELLE : ${fiche}
 ÉTAPE : ${etat.etape === 'attente_confirmation' ? 'récapitulatif envoyé, on attend le oui de la cliente' : 'discussion'}`;
 }
 
-async function demanderIA(env, catalogue, etat, entree) {
+async function demanderIA(env, catalogue, etat, entree, insister) {
   // Historique : texte seulement (les anciennes photos ne sont pas renvoyées)
   const messages = [];
   for (const m of etat.historique) {
@@ -448,6 +457,8 @@ async function demanderIA(env, catalogue, etat, entree) {
     for (const img of entree.images) contenu.push({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.donnees } });
   }
   contenu.push({ type: 'text', text: 'Message de la cliente :\n' + (entree.texte || '(photo)') });
+  // V13.6 : langue imposée par le code
+  if (etat.langue) contenu.push({ type: 'text', text: CONSIGNE_LANGUE[etat.langue] + (insister ? ' ATTENTION : ta réponse précédente n\'était pas dans la bonne langue. Réécris-la entièrement dans cette langue.' : '') });
   const dernier = messages[messages.length - 1];
   if (dernier && dernier.role === 'user') dernier.content.push(...contenu);
   else messages.push({ role: 'user', content: contenu });
@@ -507,6 +518,29 @@ let photosReferenceCache = null; // { cle, liste } gardé tant que le Worker res
 let outilsPhotos = null;
 // V13.3 : coupe un texte en lignes courtes (une phrase par ligne, une ligne par 📌).
 // Ne coupe pas les liens ni les nombres (« 79.5 », « https://… »).
+/* ---------- V13.6 : langue de la cliente, décidée par le code ----------
+   - lettres arabes → arabe
+   - mots de derja (b9adech, mafhemtech, n7eb, brabi, 3aslema…) ou chiffres
+     3/7/9 dans un mot → arabizi (derja)
+   - vraie phrase française (je, vous, bonjour, combien…) → français
+   - message trop court pour savoir (« Prix gilet », « ok ») → on garde la
+     langue d'avant ; au tout début, derja (comme l'équipe Roselle). */
+const MOTS_DERJA = /\b(3aslema|aslema|asslema|salam|slm|b9adech|9adech|b9adach|bkadech|bkadeh|9adeh|kadeh|chnowa|chnoua|chnia|chniya|chnw|famma|fama|famech|mafamech|mech|mouch|manich|mafhemtech|mafhamtch|mafhemt|fhemt|n7eb|nheb|n7ebb|t7eb|theb|t7ebi|brabi|barabi|ya3tik|y3aychek|3aychek|ey|ih|eyh|la2|lee|lela|kifech|kifach|wa9tech|wakteh|waktech|chkoun|kol|zeda|zada|taw|tawa|bech|bch|nchouf|tchouf|ab3ath|ab3athli|ab3thli|ba3th|lezem|yesser|barcha|chwaya|nekhou|nakhou|nakhdh|n5ou|nkalem|7ad|7aja|hedha|hedhi|hedhom|hethom|hadha|haka|hka|chbih|chbik|3la|3and|3andi|3andek|mte3|mta3|mtaa|ena|enti|inti|nti|ama|wala|walla|serwel|sarwel|dispo\?)\b/i;
+const MOTS_FRANCAIS = /\b(je|j'|vous|votre|vos|bonjour|bonsoir|merci|combien|quel|quelle|quels|est-ce|est|pourquoi|comment|voudrais|veux|voulez|avez|avoir|pouvez|peux|svp|s'il|madame|livraison|taille|disponible|couleur)\b/gi;
+function langueDeLaCliente(texte, langueAvant) {
+  const t = String(texte || '');
+  if (/[\u0600-\u06FF]/.test(t)) return 'arabe';
+  if (MOTS_DERJA.test(t) || /[a-z][379][a-z]|\b[379][a-z]{2,}/i.test(t)) return 'arabizi';
+  const francais = (t.match(MOTS_FRANCAIS) || []).length;
+  if (francais >= 2 && t.trim().split(/\s+/).length >= 4) return 'francais';
+  return langueAvant || 'arabizi';
+}
+const CONSIGNE_LANGUE = {
+  arabizi: 'LANGUE OBLIGATOIRE (décidée par le code) : derja tunisienne en lettres latines (arabizi), comme l\'équipe Roselle. Champ « langue » = arabizi. Pas une phrase en français (seuls les noms d\'articles, tailles et couleurs peuvent rester en français).',
+  arabe: 'LANGUE OBLIGATOIRE (décidée par le code) : derja tunisienne en lettres arabes. Champ « langue » = arabe.',
+  francais: 'LANGUE OBLIGATOIRE (décidée par le code) : français simple. Champ « langue » = francais.'
+};
+
 // V13.5 : retire la salutation au début de la réponse (3aslema, عسلامة, Bonjour…),
 // avec l'émoji et la ponctuation qui la suivent. Si la réponse ne contenait
 // qu'une salutation, on la garde telle quelle (pour ne pas envoyer un message vide).
@@ -940,7 +974,9 @@ async function lireEtat(env, cle) {
     etape: etat.etape === 'attente_confirmation' ? 'attente_confirmation' : 'discussion',
     numeroCommande: Number.isInteger(etat.numeroCommande) ? etat.numeroCommande : 0,
     session: typeof etat.session === 'string' && /^[0-9a-z]{1,12}$/.test(etat.session) ? etat.session : Date.now().toString(36),
-    pauseJusqua: Number(etat.pauseJusqua) || 0
+    pauseJusqua: Number(etat.pauseJusqua) || 0,
+    // V13.6 : langue de la cliente retenue pour toute la conversation
+    langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : ''
   };
 }
 async function ecrireEtat(env, cle, etat) {
