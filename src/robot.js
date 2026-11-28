@@ -45,6 +45,7 @@ const MODELE_VOCAL = '@cf/openai/whisper-large-v3-turbo';
 
 const DUREE_CONVERSATION = 24 * 3600;       // fiche gardée 24 h après le dernier message
 const PAUSE_HUMAIN_MS = 12 * 3600 * 1000;   // robot muet 12 h après une reprise par l'équipe
+const DELAI_ECHO_AUTO_MS = 20 * 1000;       // V13.1 : écho < 20 s après la cliente = réponse automatique de Meta
 const MAX_HISTORIQUE = 16;                  // messages gardés pour le contexte de l'IA
 const TAILLE_MAX_IMAGE = 4 * 1024 * 1024;   // 4 Mo (photo de cliente)
 const TAILLE_MAX_VOCAL = 8 * 1024 * 1024;   // 8 Mo (environ 5 minutes)
@@ -132,15 +133,27 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
 
   // a) Écho = message envoyé PAR la page. S'il ne vient pas du robot,
   //    c'est l'équipe qui répond à la main : le robot se tait 12 h.
+  //    V13.1 : SAUF le message d'accueil automatique de Meta (« Réponse
+  //    automatique » de Meta Business Suite). Il part tout seul 1 ou 2 s
+  //    après le message de la cliente : un écho qui arrive moins de
+  //    DELAI_ECHO_AUTO_MS après le dernier message de la cliente n'est donc
+  //    pas une vraie réponse de l'équipe (aucun humain n'écrit aussi vite).
   if (message && message.is_echo) {
     const idCliente = String(ev.recipient.id || '');
     if (!idValable(idCliente) || !message.mid) return;
+    if (!clienteAutorisee(env, idCliente)) return;
     const duRobot = message.metadata === 'robot-roselle' || (await env.CHATBOT_ETAT.get('envoye:' + message.mid));
     if (duRobot) return;
-    const cle = cleConversation(canal, idCliente);
-    const etat = await lireEtat(env, cle);
-    etat.pauseJusqua = Date.now() + PAUSE_HUMAIN_MS;
-    await ecrireEtat(env, cle, etat);
+    const heureEcho = Number(ev.timestamp) || Date.now();
+    const heureCliente = Number(await env.CHATBOT_ETAT.get(cleDerniereCliente(canal, idCliente))) || 0;
+    if (heureCliente && heureEcho - heureCliente >= 0 && heureEcho - heureCliente < DELAI_ECHO_AUTO_MS) {
+      console.log('Robot : réponse automatique de Meta ignorée', canal, idCliente, 'app', String(message.app_id || '-'));
+      return;
+    }
+    // Pause rangée dans une clé à part : la réponse du robot en cours
+    // (qui réécrit la conversation) ne peut pas l'effacer par erreur.
+    await env.CHATBOT_ETAT.put(clePause(canal, idCliente), '1', { expirationTtl: PAUSE_HUMAIN_MS / 1000 });
+    console.log('Robot : l\'équipe a répondu, robot en pause 12 h', canal, idCliente, 'app', String(message.app_id || '-'));
     return;
   }
 
@@ -152,6 +165,13 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
     console.log('Robot : message ignoré (mode test), expéditeur', canal, idCliente);
     return;
   }
+
+  // Heure du dernier message de la cliente (sert à reconnaître la réponse
+  // automatique de Meta, voir a). Écrite tout de suite, avant l'IA.
+  await env.CHATBOT_ETAT.put(cleDerniereCliente(canal, idCliente), String(Number(ev.timestamp) || Date.now()), { expirationTtl: 86400 });
+
+  // Équipe en train de répondre à la main : le robot se tait
+  if (await env.CHATBOT_ETAT.get(clePause(canal, idCliente))) return;
 
   // c) Anti-doublon : Meta peut renvoyer le même message
   const idMessage = String((message && message.mid) || (postback && postback.mid) || '');
@@ -731,6 +751,8 @@ function enBase64(octets) {
 
 /* ---------- Mémoire des conversations (KV CHATBOT_ETAT, 24 h) ---------- */
 function cleConversation(canal, idCliente) { return 'conv:' + canal + ':' + idCliente; }
+function clePause(canal, idCliente) { return 'pause:' + canal + ':' + idCliente; }
+function cleDerniereCliente(canal, idCliente) { return 'cliente:' + canal + ':' + idCliente; }
 async function lireEtat(env, cle) {
   const e = await env.CHATBOT_ETAT.get(cle, 'json').catch(() => null);
   const etat = e && typeof e === 'object' ? e : {};
