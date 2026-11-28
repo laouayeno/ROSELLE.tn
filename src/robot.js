@@ -367,7 +367,7 @@ STYLE :
   · Pour les tailles ou couleurs d'un article : une ligne « Tailles : 36 / 38 / 40 » et une ligne « Couleurs : noir, beige ».
   · Termine par UNE question simple pour avancer (taille ? couleur ? commander ?).
   · Maximum 6 lignes. Explique clairement, sans phrases inutiles.
-- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message : écris par exemple « Hethom tsawer 👇 ». Ne dis jamais que tu ne peux pas envoyer de photos.
+- PHOTOS : quand la cliente demande des photos, veut voir, ou quand tu proposes des articles, remplis « photos » (numéro + couleur, 3 maximum). Les photos partent juste après ton message, et sous CHAQUE photo le code écrit automatiquement « 📌 nom : prix ». Donc quand tu envoies des photos, ne répète pas la liste des prix dans ton message : écris juste une phrase courte, par exemple « Hethom tsawer 👇 », et après les photos ta question n'est pas nécessaire. Ne dis jamais que tu ne peux pas envoyer de photos.
 - Ton chaleureux et naturel, un emoji de temps en temps (🌸 💕).
 - Ne dis jamais que tu es une IA ou un robot, sauf si la cliente le demande directement : alors réponds honnêtement que c'est un assistant automatique de la boutique.
 - Ne parle PAS du paiement à la livraison, sauf si la cliente pose la question (réponse : oui, paiement à la livraison).
@@ -377,6 +377,7 @@ RÈGLES (très importantes) :
 - Livraison partout en Tunisie : ${catalogue.frais} DT. Ne promets pas de délai : l'équipe appelle la cliente pour confirmer.
 - Site avec tous les modèles : https://rosellesite.com
 - Photo, capture ou story : compare avec les photos de référence « Article n°X ». Si tu reconnais l'article, mets-le dans la fiche (numéro + couleur vue si possible) et dis son nom et son prix. Si tu n'es pas sûre, demande gentiment de préciser. Une photo peut montrer plusieurs articles (ex. pantalon + pull) : donne les deux. Article absent de la liste = « pas disponible pour le moment ».
+- BIEN IDENTIFIER L'ARTICLE (V13.3, très important) : avant de demander la taille, la couleur ou les coordonnées, sois SÛRE de l'article que la cliente veut. Si ce n'est pas clair (plusieurs articles du même genre, « el pantalon » alors qu'il y en a 2, photo pas nette, message vague), demande-lui lequel en envoyant les photos des articles possibles (champ « photos ») : « Hedha walla hedha ? 👇 » / « Lequel vous plaît ? 👇 ». Quand tu reconnais un article sur sa photo, demande-lui de confirmer : « Hedha howa ? 🌸 » / « C'est bien celui-ci ? ». N'ajoute un article à la fiche que quand tu es sûre.
 - Si la cliente veut commander, remplis la fiche petit à petit : articles (numéro, couleur, taille, quantité), nom et prénom, téléphone (8 chiffres), gouvernorat (code de la liste), ville ou délégation, adresse. Demande seulement ce qui manque, 1 ou 2 infos à la fois.
 - Quand TOUT est rempli et que la cliente veut commander : action « demander_confirmation » (le récapitulatif est envoyé automatiquement, ne le répète pas, écris juste une phrase courte ou rien).
 - Quand la cliente dit oui / je confirme / ok après le récapitulatif : action « confirmer ».
@@ -522,7 +523,7 @@ async function appliquerReponseIA(canal, idCliente, etat, r, catalogue, env, ctx
     const couleur = art && (art.couleurs.find(c => c.couleur === ligne.couleur) || art.couleurs[0]);
     if (couleur && couleur.photoGrande && !dejaEnvoyees.has(couleur.photoGrande)) {
       dejaEnvoyees.add(couleur.photoGrande);
-      await envoyerImage(env, idCliente, couleur.photoGrande);
+      await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
     }
   }
 
@@ -570,9 +571,17 @@ async function envoyerPhotosDemandees(env, idCliente, photos, catalogue, dejaEnv
     const couleur = (voulue && art.couleurs.find(c => String(c.couleur).toLowerCase() === voulue)) || art.couleurs[0];
     if (!couleur || !couleur.photoGrande || dejaEnvoyees.has(couleur.photoGrande)) continue;
     dejaEnvoyees.add(couleur.photoGrande);
-    await envoyerImage(env, idCliente, couleur.photoGrande);
+    await envoyerPhotoAvecPrix(env, idCliente, art, couleur);
     envoyees++;
   }
+}
+
+// V13.3 (demande d'Oussama) : chaque photo est suivie, juste en dessous,
+// du nom de l'article, de sa couleur et de son prix (prix toujours tiré du catalogue)
+async function envoyerPhotoAvecPrix(env, idCliente, art, couleur) {
+  await envoyerImage(env, idCliente, couleur.photoGrande);
+  const nomCouleur = art.couleurs.length > 1 && couleur.couleur ? ' (' + couleur.couleur + ')' : '';
+  await envoyerTexte(env, idCliente, '📌 ' + art.nom + nomCouleur + ' : ' + art.prix + ' DT');
 }
 
 function verifierLigne(l, catalogue) {
