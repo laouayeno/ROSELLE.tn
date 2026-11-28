@@ -228,7 +228,7 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
 
   // e) Ce que la cliente a envoyé : texte, photos, vocal, réponse à une story
   const entree = await lireContenuCliente(message, postback, env);
-  if (!entree.texte && !entree.images.length) return;
+  if (!entree.texte && !entree.images.length && !entree.vocalIncompris) return;
 
   const catalogue = await outils.lireCatalogue();
   if (!catalogue.articles.length) return;
@@ -238,7 +238,15 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   // parfois et passait au français). Si l'IA répond quand même dans une autre
   // langue, on lui redemande une seule fois.
   etat.langue = langueDeLaCliente(entree.texte, etat.langue);
-  let reponseIA = await demanderIA(env, catalogue, etat, entree);
+  // V14.6 (Oussama) : vocal pas compris → on demande d'écrire ; si elle
+  // renvoie un vocal qu'on ne comprend toujours pas → l'équipe prend la main.
+  // (Vocal illisible seul : pas d'appel à l'IA, rien à lui faire lire.)
+  let reponseIA;
+  if (entree.vocalIncompris && !entree.texte && !entree.images.length) {
+    reponseIA = reponseDuCode(etat, 'discuter', '');
+  } else {
+    reponseIA = await demanderIA(env, catalogue, etat, entree);
+  }
   if (reponseIA && CONSIGNE_LANGUE[reponseIA.langue] && reponseIA.langue !== etat.langue) {
     console.log('Robot : mauvaise langue', reponseIA.langue, '→ nouvel essai en', etat.langue);
     const second = await demanderIA(env, catalogue, etat, entree, true);
@@ -254,6 +262,7 @@ async function traiterMessage(canal, idCompte, ev, env, ctx, outils) {
   reponseIA.photos = photosDuBonType(entree.texte, reponseIA.photos, catalogue);
   // V14.6 : questions fréquentes où l'IA parlait mal ou inventait : réponse du CODE
   reponsesFixes(entree.texte, reponseIA, etat);
+  vocalPasCompris(entree, reponseIA, etat);
 
   // g) Le code vérifie et applique
   await appliquerReponseIA(canal, idCliente, etat, reponseIA, catalogue, env, ctx, outils, entree.texte);
@@ -271,6 +280,7 @@ async function lireContenuCliente(message, postback, env) {
   const morceaux = [];
   const resume = [];
   const images = [];
+  let aVocal = false, vocalIncompris = false;
   if (postback && postback.title) { morceaux.push(String(postback.title)); resume.push(String(postback.title)); }
   if (message && typeof message.text === 'string' && message.text.trim()) {
     morceaux.push(message.text.trim().slice(0, 1000));
@@ -290,8 +300,9 @@ async function lireContenuCliente(message, postback, env) {
     if (!lien) continue;
     if (piece.type === 'audio') {
       const texte = await transcrireVocal(lien, env);
+      aVocal = true;
       if (texte) { morceaux.push('[Vocal transcrit] ' + texte); resume.push('[vocal] ' + texte.slice(0, 300)); }
-      else { morceaux.push('[Vocal impossible à comprendre]'); resume.push('[vocal incompris]'); }
+      else { vocalIncompris = true; resume.push('[vocal incompris]'); }
     } else if (piece.type === 'image' || piece.type === 'share' || piece.type === 'ig_reel' || piece.type === 'story_mention') {
       const img = await telechargerImage(lien);
       if (img) { images.push(img); resume.push('[photo]'); }
@@ -300,7 +311,7 @@ async function lireContenuCliente(message, postback, env) {
     }
   }
   if (images.length && !morceaux.length) morceaux.push('(Photo envoyée sans texte.)');
-  return { texte: morceaux.join('\n'), images: images.slice(0, 3), resume: resume.join(' ') || '[message]' };
+  return { texte: morceaux.join('\n'), images: images.slice(0, 3), resume: resume.join(' ') || '[message]', aVocal, vocalIncompris };
 }
 
 /* ---------- L'IA ---------- */
@@ -885,6 +896,38 @@ const TEXTE_DELAI = {
   arabe: 'التوصيل في 48 ساعة 🌸 استنى المكالمة متاع التأكيد.',
   francais: "La livraison se fait en 48 h 🌸 Attendez l'appel de confirmation."
 };
+// V14.6 : réponse fabriquée par le code (sans IA), fiche inchangée
+function reponseDuCode(etat, action, texte) {
+  const f = etat.fiche;
+  return { comprehension: 'réponse du code', langue: etat.langue || 'arabizi', reponse: texte, photos: [], action,
+    articles: null, nom: f.nom, telephone: f.telephone, gouvernorat: f.gouvernorat, ville: f.ville, adresse: f.adresse };
+}
+
+// V14.6 (Oussama) : vocal pas compris → « tnajem tekteb ? », 2e fois → équipe
+const TEXTE_ECRIRE = {
+  arabizi: "Sorry 🌸 ma fhemtch el vocal. Tnajem tekteb brabi ?",
+  arabe: 'سامحني 🌸 ما فهمتش الفوكال. تنجم تكتب بربي ؟',
+  francais: "Désolée 🌸 je n'ai pas bien compris le vocal. Pouvez-vous l'écrire s'il vous plaît ?"
+};
+const PHRASE_PAS_COMPRIS = /ma ?fhemt|mafhemt|ما فهمت|مافهمت|pas (bien )?compris|n'ai pas compris/i;
+function vocalPasCompris(entree, r, etat) {
+  if (!entree.aVocal) { etat.vocauxIncompris = 0; return; }
+  const incompris = (entree.vocalIncompris && !entree.texte && !entree.images.length) ||
+    (r.action !== 'humain' && PHRASE_PAS_COMPRIS.test(String(r.reponse || '')));
+  if (!incompris) { etat.vocauxIncompris = 0; return; }
+  etat.vocauxIncompris = (etat.vocauxIncompris || 0) + 1;
+  r.photos = [];
+  if (etat.vocauxIncompris >= 2) {
+    console.log('Robot : 2e vocal pas compris → équipe');
+    r.action = 'humain';
+    etat.vocauxIncompris = 0;
+  } else {
+    console.log('Robot : vocal pas compris → on demande d\'écrire');
+    r.action = 'discuter';
+    r.reponse = TEXTE_ECRIRE[etat.langue] || TEXTE_ECRIRE.arabizi;
+  }
+}
+
 // Échange (règle d'Oussama, 28/11) : possible sous 15 jours, article neuf
 const MOTS_ECHANGE = /(?<![\p{L}])(échange|echange|échanger|echanger|exchange|n?t?badd?el|nbadlou|tbadlou|badd?el|retour|rajja3|nraja3|traja3)(?![\p{L}])|تبديل|نبدل|تبدل|نبدلو|بدّل|نرجع|ترجيع/iu;
 const TEXTE_ECHANGE = {
@@ -1354,7 +1397,9 @@ async function lireEtat(env, cle) {
     // V13.6 : langue de la cliente retenue pour toute la conversation
     langue: ['arabizi', 'arabe', 'francais'].includes(etat.langue) ? etat.langue : '',
     // V13.8 : photos déjà envoyées dans cette conversation (adresse → heure)
-    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {}
+    photosEnvoyees: etat.photosEnvoyees && typeof etat.photosEnvoyees === 'object' ? etat.photosEnvoyees : {},
+    // V14.6 : vocaux pas compris d'affilée (au 2e, la discussion passe à l'équipe)
+    vocauxIncompris: Number.isInteger(etat.vocauxIncompris) ? etat.vocauxIncompris : 0
   };
 }
 async function ecrireEtat(env, cle, etat) {
